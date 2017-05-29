@@ -47,3 +47,7 @@ prof
 .idea/
 #macosx
 .DS_Store
+
+*.tgz
+*.deb
+*-pak
