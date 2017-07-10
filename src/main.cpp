@@ -15,6 +15,7 @@
  ***********************************************************************/
 
 #include "AstAnalysis.h"
+#include "AstPragma.h"
 #include "AstProgram.h"
 #include "AstSemanticChecker.h"
 #include "AstTransformer.h"
@@ -111,6 +112,9 @@ int main(int argc, char** argv) {
                             {"generate", 'g', "FILE", "", false,
                                     "Only generate sources of compilable analysis and write it to <FILE>."},
                             {"no-warn", 'w', "", "", false, "Disable warnings."},
+                            {"magic-transform", 'm', "RELATIONS", "", false,
+                                    "Enable magic set transformation changes on the given relations, use '*' "
+                                    "for all."},
                             {"dl-program", 'o', "FILE", "", false,
                                     "Write executable program to <FILE> (without executing it)."},
                             {"profile", 'p', "FILE", "", false,
@@ -247,6 +251,9 @@ int main(int argc, char** argv) {
 
     // ------- rewriting / optimizations -------------
 
+    /* set up additional global options based on pragma declaratives */
+    (std::unique_ptr<AstTransformer>(new AstPragmaChecker()))->apply(*translationUnit);
+
     std::vector<std::unique_ptr<AstTransformer>> transforms;
     transforms.push_back(std::unique_ptr<AstTransformer>(new ComponentInstantiationTransformer()));
     transforms.push_back(std::unique_ptr<AstTransformer>(new UniqueAggregationVariablesTransformer()));
@@ -258,7 +265,21 @@ int main(int argc, char** argv) {
     transforms.push_back(std::unique_ptr<AstTransformer>(new MaterializeAggregationQueriesTransformer()));
     transforms.push_back(std::unique_ptr<AstTransformer>(new RemoveEmptyRelationsTransformer()));
     transforms.push_back(std::unique_ptr<AstTransformer>(new RemoveRedundantRelationsTransformer()));
+
+    if (Global::config().has("magic-transform")) {
+        transforms.push_back(std::unique_ptr<AstTransformer>(new NormaliseConstraintsTransformer()));
+        transforms.push_back(std::unique_ptr<AstTransformer>(new MagicSetTransformer()));
+
+        if (Global::config().get("bddbddb").empty()) {
+            transforms.push_back(std::unique_ptr<AstTransformer>(new ResolveAliasesTransformer()));
+        }
+        transforms.push_back(std::unique_ptr<AstTransformer>(new RemoveRelationCopiesTransformer()));
+        transforms.push_back(std::unique_ptr<AstTransformer>(new RemoveEmptyRelationsTransformer()));
+        transforms.push_back(std::unique_ptr<AstTransformer>(new RemoveRedundantRelationsTransformer()));
+    }
+
     transforms.push_back(std::unique_ptr<AstTransformer>(new AstExecutionPlanChecker()));
+
     if (Global::config().has("auto-schedule")) {
         transforms.push_back(std::unique_ptr<AstTransformer>(new AutoScheduleTransformer()));
     }
