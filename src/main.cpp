@@ -122,6 +122,7 @@ int main(int argc, char** argv) {
                             {"bddbddb", 'b', "FILE", "", false, "Convert input into bddbddb file format."},
                             {"debug-report", 'r', "FILE", "", false,
                                     "Write debugging output to HTML report."},
+                            {"provenance", 't', "", "", false, "Enable provenance information."},
                             {"verbose", 'v', "", "", false, "Verbose output."},
                             {"help", 'h', "", "", false, "Display this help message."}};
                     return std::vector<MainOption>(std::begin(opts), std::end(opts));

@@ -195,6 +195,9 @@ RamDomain eval(const RamValue& value, RamEnvironment& env, const EvalContext& ct
                 case BinaryOp::LOR: {
                     return visit(op.getLHS()) || visit(op.getRHS());
                 }
+                case BinaryOp::MAX: {
+                    return std::max(visit(op.getLHS()), visit(op.getRHS()));
+                }
 
                 // strings
                 case BinaryOp::CAT: {

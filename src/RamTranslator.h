@@ -57,7 +57,7 @@ public:
 
     /** generate RAM code for a clause */
     std::unique_ptr<RamStatement> translateClause(const AstClause& clause, const AstProgram* program,
-            const TypeEnvironment* typeEnv, int version = 0);
+            const TypeEnvironment* typeEnv, int version = 0, RamDomain clauseNum = 0);
 
     /**
      * Generates RAM code for the non-recursive clauses of the given relation.

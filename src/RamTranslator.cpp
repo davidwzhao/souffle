@@ -59,6 +59,7 @@ RamRelationIdentifier getRamRelationIdentifier(std::string name, unsigned arity,
     }
 
     assert(arity == rel->getArity());
+
     std::vector<std::string> attributeNames;
     std::vector<std::string> attributeTypeQualifiers;
     for (unsigned int i = 0; i < arity; i++) {
@@ -67,6 +68,20 @@ RamRelationIdentifier getRamRelationIdentifier(std::string name, unsigned arity,
             attributeTypeQualifiers.push_back(
                     getTypeQualifier(typeEnv->getType(rel->getAttribute(i)->getTypeName())));
         }
+    }
+
+    // add two columns to store provenance information, one storing
+    // rule number, and one storing iteration number
+    if (Global::config().has("provenance")) {
+        // arity += 2;
+
+        // add column denoting rule number
+        attributeNames.push_back("rule_number");
+        attributeTypeQualifiers.push_back("i:number");
+
+        // add column denoting iteration number
+        attributeNames.push_back("iteration_number");
+        attributeTypeQualifiers.push_back("i:number");
     }
 
     IODirectives inputDirectives;
@@ -380,7 +395,7 @@ std::unique_ptr<RamValue> translateValue(const AstArgument& arg, const ValueInde
 
 /** generate RAM code for a clause */
 std::unique_ptr<RamStatement> RamTranslator::translateClause(
-        const AstClause& clause, const AstProgram* program, const TypeEnvironment* typeEnv, int version) {
+        const AstClause& clause, const AstProgram* program, const TypeEnvironment* typeEnv, int version, RamDomain clauseNum) {
     // check whether there is an imposed order constraint
     if (clause.getExecutionPlan() && clause.getExecutionPlan()->hasOrderFor(version)) {
         // get the imposed order
@@ -402,7 +417,7 @@ std::unique_ptr<RamStatement> RamTranslator::translateClause(
         copy->setFixedExecutionPlan();
 
         // translate reordered clause
-        return translateClause(*copy, program, typeEnv, version);
+        return translateClause(*copy, program, typeEnv, version, clauseNum);
     }
 
     // get extract some details
@@ -420,6 +435,12 @@ std::unique_ptr<RamStatement> RamTranslator::translateClause(
         std::vector<std::unique_ptr<const RamValue>> values;
         for (auto& arg : clause.getHead()->getArguments()) {
             values.push_back(translateValue(*arg));
+        }
+
+        // add provenance information for facts
+        if (Global::config().has("provenance")) {
+            values.push_back(std::unique_ptr<const RamValue>(new RamNumber(0)));
+            values.push_back(std::unique_ptr<const RamValue>(new RamNumber(0)));
         }
 
         // create a fact statement
@@ -539,6 +560,12 @@ std::unique_ptr<RamStatement> RamTranslator::translateClause(
 
     for (AstArgument* arg : head.getArguments()) {
         project->addArg(translateValue(arg, valueIndex));
+    }
+
+    // add values for the two extra provenance columns
+    if (Global::config().has("provenance")) {
+        project->addArg(std::unique_ptr<RamValue>(new RamNumber(clauseNum)));
+        project->addArg(std::unique_ptr<RamValue>(new RamNumber(1)));
     }
 
     // build up insertion call
@@ -691,6 +718,11 @@ std::unique_ptr<RamStatement> RamTranslator::translateClause(
                 notExists->addArg(translateValue(*arg, valueIndex));
             }
 
+            if (Global::config().has("provenance")) {
+                notExists->addArg(nullptr);
+                notExists->addArg(nullptr);
+            }
+
             // add constraint
             op->addCondition(std::unique_ptr<RamCondition>(notExists));
         } else {
@@ -725,14 +757,16 @@ std::unique_ptr<RamStatement> RamTranslator::translateNonRecursiveRelation(const
             getRamRelationIdentifier(getRelationName(rel.getName()), rel.getArity(), &rel, &typeEnv);
 
     /* iterate over all clauses that belong to the relation */
+    size_t clauseNum = 1;
     for (AstClause* clause : rel.getClauses()) {
         // skip recursive rules
         if (recursiveClauses->isRecursive(clause)) {
+            clauseNum++;
             continue;
         }
 
         // translate clause
-        std::unique_ptr<RamStatement> rule = translateClause(*clause, program, &typeEnv);
+        std::unique_ptr<RamStatement> rule = translateClause(*clause, program, &typeEnv, 0, clauseNum);
 
         // add logging
         if (logging) {
@@ -755,6 +789,9 @@ std::unique_ptr<RamStatement> RamTranslator::translateNonRecursiveRelation(const
 
         // add rule to result
         appendStmt(res, std::move(rule));
+
+        // incrememt clause number
+        clauseNum++;
     }
 
     // if no clauses have been translated, we are done
@@ -929,7 +966,8 @@ std::unique_ptr<RamStatement> RamTranslator::translateRecursiveRelation(
                     }
                 }
 
-                std::unique_ptr<RamStatement> rule = translateClause(*r1, program, &typeEnv, version);
+                // i+1 so the numbering starts from 1
+                std::unique_ptr<RamStatement> rule = translateClause(*r1, program, &typeEnv, version, i + 1);
 
                 /* add logging */
                 if (logging) {

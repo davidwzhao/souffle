@@ -28,6 +28,7 @@
 #include "SymbolTable.h"
 #include "Table.h"
 #include "Util.h"
+#include "Global.h"
 
 #include <list>
 #include <map>
@@ -85,8 +86,13 @@ public:
               output(output), btree(btree), brie(brie), eqrel(eqrel), isdata(isdata), istemp(istemp),
               inputDirectives(inputDirectives), outputDirectives(outputDirectives), last(nullptr),
               rel(nullptr) {
-        assert(this->attributeNames.size() == arity || this->attributeNames.empty());
-        assert(this->attributeTypeQualifiers.size() == arity || this->attributeTypeQualifiers.empty());
+        if (Global::config().has("provenance")) {
+            assert(this->attributeNames.size() == arity + 2 || this->attributeNames.empty());
+            assert(this->attributeTypeQualifiers.size() == arity + 2 || this->attributeTypeQualifiers.empty());
+        } else {
+            assert(this->attributeNames.size() == arity || this->attributeNames.empty());
+            assert(this->attributeTypeQualifiers.size() == arity || this->attributeTypeQualifiers.empty());
+        }
     }
 
     const std::string& getName() const {
@@ -288,6 +294,7 @@ public:
     void quickInsert(const RamDomain* tuple) {
         // check for null-arity
         auto arity = getArity();
+
         if (arity == 0) {
             // set number of tuples to one -- that's it
             num_tuples = 1;
@@ -310,6 +317,7 @@ public:
         for (size_t i = 0; i < arity; ++i) {
             newTuple[i] = tuple[i];
         }
+
         tail->used += arity;
 
         // update all indexes with new tuple
