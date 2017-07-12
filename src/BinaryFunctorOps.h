@@ -24,6 +24,7 @@ namespace souffle {
  * Binary Functor Operators
  */
 enum class BinaryOp {
+    // infix operators
     __UNDEFINED__,  // undefined operator
     ADD,            // addition
     SUB,            // subtraction
@@ -36,6 +37,7 @@ enum class BinaryOp {
     BXOR,           // bitwise exclusive or
     LAND,           // logical and
     LOR,            // logical or
+    // prefix operators
     CAT,            // string concatenation
     MAX,            // max of two numbers
 };

@@ -394,8 +394,8 @@ std::unique_ptr<RamValue> translateValue(const AstArgument& arg, const ValueInde
 }  // namespace
 
 /** generate RAM code for a clause */
-std::unique_ptr<RamStatement> RamTranslator::translateClause(
-        const AstClause& clause, const AstProgram* program, const TypeEnvironment* typeEnv, int version, RamDomain clauseNum) {
+std::unique_ptr<RamStatement> RamTranslator::translateClause(const AstClause& clause,
+        const AstProgram* program, const TypeEnvironment* typeEnv, int version, RamDomain clauseNum) {
     // check whether there is an imposed order constraint
     if (clause.getExecutionPlan() && clause.getExecutionPlan()->hasOrderFor(version)) {
         // get the imposed order
@@ -458,6 +458,9 @@ std::unique_ptr<RamStatement> RamTranslator::translateClause(
     // the order of processed operations
     std::vector<const AstNode*> op_nesting;
 
+    // get list of iteration numbers for each atom in the body of clause
+    std::vector<RamValue*> iterationNumbers;
+
     int level = 0;
     for (AstAtom* atom : clause.getAtoms()) {
         // index nested variables and records
@@ -486,6 +489,13 @@ std::unique_ptr<RamStatement> RamTranslator::translateClause(
         // the atom is obtained at the current level
         arg_level[nodeArgs[atom].get()] = level;
         op_nesting.push_back(atom);
+
+        // insert the iteration number of the current atom
+        if (Global::config().has("provenance")) {
+            size_t iterationNumberIndex = atom->getArity() + 1;
+            iterationNumbers.push_back(new RamElementAccess(
+                    level, iterationNumberIndex, getRelation(atom).getArg(iterationNumberIndex)));
+        }
 
         // increment nesting level for the atom
         level++;
@@ -564,8 +574,28 @@ std::unique_ptr<RamStatement> RamTranslator::translateClause(
 
     // add values for the two extra provenance columns
     if (Global::config().has("provenance")) {
+        // make a RamValue computing the new iteration depth of the current atom
+        auto getNewIterationNumber = [&](std::vector<RamValue*> vals) {
+            if (vals.size() < 2) {
+                return new RamBinaryOperator(BinaryOp::ADD, std::unique_ptr<RamValue>(vals[0]),
+                        std::unique_ptr<RamValue>(new RamNumber(1)));
+            }
+
+            auto currentMax = new RamBinaryOperator(
+                    BinaryOp::MAX, std::unique_ptr<RamValue>(vals[0]), std::unique_ptr<RamValue>(vals[1]));
+            for (size_t i = 2; i < vals.size(); i++) {
+                currentMax = new RamBinaryOperator(BinaryOp::MAX, std::unique_ptr<RamValue>(currentMax),
+                        std::unique_ptr<RamValue>(vals[i]));
+            }
+
+            return new RamBinaryOperator(BinaryOp::ADD, std::unique_ptr<RamValue>(currentMax),
+                    std::unique_ptr<RamValue>(new RamNumber(1)));
+        };
+
         project->addArg(std::unique_ptr<RamValue>(new RamNumber(clauseNum)));
-        project->addArg(std::unique_ptr<RamValue>(new RamNumber(1)));
+        // project->addArg(std::unique_ptr<RamValue>(new RamNumber(1)));
+        // add iteration number
+        project->addArg(std::unique_ptr<RamValue>(getNewIterationNumber(iterationNumbers)));
     }
 
     // build up insertion call

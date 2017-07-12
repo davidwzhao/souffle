@@ -34,7 +34,14 @@ public:
             char delimiter = '\t')
             : delimiter(delimiter), out(out), symbolMask(symbolMask), symbolTable(symbolTable) {}
     void writeNextTuple(const RamDomain* tuple) override {
-        if (symbolMask.getArity() == 0) {
+        auto arity = symbolMask.getArity();
+
+        // TODO: remove for transparency
+        if (Global::config().has("provenance")) {
+            arity += 2;
+        }
+
+        if (arity == 0) {
             out << "()\n";
             return;
         }
@@ -44,7 +51,7 @@ public:
         } else {
             out << static_cast<int32_t>(tuple[0]);
         }
-        for (size_t col = 1; col < symbolMask.getArity(); ++col) {
+        for (size_t col = 1; col < arity; ++col) {
             out << delimiter;
             if (symbolMask.isSymbol(col)) {
                 std::string s = symbolTable.resolve(tuple[col]);
