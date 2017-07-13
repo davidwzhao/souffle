@@ -33,9 +33,18 @@ namespace {
 
 SymbolMask getSymbolMask(const AstRelation& rel, const TypeEnvironment& typeEnv) {
     auto arity = rel.getArity();
+
     SymbolMask res(arity);
     for (size_t i = 0; i < arity; i++) {
         res.setSymbol(i, isSymbolType(typeEnv.getType(rel.getAttribute(i)->getTypeName())));
+    }
+
+    // add and populate two extra provenance columns
+    if (Global::config().has("provenance")) {
+        res.setSymbol(arity, false);
+        res.setSymbol(arity + 1, false);
+
+        arity += 2;
     }
     return res;
 }
@@ -73,7 +82,7 @@ RamRelationIdentifier getRamRelationIdentifier(std::string name, unsigned arity,
     // add two columns to store provenance information, one storing
     // rule number, and one storing iteration number
     if (Global::config().has("provenance")) {
-        // arity += 2;
+        arity += 2;
 
         // add column denoting rule number
         attributeNames.push_back("rule_number");
@@ -439,7 +448,7 @@ std::unique_ptr<RamStatement> RamTranslator::translateClause(const AstClause& cl
 
         // add provenance information for facts
         if (Global::config().has("provenance")) {
-            values.push_back(std::unique_ptr<const RamValue>(new RamNumber(0)));
+            values.push_back(std::unique_ptr<const RamValue>(new RamNumber(clauseNum)));
             values.push_back(std::unique_ptr<const RamValue>(new RamNumber(0)));
         }
 
@@ -665,6 +674,9 @@ std::unique_ptr<RamStatement> RamTranslator::translateClause(const AstClause& cl
             }
 
             // add a scan level
+            std::cout << "relation for scan: ";
+            getRelation(atom).print(std::cout);
+            std::cout << std::endl;
             op = std::unique_ptr<RamOperation>(new RamScan(getRelation(atom), std::move(op), isExistCheck));
 
             // add constraints
@@ -909,6 +921,9 @@ std::unique_ptr<RamStatement> RamTranslator::translateRecursiveRelation(
         auto relName = getRelationName(rel->getName());
         rrel[rel] = getRamRelationIdentifier(relName, rel->getArity(), rel, &typeEnv);
 
+        std::cout << "non recursive delta: ";
+        getRamRelationIdentifier("delta_" + relName, rel->getArity(), rel, &typeEnv, true).print(std::cout);
+        std::cout << std::endl;
         relDelta[rel] = getRamRelationIdentifier("delta_" + relName, rel->getArity(), rel, &typeEnv, true);
         relNew[rel] = getRamRelationIdentifier("new_" + relName, rel->getArity(), rel, &typeEnv, true);
 
@@ -1099,6 +1114,12 @@ std::unique_ptr<RamStatement> RamTranslator::translateProgram(const AstTranslati
 
         // create delta-relations if necessary
         if (relationSchedule->isRecursive(rel)) {
+            std::cout << "creating delta rel: ";
+            rel->print(std::cout);
+            std::cout << " ";
+            getRamRelationIdentifier("delta_" + getRelationName(rel->getName()),
+                                            rel->getArity(), rel, &typeEnv, true).print(std::cout);
+            std::cout << std::endl;
             appendStmt(res, std::unique_ptr<RamStatement>(new RamCreate(
                                     getRamRelationIdentifier("delta_" + getRelationName(rel->getName()),
                                             rel->getArity(), rel, &typeEnv, true))));

@@ -36,11 +36,6 @@ public:
     void writeNextTuple(const RamDomain* tuple) override {
         auto arity = symbolMask.getArity();
 
-        // TODO: remove for transparency
-        if (Global::config().has("provenance")) {
-            arity += 2;
-        }
-
         if (arity == 0) {
             out << "()\n";
             return;

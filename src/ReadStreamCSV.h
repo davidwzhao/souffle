@@ -53,8 +53,17 @@ public:
         if (file.eof()) {
             return nullptr;
         }
+
+        symbolMask.print(std::cout);
+        std::cout << std::endl;
+
         std::string line;
-        std::unique_ptr<RamDomain[]> tuple(new RamDomain[symbolMask.getArity()]);
+        std::unique_ptr<RamDomain[]> tuple;
+        if (Global::config().has("provenance")) {
+            tuple = std::unique_ptr<RamDomain[]>(new RamDomain[symbolMask.getArity() + 2]);
+        } else {
+            tuple = std::unique_ptr<RamDomain[]>(new RamDomain[symbolMask.getArity()]);
+        }
         bool error = false;
 
         if (!getline(file, line)) {
@@ -103,6 +112,13 @@ public:
                 }
             }
         }
+
+        // fill two extra columns with provenance information
+        if (Global::config().has("provenance")) {
+            tuple[symbolMask.getArity()] = 0;
+            tuple[symbolMask.getArity() + 1] = 0;
+        }
+
         if (columnsFilled != symbolMask.getArity()) {
             std::stringstream errorMessage;
             errorMessage << "Values missing in line " << lineNumber << "; ";

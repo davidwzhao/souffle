@@ -86,13 +86,13 @@ public:
               output(output), btree(btree), brie(brie), eqrel(eqrel), isdata(isdata), istemp(istemp),
               inputDirectives(inputDirectives), outputDirectives(outputDirectives), last(nullptr),
               rel(nullptr) {
-        if (Global::config().has("provenance")) {
-            assert(this->attributeNames.size() == arity + 2 || this->attributeNames.empty());
-            assert(this->attributeTypeQualifiers.size() == arity + 2 || this->attributeTypeQualifiers.empty());
-        } else {
+        // if (Global::config().has("provenance")) {
+        //     assert(this->attributeNames.size() == arity + 2 || this->attributeNames.empty());
+        //     assert(this->attributeTypeQualifiers.size() == arity + 2 || this->attributeTypeQualifiers.empty());
+        // } else {
             assert(this->attributeNames.size() == arity || this->attributeNames.empty());
             assert(this->attributeTypeQualifiers.size() == arity || this->attributeTypeQualifiers.empty());
-        }
+        // }
     }
 
     const std::string& getName() const {
@@ -314,6 +314,16 @@ public:
 
         // insert element into tail
         RamDomain* newTuple = &tail->data[tail->used];
+
+        /*
+        // account for two provenance columns
+        if (Global::config().has("provenance")) {
+            arity -= 2;
+            newTuple[arity] = 0;
+            newTuple[arity + 1] = 0;
+        }
+        */
+
         for (size_t i = 0; i < arity; ++i) {
             newTuple[i] = tuple[i];
         }

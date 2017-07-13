@@ -404,6 +404,8 @@ void apply(const RamOperation& op, RamEnvironment& env) {
         void visitScan(const RamScan& scan) override {
             // get the targeted relation
             const RamRelation& rel = env.getRelation(scan.getRelation());
+            rel.getID().print(std::cout);
+            std::cout << std::endl;
 
             // process full scan if no index is given
             if (scan.getRangeQueryColumns() == 0) {
@@ -426,6 +428,15 @@ void apply(const RamOperation& op, RamEnvironment& env) {
             RamDomain low[arity];
             RamDomain hig[arity];
             auto pattern = scan.getRangePattern();
+            for (auto v : pattern) {
+                if (v == nullptr) {
+                    std::cout << "_";
+                } else {
+                    v->print(std::cout);
+                }
+                std::cout << " ";
+            }
+            std::cout << std::endl << "SIZE OF PATTERN: " << pattern.size() << std::endl;
             for (size_t i = 0; i < arity; i++) {
                 if (pattern[i] != nullptr) {
                     low[i] = eval(pattern[i], env, ctxt);
@@ -749,6 +760,9 @@ void run(const QueryExecutionStrategy& executor, std::ostream* report, std::ostr
                 std::unique_ptr<ReadStream> reader =
                         IOSystem::getInstance().getReader(load.getRelation().getSymbolMask(),
                                 env.getSymbolTable(), load.getRelation().getInputDirectives());
+
+                relation.getID().print(std::cout);
+                std::cout << std::endl;
                 reader->readAll(relation);
             } catch (std::exception& e) {
                 std::cerr << e.what();
