@@ -33,9 +33,18 @@ namespace {
 
 SymbolMask getSymbolMask(const AstRelation& rel, const TypeEnvironment& typeEnv) {
     auto arity = rel.getArity();
+
     SymbolMask res(arity);
     for (size_t i = 0; i < arity; i++) {
         res.setSymbol(i, isSymbolType(typeEnv.getType(rel.getAttribute(i)->getTypeName())));
+    }
+
+    // add and populate two extra provenance columns
+    if (Global::config().has("provenance")) {
+        res.setSymbol(arity, false);
+        res.setSymbol(arity + 1, false);
+
+        arity += 2;
     }
     return res;
 }
@@ -59,6 +68,7 @@ RamRelationIdentifier getRamRelationIdentifier(std::string name, unsigned arity,
     }
 
     assert(arity == rel->getArity());
+
     std::vector<std::string> attributeNames;
     std::vector<std::string> attributeTypeQualifiers;
     for (unsigned int i = 0; i < arity; i++) {
@@ -67,6 +77,20 @@ RamRelationIdentifier getRamRelationIdentifier(std::string name, unsigned arity,
             attributeTypeQualifiers.push_back(
                     getTypeQualifier(typeEnv->getType(rel->getAttribute(i)->getTypeName())));
         }
+    }
+
+    // add two columns to store provenance information, one storing
+    // rule number, and one storing iteration number
+    if (Global::config().has("provenance")) {
+        arity += 2;
+
+        // add column denoting rule number
+        attributeNames.push_back("rule_number");
+        attributeTypeQualifiers.push_back("i:number");
+
+        // add column denoting iteration number
+        attributeNames.push_back("iteration_number");
+        attributeTypeQualifiers.push_back("i:number");
     }
 
     IODirectives inputDirectives;
@@ -379,8 +403,8 @@ std::unique_ptr<RamValue> translateValue(const AstArgument& arg, const ValueInde
 }  // namespace
 
 /** generate RAM code for a clause */
-std::unique_ptr<RamStatement> RamTranslator::translateClause(
-        const AstClause& clause, const AstProgram* program, const TypeEnvironment* typeEnv, int version) {
+std::unique_ptr<RamStatement> RamTranslator::translateClause(const AstClause& clause,
+        const AstProgram* program, const TypeEnvironment* typeEnv, int version, RamDomain clauseNum) {
     // check whether there is an imposed order constraint
     if (clause.getExecutionPlan() && clause.getExecutionPlan()->hasOrderFor(version)) {
         // get the imposed order
@@ -402,7 +426,7 @@ std::unique_ptr<RamStatement> RamTranslator::translateClause(
         copy->setFixedExecutionPlan();
 
         // translate reordered clause
-        return translateClause(*copy, program, typeEnv, version);
+        return translateClause(*copy, program, typeEnv, version, clauseNum);
     }
 
     // get extract some details
@@ -422,6 +446,12 @@ std::unique_ptr<RamStatement> RamTranslator::translateClause(
             values.push_back(translateValue(*arg));
         }
 
+        // add provenance information for facts
+        if (Global::config().has("provenance")) {
+            values.push_back(std::unique_ptr<const RamValue>(new RamNumber(clauseNum)));
+            values.push_back(std::unique_ptr<const RamValue>(new RamNumber(0)));
+        }
+
         // create a fact statement
         return std::unique_ptr<RamStatement>(new RamFact(getRelation(&head), std::move(values)));
     }
@@ -436,6 +466,9 @@ std::unique_ptr<RamStatement> RamTranslator::translateClause(
 
     // the order of processed operations
     std::vector<const AstNode*> op_nesting;
+
+    // get list of iteration numbers for each atom in the body of clause
+    std::vector<RamValue*> iterationNumbers;
 
     int level = 0;
     for (AstAtom* atom : clause.getAtoms()) {
@@ -465,6 +498,13 @@ std::unique_ptr<RamStatement> RamTranslator::translateClause(
         // the atom is obtained at the current level
         arg_level[nodeArgs[atom].get()] = level;
         op_nesting.push_back(atom);
+
+        // insert the iteration number of the current atom
+        if (Global::config().has("provenance")) {
+            size_t iterationNumberIndex = atom->getArity() + 1;
+            iterationNumbers.push_back(new RamElementAccess(
+                    level, iterationNumberIndex, getRelation(atom).getArg(iterationNumberIndex)));
+        }
 
         // increment nesting level for the atom
         level++;
@@ -541,6 +581,32 @@ std::unique_ptr<RamStatement> RamTranslator::translateClause(
         project->addArg(translateValue(arg, valueIndex));
     }
 
+    // add values for the two extra provenance columns
+    if (Global::config().has("provenance")) {
+        // make a RamValue computing the new iteration depth of the current atom
+        auto getNewIterationNumber = [&](std::vector<RamValue*> vals) {
+            if (vals.size() < 2) {
+                return new RamBinaryOperator(BinaryOp::ADD, std::unique_ptr<RamValue>(vals[0]),
+                        std::unique_ptr<RamValue>(new RamNumber(1)));
+            }
+
+            auto currentMax = new RamBinaryOperator(
+                    BinaryOp::MAX, std::unique_ptr<RamValue>(vals[0]), std::unique_ptr<RamValue>(vals[1]));
+            for (size_t i = 2; i < vals.size(); i++) {
+                currentMax = new RamBinaryOperator(BinaryOp::MAX, std::unique_ptr<RamValue>(currentMax),
+                        std::unique_ptr<RamValue>(vals[i]));
+            }
+
+            return new RamBinaryOperator(BinaryOp::ADD, std::unique_ptr<RamValue>(currentMax),
+                    std::unique_ptr<RamValue>(new RamNumber(1)));
+        };
+
+        project->addArg(std::unique_ptr<RamValue>(new RamNumber(clauseNum)));
+        // project->addArg(std::unique_ptr<RamValue>(new RamNumber(1)));
+        // add iteration number
+        project->addArg(std::unique_ptr<RamValue>(getNewIterationNumber(iterationNumbers)));
+    }
+
     // build up insertion call
     std::unique_ptr<RamOperation> op(project);  // start with innermost
 
@@ -608,6 +674,9 @@ std::unique_ptr<RamStatement> RamTranslator::translateClause(
             }
 
             // add a scan level
+            std::cout << "relation for scan: ";
+            getRelation(atom).print(std::cout);
+            std::cout << std::endl;
             op = std::unique_ptr<RamOperation>(new RamScan(getRelation(atom), std::move(op), isExistCheck));
 
             // add constraints
@@ -691,6 +760,11 @@ std::unique_ptr<RamStatement> RamTranslator::translateClause(
                 notExists->addArg(translateValue(*arg, valueIndex));
             }
 
+            if (Global::config().has("provenance")) {
+                notExists->addArg(nullptr);
+                notExists->addArg(nullptr);
+            }
+
             // add constraint
             op->addCondition(std::unique_ptr<RamCondition>(notExists));
         } else {
@@ -725,14 +799,16 @@ std::unique_ptr<RamStatement> RamTranslator::translateNonRecursiveRelation(const
             getRamRelationIdentifier(getRelationName(rel.getName()), rel.getArity(), &rel, &typeEnv);
 
     /* iterate over all clauses that belong to the relation */
+    size_t clauseNum = 1;
     for (AstClause* clause : rel.getClauses()) {
         // skip recursive rules
         if (recursiveClauses->isRecursive(clause)) {
+            clauseNum++;
             continue;
         }
 
         // translate clause
-        std::unique_ptr<RamStatement> rule = translateClause(*clause, program, &typeEnv);
+        std::unique_ptr<RamStatement> rule = translateClause(*clause, program, &typeEnv, 0, clauseNum);
 
         // add logging
         if (logging) {
@@ -755,6 +831,9 @@ std::unique_ptr<RamStatement> RamTranslator::translateNonRecursiveRelation(const
 
         // add rule to result
         appendStmt(res, std::move(rule));
+
+        // incrememt clause number
+        clauseNum++;
     }
 
     // if no clauses have been translated, we are done
@@ -842,6 +921,9 @@ std::unique_ptr<RamStatement> RamTranslator::translateRecursiveRelation(
         auto relName = getRelationName(rel->getName());
         rrel[rel] = getRamRelationIdentifier(relName, rel->getArity(), rel, &typeEnv);
 
+        std::cout << "non recursive delta: ";
+        getRamRelationIdentifier("delta_" + relName, rel->getArity(), rel, &typeEnv, true).print(std::cout);
+        std::cout << std::endl;
         relDelta[rel] = getRamRelationIdentifier("delta_" + relName, rel->getArity(), rel, &typeEnv, true);
         relNew[rel] = getRamRelationIdentifier("new_" + relName, rel->getArity(), rel, &typeEnv, true);
 
@@ -929,7 +1011,8 @@ std::unique_ptr<RamStatement> RamTranslator::translateRecursiveRelation(
                     }
                 }
 
-                std::unique_ptr<RamStatement> rule = translateClause(*r1, program, &typeEnv, version);
+                // i+1 so the numbering starts from 1
+                std::unique_ptr<RamStatement> rule = translateClause(*r1, program, &typeEnv, version, i + 1);
 
                 /* add logging */
                 if (logging) {
@@ -1031,6 +1114,12 @@ std::unique_ptr<RamStatement> RamTranslator::translateProgram(const AstTranslati
 
         // create delta-relations if necessary
         if (relationSchedule->isRecursive(rel)) {
+            std::cout << "creating delta rel: ";
+            rel->print(std::cout);
+            std::cout << " ";
+            getRamRelationIdentifier("delta_" + getRelationName(rel->getName()),
+                                            rel->getArity(), rel, &typeEnv, true).print(std::cout);
+            std::cout << std::endl;
             appendStmt(res, std::unique_ptr<RamStatement>(new RamCreate(
                                     getRamRelationIdentifier("delta_" + getRelationName(rel->getName()),
                                             rel->getArity(), rel, &typeEnv, true))));

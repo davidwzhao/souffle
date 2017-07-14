@@ -24,6 +24,7 @@ namespace souffle {
  * Binary Functor Operators
  */
 enum class BinaryOp {
+    // infix operators
     __UNDEFINED__,  // undefined operator
     ADD,            // addition
     SUB,            // subtraction
@@ -36,7 +37,9 @@ enum class BinaryOp {
     BXOR,           // bitwise exclusive or
     LAND,           // logical and
     LOR,            // logical or
+    // prefix operators
     CAT,            // string concatenation
+    MAX,            // max of two numbers
 };
 
 /**
@@ -68,6 +71,8 @@ inline std::string getSymbolForBinaryOp(BinaryOp op) {
             return "lor";
         case BinaryOp::CAT:
             return "cat";
+        case BinaryOp::MAX:
+            return "max";
         default:
             break;
     }
@@ -91,6 +96,7 @@ inline BinaryOp getBinaryOpForSymbol(const std::string& symbol) {
     if (symbol == "land") return BinaryOp::LAND;
     if (symbol == "lor") return BinaryOp::LOR;
     if (symbol == "cat") return BinaryOp::CAT;
+    if (symbol == "max") return BinaryOp::MAX;
     std::cout << "Unrecognised operator: " << symbol << "\n";
     assert(false && "Unsupported Operator!");
     return BinaryOp::__UNDEFINED__;
@@ -112,6 +118,7 @@ inline bool isNumericBinaryOp(const BinaryOp op) {
         case BinaryOp::LAND:
         case BinaryOp::LOR:
         case BinaryOp::MOD:
+        case BinaryOp::MAX:
             return true;
         case BinaryOp::CAT:
             return false;
@@ -146,6 +153,7 @@ inline bool binaryOpAcceptsNumbers(int arg, const BinaryOp op) {
         case BinaryOp::LAND:
         case BinaryOp::LOR:
         case BinaryOp::MOD:
+        case BinaryOp::MAX:
             return true;
         case BinaryOp::CAT:
             return false;

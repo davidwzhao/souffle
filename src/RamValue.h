@@ -108,10 +108,10 @@ public:
     ~RamBinaryOperator() override = default;
 
     void print(std::ostream& os) const override {
-        if (isNumericBinaryOp(op)) {
+        if (op < BinaryOp::CAT) {
             os << "(";
             lhs->print(os);
-            os << getSymbolForBinaryOp(op);
+            os << " " << getSymbolForBinaryOp(op) << " ";
             rhs->print(os);
             os << ")";
         } else {

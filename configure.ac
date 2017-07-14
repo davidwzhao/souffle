@@ -46,7 +46,7 @@ AX_WITH_CURSES
 AS_VAR_APPEND(LIBS, ["$CURSES_LIB"])
 
 dnl Do not set default CFLAGS and CXXFLAGS
-CXXFLAGS=" -Wall -std=c++11  $CXXFLAGS"
+CXXFLAGS=" -g -Wall -std=c++11  $CXXFLAGS"
 
 # Enable debug mode
 AC_ARG_ENABLE(
