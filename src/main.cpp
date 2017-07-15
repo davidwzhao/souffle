@@ -289,10 +289,13 @@ int main(int argc, char** argv) {
         transforms.push_back(std::unique_ptr<AstTransformer>(new AutoScheduleTransformer()));
     }
 
+    /*
     // Add provenance information by transforming to records
     if (Global::config().has("provenance")) {
         transforms.push_back(std::unique_ptr<AstTransformer>(new NaiveProvenanceTransformer()));
     }
+    */
+
     if (!Global::config().get("debug-report").empty()) {
         auto parser_end = std::chrono::high_resolution_clock::now();
         std::string runtimeStr =
@@ -415,6 +418,7 @@ int main(int argc, char** argv) {
                   << "sec\n";
     }
 
+    /*
     if (Global::config().has("provenance")) {
         // construct SouffleProgram from env
         SouffleInterpreterInterface interface(*env, translationUnit->getSymbolTable());
@@ -425,6 +429,7 @@ int main(int argc, char** argv) {
             explain(interface, false);
         }
     }
+    */
 
     return 0;
 }

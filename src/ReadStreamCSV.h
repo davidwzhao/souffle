@@ -59,11 +59,7 @@ public:
 
         std::string line;
         std::unique_ptr<RamDomain[]> tuple;
-        if (Global::config().has("provenance")) {
-            tuple = std::unique_ptr<RamDomain[]>(new RamDomain[symbolMask.getArity() + 2]);
-        } else {
-            tuple = std::unique_ptr<RamDomain[]>(new RamDomain[symbolMask.getArity()]);
-        }
+        tuple = std::unique_ptr<RamDomain[]>(new RamDomain[symbolMask.getArity()]);
         bool error = false;
 
         if (!getline(file, line)) {
@@ -113,7 +109,6 @@ public:
             }
         }
 
-        // fill two extra columns with provenance information
         if (Global::config().has("provenance")) {
             tuple[symbolMask.getArity()] = 0;
             tuple[symbolMask.getArity() + 1] = 0;
@@ -134,6 +129,12 @@ public:
         if (error) {
             throw std::invalid_argument("cannot parse fact file");
         }
+
+        std::cout << "tuple: ";
+        for (size_t i = 0; i < symbolMask.getArity() + 2; i++) {
+            std::cout << tuple[i] << " ";
+        }
+        std::cout << std::endl;
 
         return tuple;
     }

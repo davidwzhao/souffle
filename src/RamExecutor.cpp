@@ -404,6 +404,10 @@ void apply(const RamOperation& op, RamEnvironment& env) {
         void visitScan(const RamScan& scan) override {
             // get the targeted relation
             const RamRelation& rel = env.getRelation(scan.getRelation());
+
+            std::cout << "scan into relation: ";
+            scan.getRelation().print(std::cout);
+            std::cout << std::endl << "rel: ";
             rel.getID().print(std::cout);
             std::cout << std::endl;
 
