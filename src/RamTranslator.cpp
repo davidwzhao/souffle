@@ -63,21 +63,15 @@ RamRelationIdentifier getRamRelationIdentifier(std::string name, unsigned arity,
         name.insert(0, "@");
     }
 
-    // add two columns to store provenance information, one storing
-    // rule number, and one storing iteration number
-    if (Global::config().has("provenance")) {
-        arity += 2;
-    }
-
     if (!rel) {
-        return RamRelationIdentifier(name, arity, istemp);
+        if (Global::config().has("provenance")) {
+            return RamRelationIdentifier(name, arity + 2, istemp);
+        } else {
+            return RamRelationIdentifier(name, arity, istemp);
+        }
     }
 
-    if (Global::config().has("provenance")) {
-        assert(arity == rel->getArity() + 2);
-    } else {
-        assert(arity == rel->getArity());
-    }
+    assert(arity == rel->getArity());
 
 
     std::vector<std::string> attributeNames;
@@ -90,7 +84,11 @@ RamRelationIdentifier getRamRelationIdentifier(std::string name, unsigned arity,
         }
     }
 
+    // add two columns to store provenance information, one storing
+    // rule number, and one storing iteration number
     if (Global::config().has("provenance")) {
+        arity += 2;
+
         // add column denoting rule number
         attributeNames.push_back("rule_number");
         attributeTypeQualifiers.push_back("i:number");

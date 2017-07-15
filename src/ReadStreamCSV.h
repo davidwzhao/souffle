@@ -59,7 +59,11 @@ public:
 
         std::string line;
         std::unique_ptr<RamDomain[]> tuple;
-        tuple = std::unique_ptr<RamDomain[]>(new RamDomain[symbolMask.getArity()]);
+        if (Global::config().has("provenance")) {
+            tuple = std::unique_ptr<RamDomain[]>(new RamDomain[symbolMask.getArity() + 2]);
+        } else {
+            tuple = std::unique_ptr<RamDomain[]>(new RamDomain[symbolMask.getArity()]);
+        }
         bool error = false;
 
         if (!getline(file, line)) {
@@ -110,8 +114,8 @@ public:
         }
 
         if (Global::config().has("provenance")) {
-            tuple[symbolMask.getArity()] = 0;
-            tuple[symbolMask.getArity() + 1] = 0;
+            tuple[symbolMask.getArity() - 2] = 0;
+            tuple[symbolMask.getArity() - 1] = 0;
         }
 
         if (columnsFilled != symbolMask.getArity()) {
