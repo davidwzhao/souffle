@@ -2021,6 +2021,10 @@ std::string RamCompiler::generateCode(
 
     // generate C++ program
     os << "#include \"souffle/CompiledSouffle.h\"\n";
+    if (Global::config().has("provenance")) {
+        os << "#include \"souffle/Explain.h\"\n";
+        os << "#include <ncurses.h>\n";
+    }
     os << "\n";
     os << "namespace souffle {\n";
     os << "using namespace ram;\n";
@@ -2325,6 +2329,11 @@ std::string RamCompiler::generateCode(
     os << "obj.loadAll(opt.getInputFileDir());\n";
     os << "obj.run();\n";
     os << "obj.printAll(opt.getOutputFileDir());\n";
+    if (Global::config().get("provenance") == "1") {
+        os << "explain(obj, true);\n";
+    } else if (Global::config().get("provenance") == "2") {
+        os << "explain(obj, false);\n";
+    }
     os << "return 0;\n";
     os << "} catch(std::exception &e) { souffle::SignalHandler::instance()->error(e.what());}\n";
     os << "}\n";

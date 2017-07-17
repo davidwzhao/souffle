@@ -44,14 +44,14 @@ DIR := ${CURDIR}
 souffle_profile_CXXFLAGS = $(souffle_CPPFLAGS) -DMAKEDIR='"$(DIR)"'
 
 nodist_souffle_mcpp_SOURCES = $(BUILT_SOURCES)
- 
+
 souffle_mcpp_SOURCES = mcpp-system.H mcpp-configed.H mcpp-internal.H mcpp-main.c mcpp-directive.c mcpp-eval.c \
                         mcpp-expand.c mcpp-mbchar.c mcpp-support.c mcpp-system.c mcpp_out.h
- 
+
 mcpp-main.o mcpp-directive.o mcpp-eval.o mcpp-expand.o mcpp-mbchar.o mcpp-support.o mcpp-system.o    :    \
      mcpp-system.H mcpp-internal.H mcpp_out.h
 mcpp-system.H    : mcpp-configed.H
- 
+
 
 # ... which should no go to distribution
 nodist_souffle_SOURCES = $(BUILT_SOURCES)
@@ -72,6 +72,7 @@ souffle_sources = \
               AstAttribute.h                            \
               AstClause.cpp         AstClause.h         \
               AstComponent.h                            \
+              AstPragma.cpp         AstPragma.h         \
               AstIODirective.h                          \
               AstLiteral.h                              \
               AstNode.h                                 \
@@ -116,9 +117,11 @@ souffle_sources = \
               RamRelationStats.cpp  RamRelationStats.h  \
               RamVisitor.h                              \
               RuleScheduler.h                           \
+              SignalHandler.h                           \
               StringPool.h                              \
               TypeSystem.cpp        TypeSystem.h        \
               PrecedenceGraph.cpp   PrecedenceGraph.h   \
+              MagicSet.cpp          MagicSet.h          \
               $(sqlite_sources)     $(libz_sources)     \
               ReadStream.h                              \
               ReadStreamCSV.h                           \
@@ -126,6 +129,8 @@ souffle_sources = \
               IODirectives.h                            \
               WriteStreamCSV.h                          \
               IOSystem.h                                \
+              RamInterface.cpp      RamInterface.h      \
+              ProvenanceTransformer.cpp ProvenanceTransformer.h \
               Global.cpp            Global.h
 
 # -- build souffle as a library so it can be reused in testing
@@ -153,6 +158,7 @@ soufflepublic_HEADERS = CompiledRamOptions.h    \
                         CompiledRamTuple.h      \
                         CompiledRamRecord.h     \
                         CompiledSouffle.h       \
+                        SignalHandler.h         \
                         SouffleInterface.h      \
                         ParallelUtils.h         \
                         BTree.h                 \
@@ -176,7 +182,8 @@ soufflepublic_HEADERS = CompiledRamOptions.h    \
                         ReadStreamCSV.h         \
                         SymbolMask.h            \
                         WriteStream.h           \
-                        WriteStreamCSV.h
+                        WriteStreamCSV.h        \
+                        Explain.h
 
 souffle_CPPFLAGS = -DPACKAGE_VERSION="\"${PACKAGE_VERSION}\""
 
@@ -184,7 +191,7 @@ souffle_CPPFLAGS = -DPACKAGE_VERSION="\"${PACKAGE_VERSION}\""
 CLEANFILES = $(BUILT_SOURCES)  parser.cc scanner.cc parser.hh stack.hh
 
 # run Bison
-$(builddir)/parser.cc $(builddir)/parser.hh $(builddir)/stack.hh: $(srcdir)/parser.yy
+$(builddir)/parser.hh $(builddir)/stack.hh: $(srcdir)/parser.yy
 	$(BISON) -Wall -Werror -v -d -o parser.cc $(srcdir)/parser.yy
 
 # and FLEX
@@ -326,4 +333,3 @@ test_parallel_utils_test_LDADD = libsouffle.la
 
 # make all check-programs tests
 TESTS = $(check_PROGRAMS)
-

@@ -41,6 +41,10 @@ AS_IF([test "x$enable_jni" = "xyes"], [
 ])
 AM_CONDITIONAL([JAVAI], [test "x$enable_jni" = "xyes"])
 
+# Enable curses library
+AX_WITH_CURSES
+AS_VAR_APPEND(LIBS, ["$CURSES_LIB"])
+
 dnl Do not set default CFLAGS and CXXFLAGS
 CXXFLAGS=" -Wall -std=c++11  $CXXFLAGS"
 
@@ -519,6 +523,7 @@ AC_CONFIG_LINKS([include/souffle/IterUtils.h:src/IterUtils.h])
 AC_CONFIG_LINKS([include/souffle/Util.h:src/Util.h])
 AC_CONFIG_LINKS([include/souffle/Macro.h:src/Macro.h])
 AC_CONFIG_LINKS([include/souffle/RamLogger.h:src/RamLogger.h])
+AC_CONFIG_LINKS([include/souffle/Explain.h:src/Explain.h])
 AC_CONFIG_LINKS([include/souffle/SignalHandler.h:src/SignalHandler.h])
 AC_CONFIG_LINKS([include/souffle/IODirectives.h:src/IODirectives.h])
 AC_CONFIG_LINKS([include/souffle/IOSystem.h:src/IOSystem.h])

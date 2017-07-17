@@ -121,7 +121,7 @@ public:
      * inserts all nodes from the other relation into this one
      * @param other the binary relation from which to add nodes from
      */
-    void insertAll(BinaryRelation<TupleType>& other) {
+    void insertAll(const BinaryRelation<TupleType>& other) {
         // for each representative
         for (auto rep = other.sds.beginReps(); rep != other.sds.endReps(); ++rep) {
             // insert the pairing between the representative and its
@@ -256,7 +256,7 @@ public:
         }
 
         // ctor for find(..)
-        iterator(const BinaryRelation* br, TupleType& start) : br(br) {
+        iterator(const BinaryRelation* br, const TupleType& start) : br(br) {
             ityp = STARTAT;
 
             if (!br->sds.nodeExists(start[0]) || !br->sds.nodeExists(start[1])) {
@@ -513,7 +513,7 @@ public:
          * s.t. they point to positions >= start
          * @param startVal the first pair that the iterators should be fast forwarded to
          */
-        void ffIterators(TupleType& startVal) {
+        void ffIterators(const TupleType& startVal) {
             souffle::Trie<1>::iterator smallestFirst;
             bool start = true;
 
@@ -606,7 +606,7 @@ public:
      * @param start where the returned iterator should start from
      * @return the iterator which starts at the requested element
      */
-    iterator find(TupleType& start) const {
+    iterator find(const TupleType& start) const {
         // generate tries for all disjoint sets
         // std::for_each(sds.beginReps(), sds.endReps(), [&](DomainInt r) { generateTrieIfNone(r); });
 

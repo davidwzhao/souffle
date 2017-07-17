@@ -178,4 +178,46 @@ public:
     }
 };
 
+/**
+ * Transformation pass to add provenance information via records
+ */
+class NaiveProvenanceTransformer : public AstTransformer {
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
+
+public:
+    std::string getName() const override {
+        return "NaiveProvenanceTransformer";
+    }
+};
+
+/**
+ * Transformation pass to normalise constraints.
+ * E.g.: a(x) :- b(x, 1). -> a(x) :- b(x, tmp0), tmp0=1.
+ *
+ * TODO: Special identifiers to make sure tmp0 not used by user
+ */
+class NormaliseConstraintsTransformer : public AstTransformer {
+private:
+    virtual bool transform(AstTranslationUnit& translationUnit);
+
+public:
+    virtual std::string getName() const {
+        return "NormaliseConstraintsTransformer";
+    }
+};
+
+/**
+ * Magic Set Transformation
+ */
+class MagicSetTransformer : public AstTransformer {
+private:
+    virtual bool transform(AstTranslationUnit& translationUnit);
+
+public:
+    virtual std::string getName() const {
+        return "MagicSetTransformer";
+    }
+};
+
 }  // end of namespace souffle
