@@ -2258,6 +2258,8 @@ std::string RamCompiler::generateCode(const SymbolTable& symTable, const RamProg
         os << "#include \"souffle/Explain.h\"\n";
         os << "#include <ncurses.h>\n";
     }
+    os << "#include <sys/time.h>\n";
+    os << "#include <sys/resource.h>\n";
     os << "\n";
     os << "namespace souffle {\n";
     os << "using namespace ram;\n";
@@ -2632,6 +2634,11 @@ std::string RamCompiler::generateCode(const SymbolTable& symTable, const RamProg
     } else if (Global::config().get("record-provenance") == "2") {
         os << "explain(obj, false, true);\n";
     }
+
+    // print memory usage
+    os << "struct rusage ru;\n";
+    os << "getrusage(RUSAGE_SELF, &ru);\n";
+    os << "std::cerr << ru.ru_maxrss;\n";
 
     os << "return 0;\n";
     os << "} catch(std::exception &e) { souffle::SignalHandler::instance()->error(e.what());}\n";
