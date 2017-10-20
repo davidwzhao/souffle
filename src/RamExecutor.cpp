@@ -1369,7 +1369,7 @@ public:
             // print log entry
             out << "{ auto lease = getOutputLock().acquire(); ";
             out << "(void)lease;\n";
-            out << "profile << R\"(#" << label << ";)\" << num_failed_proofs << std::endl;\n";
+            out << "profile << R\"_(#" << label << ";)_\" << num_failed_proofs << std::endl;\n";
             out << "}";
         }
 
@@ -1406,7 +1406,7 @@ public:
         out << "if (performIO) {\n";
         out << "{ auto lease = getOutputLock().acquire(); \n";
         out << "(void)lease;\n";
-        out << "std::cout << R\"(" << print.getLabel() << ")\" <<  ";
+        out << "std::cout << R\"_(" << print.getLabel() << ")_\" <<  ";
         out << getRelationName(print.getRelation()) << "->"
             << "size() << std::endl;\n";
         out << "}";
@@ -1418,7 +1418,7 @@ public:
         PRINT_BEGIN_COMMENT(out);
         out << "{ auto lease = getOutputLock().acquire(); \n";
         out << "(void)lease;\n";
-        out << "profile << R\"(" << print.getLabel() << ")\" <<  ";
+        out << "profile << R\"_(" << print.getLabel() << ")_\" <<  ";
         out << getRelationName(print.getRelation());
         out << "->"
             << "size() << std::endl;\n"
@@ -1502,7 +1502,7 @@ public:
         out << "{\n";
 
         // create local timer
-        out << "\tRamLogger logger(R\"(" << timer.getLabel() << ")\",profile);\n";
+        out << "\tRamLogger logger(R\"_(" << timer.getLabel() << ")_\",profile);\n";
 
         // insert statement to be measured
         visit(timer.getNested(), out);
@@ -2378,7 +2378,7 @@ std::string RamCompiler::generateCode(const SymbolTable& symTable, const RamProg
         os << "// -- initialize symbol table --\n";
         os << "static const char *symbols[]={\n";
         for (size_t i = 0; i < symTable.size(); i++) {
-            os << "\tR\"(" << symTable.resolve(i) << ")\",\n";
+            os << "\tR\"_(" << symTable.resolve(i) << ")_\",\n";
         }
         os << "};\n";
         os << "symTable.insert(symbols," << symTable.size() << ");\n";
@@ -2464,7 +2464,7 @@ std::string RamCompiler::generateCode(const SymbolTable& symTable, const RamProg
         } else if (auto print = dynamic_cast<const RamPrintSize*>(&node)) {
             os << "{ auto lease = getOutputLock().acquire(); \n";
             os << "(void)lease;\n";
-            os << "std::cout << R\"(" << print->getLabel() << ")\" <<  ";
+            os << "std::cout << R\"_(" << print->getLabel() << ")_\" <<  ";
             os << getRelationName(print->getRelation()) << "->"
                << "size() << std::endl;\n";
             os << "}";
@@ -2596,15 +2596,15 @@ std::string RamCompiler::generateCode(const SymbolTable& symTable, const RamProg
 
     // parse arguments
     os << "souffle::CmdOptions opt(";
-    os << "R\"(" << Global::config().get("") << ")\",\n";
-    os << "R\"(.)\",\n";
-    os << "R\"(.)\",\n";
+    os << "R\"_(" << Global::config().get("") << ")_\",\n";
+    os << "R\"_(.)_\",\n";
+    os << "R\"_(.)_\",\n";
     if (Global::config().has("profile")) {
         os << "true,\n";
-        os << "R\"(" << Global::config().get("profile") << ")\",\n";
+        os << "R\"_(" << Global::config().get("profile") << ")_\",\n";
     } else {
         os << "false,\n";
-        os << "R\"()\",\n";
+        os << "R\"_()_\",\n";
     }
     os << std::stoi(Global::config().get("jobs")) << "\n";
     os << ");\n";
