@@ -2144,7 +2144,7 @@ public:
     // -- subroutine argument --
 
     void visitArgument(const RamArgument& arg, std::ostream& out) override {
-        out << "(*args)[" << arg.getNumber() << "]";
+        out << "args[" << arg.getNumber() << "]";
     }
 
     // -- subroutine return --
@@ -2539,8 +2539,8 @@ std::string RamCompiler::generateCode(const SymbolTable& symTable, const RamProg
     // TODO: generate code for subroutines
     if (Global::config().has("provenance")) {
         // generate subroutine adapter
-        os << "void executeSubroutine(std::string name, const std::vector<RamDomain>* args, "
-              "std::vector<RamDomain>* ret, std::vector<bool>* err) override {\n";
+        os << "void executeSubroutine(std::string name, const std::vector<RamDomain>& args, "
+              "std::vector<RamDomain>& ret, std::vector<bool>& err) override {\n";
 
         // subroutine number
         size_t subroutineNum = 0;
@@ -2558,8 +2558,8 @@ std::string RamCompiler::generateCode(const SymbolTable& symTable, const RamProg
         for (auto& sub : prog.getSubroutines()) {
             // method header
             os << "void "
-               << "subproof_" << subroutineNum << "(const std::vector<RamDomain>* args, "
-                                                  "std::vector<RamDomain>* ret, std::vector<bool>* err) {\n";
+               << "subproof_" << subroutineNum << "(const std::vector<RamDomain>& args, "
+                                                  "std::vector<RamDomain>& ret, std::vector<bool>& err) {\n";
 
             // generate code for body
             genCode(os, sub.second, indices);
