@@ -43,7 +43,7 @@ TEST(Graph, Basic) {
     EXPECT_FALSE(g.reaches(3, 2));
     EXPECT_FALSE(g.reaches(3, 3));
 
-    g.addEdge(1, 2);
+    g.insert(1, 2);
 
     EXPECT_TRUE(g.contains(1));
     EXPECT_TRUE(g.contains(2));
@@ -63,7 +63,7 @@ TEST(Graph, Basic) {
     EXPECT_FALSE(g.reaches(3, 2));
     EXPECT_FALSE(g.reaches(3, 3));
 
-    g.addEdge(2, 3);
+    g.insert(2, 3);
 
     EXPECT_TRUE(g.contains(1));
     EXPECT_TRUE(g.contains(2));
@@ -83,7 +83,7 @@ TEST(Graph, Basic) {
     EXPECT_FALSE(g.reaches(3, 2));
     EXPECT_FALSE(g.reaches(3, 3));
 
-    g.addEdge(3, 1);
+    g.insert(3, 1);
 
     EXPECT_TRUE(g.contains(1));
     EXPECT_TRUE(g.contains(2));

@@ -22,6 +22,7 @@
 #pragma once
 
 #include "IODirectives.h"
+#include "ParallelUtils.h"
 #include "RamIndex.h"
 #include "RamTypes.h"
 #include "SymbolMask.h"
@@ -32,7 +33,7 @@
 #include <list>
 #include <map>
 #include <string>
-#include <pthread.h>
+#include <vector>
 
 namespace souffle {
 
@@ -215,22 +216,18 @@ class RamRelation {
     mutable RamIndex* totalIndex;
 
     /** lock for parallel execution */
-    mutable pthread_mutex_t lock;
+    mutable Lock lock;
 
 public:
     RamRelation(const RamRelationIdentifier& id)
             : id(id), num_tuples(0), head(std::unique_ptr<Block>(new Block())), tail(head.get()),
-              totalIndex(nullptr) {
-        pthread_mutex_init(&lock, nullptr);
-    }
+              totalIndex(nullptr) {}
 
     RamRelation(const RamRelation& other) = delete;
 
     RamRelation(RamRelation&& other)
             : id(std::move(other.id)), num_tuples(other.num_tuples), tail(other.tail),
               totalIndex(other.totalIndex) {
-        pthread_mutex_init(&lock, nullptr);
-
         // take over ownership
         head.swap(other.head);
         indices.swap(other.indices);
@@ -454,14 +451,15 @@ public:
 
         // see whether there is an order with a matching prefix
         RamIndex* res = nullptr;
-        pthread_mutex_lock(&lock);
-        for (auto it = indices.begin(); !res && it != indices.end(); ++it) {
-            if (order.isCompatible(it->first)) {
-                res = it->second.get();
+        {
+            auto lease = lock.acquire();
+            (void)lease;
+            for (auto it = indices.begin(); !res && it != indices.end(); ++it) {
+                if (order.isCompatible(it->first)) {
+                    res = it->second.get();
+                }
             }
         }
-        pthread_mutex_unlock(&lock);
-
         // if found, use compatible index
         if (res) {
             return res;
@@ -480,18 +478,20 @@ public:
     /** get index for a given order. Keys are encoded as bits for each column */
     RamIndex* getIndex(const RamIndexOrder& order) const {
         // TODO: improve index usage by re-using indices with common prefix
-        RamIndex* res;
-        pthread_mutex_lock(&lock);
-        auto pos = indices.find(order);
-        if (pos == indices.end()) {
-            std::unique_ptr<RamIndex>& newIndex = indices[order];
-            newIndex = std::unique_ptr<RamIndex>(new RamIndex(order));
-            newIndex->insert(this->begin(), this->end());
-            res = newIndex.get();
-        } else {
-            res = pos->second.get();
+        RamIndex* res = nullptr;
+        {
+            auto lease = lock.acquire();
+            (void)lease;
+            auto pos = indices.find(order);
+            if (pos == indices.end()) {
+                std::unique_ptr<RamIndex>& newIndex = indices[order];
+                newIndex = std::make_unique<RamIndex>(order);
+                newIndex->insert(this->begin(), this->end());
+                res = newIndex.get();
+            } else {
+                res = pos->second.get();
+            }
         }
-        pthread_mutex_unlock(&lock);
         return res;
     }
 

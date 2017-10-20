@@ -271,7 +271,8 @@ public:
         };
 
         // ctor for findBetween(..)
-        iterator(const BinaryRelation* br, TupleType& start, TupleType& end) : br(br), endPoint(end) {
+        iterator(const BinaryRelation* br, const TupleType& start, const TupleType& end)
+                : br(br), endPoint(end) {
             ityp = BETWEEN;
 
             if (!br->sds.nodeExists(start[0]) || !br->sds.nodeExists(start[1])) {
@@ -319,7 +320,9 @@ public:
          * should only be called in the constructor
          */
         void initCheckEnd() {
-            if (frontIter == cTrie->end() && backIter == cTrie->end()) isEndVal = true;
+            if (!cTrie || (frontIter == cTrie->end() && backIter == cTrie->end())) {
+                isEndVal = true;
+            }
         }
 
         // copy ctor
@@ -618,12 +621,73 @@ public:
     }
 
     /**
+     * Obtains a range of elements matching the prefix of the given entry up to
+     * levels elements.
+     *
+     * @tparam levels the length of the requested matching prefix
+     * @param entry the entry to be looking for
+     * @return the corresponding range of matching elements
+     */
+    template <unsigned levels>
+    range<iterator> getBoundaries(const operation_hints& entry) const {
+        operation_hints ctxt;
+        return getBoundaries<levels>(entry, ctxt);
+    }
+
+    /**
+     * Obtains a range of elements matching the prefix of the given entry up to
+     * levels elements. A operation context may be provided to exploit temporal
+     * locality.
+     *
+     * @tparam levels the length of the requested matching prefix
+     * @param entry the entry to be looking for
+     * @param ctxt the operation context to be utilized
+     * @return the corresponding range of matching elements
+     */
+    template <unsigned levels>
+    range<iterator> getBoundaries(const TupleType& entry, operation_hints& ctxt) const {
+        // TODO: use ctxt to exploit locality - does this really matter
+
+        // if nothing is bound => just use begin and end
+        if (levels == 0) return make_range(begin(), end());
+
+        // as disjoint set is exactly two args (equiv relation)
+        // we only need to handle these cases
+
+        if (levels == 1) {
+            // need to test if the entry actually exists
+            if (!sds.nodeExists(entry[0])) return make_range(end(), end());
+
+            std::list<DomainInt> x;
+            x.push_back(entry[0]);
+
+            // if so return an iterator starting from the (entry[0], smallest) -> (entry[0], biggest)
+            return make_range(frontProduct(x), end());
+        }
+
+        if (levels == 2) {
+            // need to test if the entry actually exists
+            if (!sds.contains(entry[0], entry[1])) return make_range(end(), end());
+
+            // if so return an iterator containing exactly that node
+            return make_range(findBetween(entry, entry), end());
+        }
+
+        std::cerr << "invalid state, cannot search for >2 arg start point in getBoundaries, in 2 arg tuple "
+                     "store\n";
+        assert(false &&
+                "invalid state, cannot search for >2 arg start point in getBoundaries, in 2 arg tuple store");
+
+        return make_range(end(), end());
+    }
+
+    /**
      * Begin an iterator at/after the requested point, and mark it to finish at/before the specified one
      * @param start the requested beginning to iterate from
      * @param end the requested end to iterate until
      * @return the resulting iterator that satisfies this
      */
-    iterator findBetween(TupleType& start, TupleType& end) const {
+    iterator findBetween(const TupleType& start, const TupleType& end) const {
         // generate tries for all disjoint sets
         std::for_each(sds.beginReps(), sds.endReps(), [&](DomainInt r) { generateTrieIfNone(r); });
 
@@ -736,4 +800,4 @@ public:
         return ret;
     }
 };
-}
+}  // namespace souffle

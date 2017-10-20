@@ -69,6 +69,10 @@ public:
     void set(const K& key, const V& value) {
         _data[key] = value;
     }
+    /* Erase the entry in the table for the specified key. */
+    void unset(const K& key) {
+        _data.erase(key);
+    }
     /* Print the raw backing data to the specified stream. */
     void print(std::ostream& os) {
         os << _data << std::endl;

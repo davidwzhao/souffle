@@ -857,7 +857,7 @@ bool NormaliseConstraintsTransformer::transform(AstTranslationUnit& translationU
                         // add in constraint (+abdulX = constant)
                         newClause->addToBody(std::unique_ptr<AstLiteral>(new AstConstraint(
                                 BinaryConstraintOp::EQ, std::unique_ptr<AstArgument>(variable->clone()),
-                                std::unique_ptr<AstArgument>(constant->clone()))));
+                                std::unique_ptr<AstArgument>(constant))));
                     } else if (dynamic_cast<const AstUnnamedVariable*>(currArg)) {
                         // underscore found
                         changed = true;

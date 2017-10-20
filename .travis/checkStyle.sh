@@ -2,6 +2,9 @@
 
 # Find the changed lines in the diff. Arguments 1 and 2 are appended to the
 #git diff command
+
+CLANGFORMAT=clang-format-4.0
+
 changedLines() {
   range_start=-1
   
@@ -39,10 +42,10 @@ for f in $(git diff --name-only --diff-filter=ACMRTUXB $1); do
   if ! echo "$f" | egrep -q "^src/"; then
     continue
   fi
-  d=$(diff -u0 "$f" <(/usr/bin/clang-format -style=file "$f")) || true
+  d=$(diff -u0 "$f" <($CLANGFORMAT -style=file "$f")) || true
   if [ -n "$d" ]; then
     echo "!!! $f not compliant to coding style. A suggested fix is below."
-    echo "To make the fix automatically, use clang-format -i $f"
+    echo "To make the fix automatically, use $CLANGFORMAT -i $f"
     echo
     echo "$d"
     echo

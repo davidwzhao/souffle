@@ -154,7 +154,7 @@ RecordMap<Tuple>& getRecordMap() {
     static RecordMap<Tuple> map;
     return map;
 }
-}
+}  // namespace detail
 
 template <typename Tuple>
 RamDomain pack(const Tuple& tuple) {

@@ -10,12 +10,11 @@
  *
  * @file ProvenanceTransformer.cpp
  *
- * Defines classes which store relations transformed for provenance
+ * Implements AstTransformer for adding provenance information via two extra columns
  *
  ***********************************************************************/
 
-#include "ProvenanceTransformer.h"
-#include "AstVisitor.h"
+#include "AstTransforms.h"
 
 namespace souffle {
 
@@ -25,69 +24,27 @@ namespace souffle {
 const std::string identifierToString(const AstRelationIdentifier& name) {
     std::stringstream ss;
     ss << name;
-    return *(new std::string(ss.str()));
+    return ss.str();
 }
 
 inline AstRelationIdentifier makeRelationName(
         const AstRelationIdentifier& orig, const std::string& type, int num = -1) {
-    auto newName = new AstRelationIdentifier(identifierToString(orig));
-    newName->append(type);
+    AstRelationIdentifier newName(identifierToString(orig));
+    newName.append(type);
     if (num != -1) {
-        newName->append((const std::string&)std::to_string(num));
+        newName.append((const std::string&)std::to_string(num));
     }
 
-    return *newName;
+    return newName;
 }
 
-AstRecordInit* makeNewRecordInit(const std::vector<AstArgument*> args, bool negation = false) {
-    auto newRecordInit = new AstRecordInit();
-
-    int* numUnnamed = new int(0);
-    struct M : public AstNodeMapper {
-        int* numUnnamed;
-
-        using AstNodeMapper::operator();
-
-        M(int* numUnnamed) : numUnnamed(numUnnamed) {}
-
-        std::unique_ptr<AstNode> operator()(std::unique_ptr<AstNode> node) const override {
-            // see whether it is a variable to be substituted
-            if (dynamic_cast<AstUnnamedVariable*>(node.get())) {
-                return std::unique_ptr<AstNode>(
-                        new AstVariable("unnamed_" + std::to_string((*numUnnamed)++)));
-            }
-
-            // otherwise - apply mapper recursively
-            node->apply(*this);
-            return node;
-        }
-    };
-
-    for (auto arg : args) {
-        if (negation) {
-            newRecordInit->add(std::unique_ptr<AstArgument>(arg->clone()));
-        } else {
-            newRecordInit->add(M(numUnnamed)(std::unique_ptr<AstArgument>(arg->clone())));
-        }
-    }
-
-    return newRecordInit;
-}
-
-/**
- * ProvenanceTransformedClause functions
- */
-ProvenanceTransformedClause::ProvenanceTransformedClause(AstTranslationUnit& transUnit,
-        std::map<AstRelationIdentifier, AstTypeIdentifier> relTypeMap, AstClause& origClause,
-        AstRelationIdentifier origName, int num)
-        : translationUnit(transUnit), relationToTypeMap(relTypeMap), originalClause(origClause),
-          originalName(origName), clauseNumber(num) {}
-
-void ProvenanceTransformedClause::makeInfoRelation() {
-    AstRelationIdentifier name = makeRelationName(originalName, "info", clauseNumber);
+std::unique_ptr<AstRelation> makeInfoRelation(
+        AstClause& originalClause, AstTranslationUnit& translationUnit) {
+    AstRelationIdentifier name =
+            makeRelationName(originalClause.getHead()->getName(), "@info", originalClause.getClauseNum());
 
     // initialise info relation
-    infoRelation = new AstRelation();
+    auto infoRelation = new AstRelation();
     infoRelation->setName(name);
 
     // create new clause containing a single fact
@@ -95,31 +52,30 @@ void ProvenanceTransformedClause::makeInfoRelation() {
     auto infoClauseHead = new AstAtom();
     infoClauseHead->setName(name);
 
-    // visit all body literals and add to info clause head
-    visitDepthFirst(originalClause.getBodyLiterals(), [&](const AstLiteral& lit) {
-        size_t nextNum = infoRelation->getArity() + 1;
-
-        const AstAtom* atom = lit.getAtom();
-        if (atom != nullptr) {
-            // do not track provenance for nullary relations
-            if (atom->getArity() == 0) {
-                return;
-            }
-
-            const char* relName = identifierToString(atom->getName()).c_str();
-
-            infoRelation->addAttribute(std::unique_ptr<AstAttribute>(new AstAttribute(
-                    std::string("rel_") + std::to_string(nextNum), AstTypeIdentifier("symbol"))));
-            infoClauseHead->addArgument(std::unique_ptr<AstArgument>(
-                    new AstStringConstant(translationUnit.getSymbolTable(), relName)));
-        }
-    });
-
-    // add argument storing name of original clause
     infoRelation->addAttribute(
-            std::unique_ptr<AstAttribute>(new AstAttribute("orig_name", AstTypeIdentifier("symbol"))));
-    infoClauseHead->addArgument(std::unique_ptr<AstArgument>(new AstStringConstant(
-            translationUnit.getSymbolTable(), identifierToString(originalName).c_str())));
+            std::unique_ptr<AstAttribute>(new AstAttribute("clause_num", AstTypeIdentifier("number"))));
+    infoClauseHead->addArgument(
+            std::unique_ptr<AstArgument>(new AstNumberConstant(originalClause.getClauseNum())));
+
+    // visit all body literals and add to info clause head
+    for (size_t i = 0; i < originalClause.getBodyLiterals().size(); i++) {
+        auto lit = originalClause.getBodyLiterals()[i];
+        const AstAtom* atom = lit->getAtom();
+        if (atom != nullptr) {
+            std::string relName = identifierToString(atom->getName());
+
+            infoRelation->addAttribute(std::unique_ptr<AstAttribute>(
+                    new AstAttribute(std::string("rel_") + std::to_string(i), AstTypeIdentifier("symbol"))));
+
+            if (dynamic_cast<AstAtom*>(lit)) {
+                infoClauseHead->addArgument(std::unique_ptr<AstArgument>(
+                        new AstStringConstant(translationUnit.getSymbolTable(), relName.c_str())));
+            } else if (dynamic_cast<AstNegation*>(lit)) {
+                infoClauseHead->addArgument(std::unique_ptr<AstArgument>(
+                        new AstStringConstant(translationUnit.getSymbolTable(), ("!" + relName).c_str())));
+            }
+        }
+    }
 
     // generate and add clause representation
     std::stringstream ss;
@@ -133,280 +89,180 @@ void ProvenanceTransformedClause::makeInfoRelation() {
     // set clause head and add clause to info relation
     infoClause->setHead(std::unique_ptr<AstAtom>(infoClauseHead));
     infoRelation->addClause(std::unique_ptr<AstClause>(infoClause));
+
+    return std::unique_ptr<AstRelation>(infoRelation);
 }
 
-void ProvenanceTransformedClause::makeProvenanceRelation(AstRelation* recordRelation) {
-    AstRelationIdentifier name = makeRelationName(originalName, "provenance", clauseNumber);
+/** Transform eqrel relations to explicitly define equivalence relations */
+void transformEqrelRelation(AstRelation& rel) {
+    assert(rel.isEqRel() && "attempting to transform non-eqrel relation");
+    assert(rel.getArity() == 2 && "eqrel relation not binary");
 
-    // initialise provenance relation
-    provenanceRelation = new AstRelation();
-    provenanceRelation->setName(name);
+    rel.setQualifier(rel.getQualifier() - EQREL_RELATION);
 
-    // create new clause
-    auto provenanceClause = new AstClause();
-    auto provenanceClauseHead = new AstAtom();
-    provenanceClauseHead->setName(name);
+    // transitivity
+    // transitive clause: A(x, z) :- A(x, y), A(y, z).
+    auto transitiveClause = new AstClause();
+    auto transitiveClauseHead = new AstAtom(rel.getName());
+    transitiveClauseHead->addArgument(std::unique_ptr<AstArgument>(new AstVariable("x")));
+    transitiveClauseHead->addArgument(std::unique_ptr<AstArgument>(new AstVariable("z")));
 
-    auto args = originalClause.getHead()->getArguments();
+    auto transitiveClauseBody = new AstAtom(rel.getName());
+    transitiveClauseBody->addArgument(std::unique_ptr<AstArgument>(new AstVariable("x")));
+    transitiveClauseBody->addArgument(std::unique_ptr<AstArgument>(new AstVariable("y")));
 
-    // add first argument corresponding to actual result
-    provenanceRelation->addAttribute(std::unique_ptr<AstAttribute>(
-            new AstAttribute(std::string("result"), relationToTypeMap[originalName])));
-    provenanceClauseHead->addArgument(std::unique_ptr<AstArgument>(makeNewRecordInit(args)));
+    auto transitiveClauseBody2 = new AstAtom(rel.getName());
+    transitiveClauseBody2->addArgument(std::unique_ptr<AstArgument>(new AstVariable("y")));
+    transitiveClauseBody2->addArgument(std::unique_ptr<AstArgument>(new AstVariable("z")));
 
-    // visit all body literals and add to provenance clause
-    for (auto lit : originalClause.getBodyLiterals()) {
-        const AstAtom* atom = lit->getAtom();
-        if (atom != nullptr) {  // literal is atom or negation
-            std::string relName = identifierToString(atom->getName());
-            auto args = atom->getArguments();
+    transitiveClause->setHead(std::unique_ptr<AstAtom>(transitiveClauseHead));
+    transitiveClause->addToBody(std::unique_ptr<AstLiteral>(transitiveClauseBody));
+    transitiveClause->addToBody(std::unique_ptr<AstLiteral>(transitiveClauseBody2));
+    rel.addClause(std::unique_ptr<AstClause>(transitiveClause));
 
-            if (atom->getArity() == 0) {
-                continue;
-            }
+    // symmetric
+    // symmetric clause: A(x, y) :- A(y, x).
+    auto symClause = new AstClause();
+    auto symClauseHead = new AstAtom(rel.getName());
+    symClauseHead->addArgument(std::unique_ptr<AstArgument>(new AstVariable("x")));
+    symClauseHead->addArgument(std::unique_ptr<AstArgument>(new AstVariable("y")));
 
-            // add atom converted to record to body
-            auto newBody = std::unique_ptr<AstAtom>(new AstAtom(makeRelationName(atom->getName(), "record")));
+    auto symClauseBody = new AstAtom(rel.getName());
+    symClauseBody->addArgument(std::unique_ptr<AstArgument>(new AstVariable("y")));
+    symClauseBody->addArgument(std::unique_ptr<AstArgument>(new AstVariable("x")));
 
-            if (dynamic_cast<const AstAtom*>(lit)) {
-                // add atom to head as a record
-                provenanceRelation->addAttribute(std::unique_ptr<AstAttribute>(
-                        new AstAttribute("prov_" + relName, relationToTypeMap[atom->getName()])));
-                provenanceClauseHead->addArgument(std::unique_ptr<AstArgument>(makeNewRecordInit(args)));
+    symClause->setHead(std::unique_ptr<AstAtom>(symClauseHead));
+    symClause->addToBody(std::unique_ptr<AstLiteral>(symClauseBody));
+    rel.addClause(std::unique_ptr<AstClause>(symClause));
 
-                // add argument to body corresponding to provenance info for atom
-                newBody->addArgument(std::unique_ptr<AstRecordInit>(makeNewRecordInit(args)));
-                provenanceClause->addToBody(std::move(newBody));
-            } else if (dynamic_cast<const AstNegation*>(lit)) {
-                // add a marker signifying a negation
-                provenanceRelation->addAttribute(std::unique_ptr<AstAttribute>(
-                        new AstAttribute("prov_" + relName, AstTypeIdentifier("symbol"))));
-                provenanceClauseHead->addArgument(std::unique_ptr<AstArgument>(new AstStringConstant(
-                        translationUnit.getSymbolTable(), ("negated_" + relName).c_str())));
+    // reflexivity
+    // reflexive clause: A(x, x) :- A(x, _).
+    auto reflexiveClause = new AstClause();
+    auto reflexiveClauseHead = new AstAtom(rel.getName());
+    reflexiveClauseHead->addArgument(std::unique_ptr<AstArgument>(new AstVariable("x")));
+    reflexiveClauseHead->addArgument(std::unique_ptr<AstArgument>(new AstVariable("x")));
 
-                // add argument to body corresponding to record form of original atom
-                newBody->addArgument(std::unique_ptr<AstRecordInit>(makeNewRecordInit(args, true)));
-                provenanceClause->addToBody(
-                        std::unique_ptr<AstNegation>(new AstNegation(std::move(newBody))));
-            }
-        } else if (const AstConstraint* constr = dynamic_cast<const AstConstraint*>(lit)) {
-            // clone constraint and add to body
-            provenanceClause->addToBody(std::unique_ptr<AstConstraint>(constr->clone()));
-        }
-    }
+    auto reflexiveClauseBody = new AstAtom(rel.getName());
+    reflexiveClauseBody->addArgument(std::unique_ptr<AstArgument>(new AstVariable("x")));
+    reflexiveClauseBody->addArgument(std::unique_ptr<AstArgument>(new AstUnnamedVariable()));
 
-    // add head to clause and add clause to relation
-    provenanceClause->setHead(std::unique_ptr<AstAtom>(provenanceClauseHead));
-    provenanceRelation->addClause(std::unique_ptr<AstClause>(provenanceClause));
-
-    // add a new clause to recordRelation
-    auto newRecordRelationClause = new AstClause();
-    auto newRecordRelationClauseHead = new AstAtom();
-    newRecordRelationClauseHead->setName(recordRelation->getName());
-
-    // replace functors in args with variables for record relation
-    int numFunctors = 0;
-    for (size_t i = 0; i < args.size(); i++) {
-        if (dynamic_cast<AstFunctor*>(args[i])) {
-            auto newVariable = new AstVariable("functor_val_" + std::to_string(numFunctors));
-            args[i] = newVariable;
-        }
-    }
-    newRecordRelationClauseHead->addArgument(std::unique_ptr<AstRecordInit>(makeNewRecordInit(args)));
-
-    // construct body atom
-    auto newRecordRelationClauseBody = new AstAtom();
-    newRecordRelationClauseBody->setName(name);
-    newRecordRelationClauseBody->addArgument(std::unique_ptr<AstRecordInit>(makeNewRecordInit(args)));
-
-    for (size_t i = 0; i < provenanceRelation->getArity() - 1; i++) {
-        newRecordRelationClauseBody->addArgument(
-                std::unique_ptr<AstUnnamedVariable>(new AstUnnamedVariable()));
-    }
-    assert((newRecordRelationClauseBody->getArity() == provenanceRelation->getArity()) &&
-            "record relation clause and provenance relation don't match");
-
-    // add head and body to clause, add clause to relation
-    newRecordRelationClause->setHead(std::unique_ptr<AstAtom>(newRecordRelationClauseHead));
-    newRecordRelationClause->addToBody(std::unique_ptr<AstAtom>(newRecordRelationClauseBody));
-    recordRelation->addClause(std::unique_ptr<AstClause>(newRecordRelationClause));
+    reflexiveClause->setHead(std::unique_ptr<AstAtom>(reflexiveClauseHead));
+    reflexiveClause->addToBody(std::unique_ptr<AstLiteral>(reflexiveClauseBody));
+    rel.addClause(std::unique_ptr<AstClause>(reflexiveClause));
 }
 
-/**
- * ProvenanceTransformedRelation functions
- */
-ProvenanceTransformedRelation::ProvenanceTransformedRelation(AstTranslationUnit& transUnit,
-        std::map<AstRelationIdentifier, AstTypeIdentifier> relTypeMap, AstRelation& origRelation,
-        AstRelationIdentifier origName)
-        : translationUnit(transUnit), relationToTypeMap(relTypeMap), originalRelation(origRelation),
-          originalName(origName) {
-    // check if originalRelation is EDB
-    if (originalRelation.isInput()) {
-        isEDB = true;
-    } else {
-        // check each clause
-        bool edb = true;
-        for (auto clause : originalRelation.getClauses()) {
-            if (!clause->isFact()) {
-                edb = false;
-            }
-        }
-        isEDB = edb;
-    }
-
-    makeRecordRelation();
-    makeOutputRelation();
-
-    int count = 0;
-    for (auto clause : originalRelation.getClauses()) {
-        auto transformedClause =
-                new ProvenanceTransformedClause(transUnit, relTypeMap, *clause, origName, count);
-        transformedClause->makeInfoRelation();
-        if (!isEDB) {
-            transformedClause->makeProvenanceRelation(recordRelation);
-        }
-        transformedClauses.push_back(transformedClause);
-        count++;
-    }
-}
-
-/**
- * Record relation stores the original relation converted to a record
- * Clauses are created afterwards, using provenance relations
- */
-void ProvenanceTransformedRelation::makeRecordRelation() {
-    AstRelationIdentifier name = makeRelationName(originalName, "record");
-
-    // initialise record relation
-    recordRelation = new AstRelation();
-    recordRelation->setName(name);
-
-    recordRelation->addAttribute(std::unique_ptr<AstAttribute>(
-            new AstAttribute(std::string("x"), relationToTypeMap[originalName])));
-
-    // make clause for recordRelation if original is EDB
-    if (isEDB) {
-        // create new arguments to add to clause
-        std::vector<AstArgument*> args;
-        for (size_t i = 0; i < originalRelation.getArity(); i++) {
-            args.push_back(new AstVariable("x_" + std::to_string(i)));
-        }
-
-        auto recordRelationClause = new AstClause();
-        auto recordRelationClauseHead = new AstAtom();
-        recordRelationClauseHead->setName(name);
-        recordRelationClauseHead->addArgument(std::unique_ptr<AstRecordInit>(makeNewRecordInit(args)));
-
-        // construct clause body
-        auto recordRelationClauseBody = new AstAtom();
-        recordRelationClauseBody->setName(originalName);
-        for (auto a : args) {
-            recordRelationClauseBody->addArgument(std::unique_ptr<AstArgument>(a));
-        }
-
-        recordRelationClause->setHead(std::unique_ptr<AstAtom>(recordRelationClauseHead));
-        recordRelationClause->addToBody(std::unique_ptr<AstAtom>(recordRelationClauseBody));
-        recordRelation->addClause(std::unique_ptr<AstClause>(recordRelationClause));
-    }
-}
-
-void ProvenanceTransformedRelation::makeOutputRelation() {
-    AstRelationIdentifier name = makeRelationName(originalName, "output");
-
-    // initialise record relation
-    outputRelation = new AstRelation();
-    outputRelation->setName(name);
-
-    // get record type
-    auto recordType = dynamic_cast<const AstRecordType*>(
-            translationUnit.getProgram()->getType(relationToTypeMap[originalName]));
-    assert(recordType->getFields().size() == originalRelation.getArity() &&
-            "record type does not match original relation");
-
-    // create new clause from record relation
-    auto outputClause = new AstClause();
-    auto outputClauseHead = new AstAtom();
-    outputClauseHead->setName(name);
-
-    // create vector to be used to make RecordInit
-    std::vector<AstArgument*> args;
-    for (size_t i = 0; i < originalRelation.getArity(); i++) {
-        args.push_back(new AstVariable("x_" + std::to_string(i)));
-    }
-
-    // add first argument corresponding to the record type
-    outputRelation->addAttribute(std::unique_ptr<AstAttribute>(
-            new AstAttribute(std::string("result"), relationToTypeMap[originalName])));
-    outputClauseHead->addArgument(std::unique_ptr<AstArgument>(makeNewRecordInit(args)));
-
-    // add remaining arguments corresponding to elements of record type
-    for (size_t i = 0; i < originalRelation.getArity(); i++) {
-        outputRelation->addAttribute(std::unique_ptr<AstAttribute>(
-                new AstAttribute(std::string("x_") + std::to_string(i), recordType->getFields()[i].type)));
-        outputClauseHead->addArgument(
-                std::unique_ptr<AstArgument>(new AstVariable("x_" + std::to_string(i))));
-    }
-
-    // make body literal
-    auto outputClauseBody = new AstAtom();
-    outputClauseBody->setName(makeRelationName(originalName, "record"));
-    outputClauseBody->addArgument(std::unique_ptr<AstRecordInit>(makeNewRecordInit(args)));
-
-    // add atoms to clause
-    outputClause->setHead(std::unique_ptr<AstAtom>(outputClauseHead));
-    outputClause->addToBody(std::unique_ptr<AstAtom>(outputClauseBody));
-
-    // add clause to relation
-    outputRelation->addClause(std::unique_ptr<AstClause>(outputClause));
-}
-
-bool NaiveProvenanceTransformer::transform(AstTranslationUnit& translationUnit) {
-    bool changed = false;
+bool ProvenanceTransformer::transform(AstTranslationUnit& translationUnit) {
     auto program = translationUnit.getProgram();
-    auto relationToTypeMap = std::map<AstRelationIdentifier, AstTypeIdentifier>();
+
+    // get next level number
+    auto getNextLevelNumber = [&](std::vector<AstArgument*> levels) {
+        if (levels.size() == 0) {
+            return static_cast<AstArgument*>(new AstNumberConstant(0));
+        }
+
+        if (levels.size() == 1) {
+            return static_cast<AstArgument*>(
+                    new AstBinaryFunctor(BinaryOp::ADD, std::unique_ptr<AstArgument>(levels[0]),
+                            std::unique_ptr<AstArgument>(new AstNumberConstant(1))));
+        }
+
+        auto currentMax = new AstBinaryFunctor(BinaryOp::MAX, std::unique_ptr<AstArgument>(levels[0]),
+                std::unique_ptr<AstArgument>(levels[1]));
+
+        for (size_t i = 2; i < levels.size(); i++) {
+            currentMax = new AstBinaryFunctor(BinaryOp::MAX, std::unique_ptr<AstArgument>(currentMax),
+                    std::unique_ptr<AstArgument>(levels[i]));
+        }
+
+        return static_cast<AstArgument*>(
+                new AstBinaryFunctor(BinaryOp::ADD, std::unique_ptr<AstArgument>(currentMax),
+                        std::unique_ptr<AstArgument>(new AstNumberConstant(1))));
+    };
 
     for (auto relation : program->getRelations()) {
-        if (relation->getArity() == 0) {
-            continue;
+        if (relation->isEqRel()) {
+            transformEqrelRelation(*relation);
         }
 
-        std::string relationName = identifierToString(relation->getName());
+        relation->addAttribute(std::unique_ptr<AstAttribute>(
+                new AstAttribute(std::string("@rule_number"), AstTypeIdentifier("number"))));
+        relation->addAttribute(std::unique_ptr<AstAttribute>(
+                new AstAttribute(std::string("@level_number"), AstTypeIdentifier("number"))));
 
-        // create new record type
-        auto newRecordType = new AstRecordType();
-        newRecordType->setName(relationName + "_type");
+        // record clause number
+        size_t clauseNum = 1;
+        for (auto clause : relation->getClauses()) {
+            clause->setClauseNum(clauseNum);
 
-        for (auto attribute : relation->getAttributes()) {
-            newRecordType->add(attribute->getAttributeName(), attribute->getTypeName());
-        }
+            // mapper to add two provenance columns to atoms
+            struct M : public AstNodeMapper {
+                using AstNodeMapper::operator();
 
-        relationToTypeMap[relation->getName()] = newRecordType->getName();
+                std::unique_ptr<AstNode> operator()(std::unique_ptr<AstNode> node) const override {
+                    // add provenance columns
+                    if (auto atom = dynamic_cast<AstAtom*>(node.get())) {
+                        atom->addArgument(std::unique_ptr<AstArgument>(new AstUnnamedVariable()));
+                        atom->addArgument(std::unique_ptr<AstArgument>(new AstUnnamedVariable()));
+                    } else if (auto neg = dynamic_cast<AstNegation*>(node.get())) {
+                        auto atom = neg->getAtom();
+                        atom->addArgument(std::unique_ptr<AstArgument>(new AstUnnamedVariable()));
+                        atom->addArgument(std::unique_ptr<AstArgument>(new AstUnnamedVariable()));
+                    }
 
-        program->addType(std::unique_ptr<AstType>(newRecordType));
-    }
+                    // otherwise - apply mapper recursively
+                    node->apply(*this);
+                    return node;
+                }
+            };
 
-    for (auto relation : program->getRelations()) {
-        if (relation->getArity() == 0) {
-            continue;
-        }
+            // add unnamed vars to each atom nested in arguments of head
+            clause->getHead()->apply(M());
 
-        changed = true;
+            // if fact, level number is 0
+            if (clause->isFact()) {
+                clause->getHead()->addArgument(std::unique_ptr<AstArgument>(new AstNumberConstant(0)));
+                clause->getHead()->addArgument(std::unique_ptr<AstArgument>(new AstNumberConstant(0)));
+            } else {
+                std::vector<AstArgument*> bodyLevels;
 
-        // create new ProvenanceTransformedRelation
-        auto transformedRelation = new ProvenanceTransformedRelation(
-                translationUnit, relationToTypeMap, *relation, relation->getName());
+                for (size_t i = 0; i < clause->getBodyLiterals().size(); i++) {
+                    auto lit = clause->getBodyLiterals()[i];
 
-        // add relations to program
-        for (auto transformedClause : transformedRelation->getTransformedClauses()) {
-            program->addRelation(transformedClause->getInfoRelation());
-            if (!transformedRelation->isEdbRelation()) {
-                program->addRelation(transformedClause->getProvenanceRelation());
+                    // add unnamed vars to each atom nested in arguments of lit
+                    lit->apply(M());
+
+                    // add two provenance columns to lit; first is rule num, second is level num
+                    if (auto atom = dynamic_cast<AstAtom*>(lit)) {
+                        atom->addArgument(std::unique_ptr<AstArgument>(new AstUnnamedVariable()));
+                        atom->addArgument(std::unique_ptr<AstArgument>(
+                                new AstVariable("@level_num_" + std::to_string(i))));
+                        bodyLevels.push_back(new AstVariable("@level_num_" + std::to_string(i)));
+                        /*
+                    } else if (auto neg = dynamic_cast<AstNegation*>(lit)) {
+                        auto atom = neg->getAtom();
+                        atom->addArgument(std::unique_ptr<AstArgument>(new AstUnnamedVariable()));
+                        atom->addArgument(std::unique_ptr<AstArgument>(new AstUnnamedVariable()));
+                        */
+                    }
+                }
+
+                // add two provenance columns to head lit
+                clause->getHead()->addArgument(
+                        std::unique_ptr<AstArgument>(new AstNumberConstant(clauseNum)));
+                clause->getHead()->addArgument(std::unique_ptr<AstArgument>(getNextLevelNumber(bodyLevels)));
+
+                clauseNum++;
+
+                // add info relation
+                program->addRelation(makeInfoRelation(*clause, translationUnit));
             }
         }
-        program->addRelation(transformedRelation->getRecordRelation());
-        program->addRelation(transformedRelation->getOutputRelation());
     }
-    return changed;
+
+    // program->print(std::cout);
+    // std::cout << std::endl;
+
+    return true;
 }
 
 }  // end of namespace souffle

@@ -75,5 +75,5 @@ TEST(Tuple, CompareSpeed) {
     EXPECT_EQ(268435456llu, res);
 }
 
-}  // end namespace test
+}  // namespace ram
 }  // end namespace souffle

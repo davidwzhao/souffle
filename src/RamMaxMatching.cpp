@@ -18,8 +18,8 @@
 namespace souffle {
 
 /**
-* Class MaxMatching
-*/
+ * Class MaxMatching
+ */
 
 /** implementation of bredth first search */
 bool RamMaxMatching::bfSearch() {

@@ -43,7 +43,7 @@ template <typename A, typename B>
 std::ostream& operator<<(std::ostream& out, const tuple<A, B>& t) {
     return out << "[" << get<0>(t) << "," << get<1>(t) << "]";
 }
-}
+}  // namespace std
 
 namespace souffle {
 
@@ -847,5 +847,5 @@ TEST(BTreeSet, ParallelScaling) {
 }
 
 #endif
-}
+}  // namespace test
 }  // end namespace souffle

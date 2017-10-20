@@ -215,30 +215,22 @@ void DebugReporter::generateDebugReport(
     DebugReportSection datalogSection = getCodeSection(id + "-dl", "Datalog", datalogSpec.str());
 
     std::stringstream precGraphDot;
-    translationUnit.getAnalysis<PrecedenceGraph>()->outputPrecedenceGraph(precGraphDot);
+    translationUnit.getAnalysis<PrecedenceGraph>()->print(precGraphDot);
     DebugReportSection precedenceGraphSection =
             getDotGraphSection(id + "-prec-graph", "Precedence Graph", precGraphDot.str());
 
     std::stringstream sccGraphDot;
-    translationUnit.getAnalysis<SCCGraph>()->outputSCCGraph(sccGraphDot);
+    translationUnit.getAnalysis<SCCGraph>()->print(sccGraphDot);
     DebugReportSection sccGraphSection =
             getDotGraphSection(id + "-scc-graph", "SCC Graph", sccGraphDot.str());
 
     std::stringstream topsortSCCGraph;
-    translationUnit.getAnalysis<TopologicallySortedSCCGraph>()->outputTopologicallySortedSCCGraph(
-            topsortSCCGraph);
+    translationUnit.getAnalysis<TopologicallySortedSCCGraph>()->print(topsortSCCGraph);
     DebugReportSection topsortSCCGraphSection =
             getCodeSection(id + "-topsort-scc-graph", "SCC Topological Sort Order", topsortSCCGraph.str());
 
-    std::stringstream adornment;
-    translationUnit.getAnalysis<Adornment>()->outputAdornment(adornment);
-    DebugReportSection adornmentSection =
-            getCodeSection(id + "-adornment-display", "Adornment", adornment.str());
-
-    translationUnit.getDebugReport().addSection(
-            DebugReportSection(id, title, {datalogSection, precedenceGraphSection, sccGraphSection,
-                                                  topsortSCCGraphSection, adornmentSection},
-                    ""));
+    translationUnit.getDebugReport().addSection(DebugReportSection(id, title,
+            {datalogSection, precedenceGraphSection, sccGraphSection, topsortSCCGraphSection}, ""));
 }
 
 }  // end of namespace souffle

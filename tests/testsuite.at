@@ -100,7 +100,7 @@ m4_define([TEST_EVAL_IN],[
  m4_define([FACTS],[TESTDIR/$3])
  m4_define([EXPECTEDDIR], [TESTDIR$4])
  # invoke souffle
- AT_CHECK(["$SOUFFLE" FLAGS -D. -F FACTS PROGRAM 0<TESTNAME.in 1>TESTNAME.out 2>TESTNAME.err], [0])
+ AT_CHECK(["$SOUFFLE" FLAGS -D. -F FACTS PROGRAM 0<TESTDIR/TESTNAME.in 1>TESTNAME.out 2>TESTNAME.err], [0])
  # sort the expected and the generated CSV files
  # and compare whether both files are the same.
  for i in *.csv
@@ -113,8 +113,10 @@ m4_define([TEST_EVAL_IN],[
  # is equal to the number of expected CSV files.
  ls *.csv|wc -l >"num.generated"
  ls EXPECTEDDIR/*.csv|wc -l >"num.expected"
+ # remove non-deterministic record numbering
+ sed 's/subproof \(@<:@a-zA-Z0-9?_@:>@*\)(@<:@0-9@:>@*)/subproof \1()/g' TESTNAME.out | sed -e '$a\' >TESTNAME.sed.out
  # validate stdout and stderr
- SAME_FILES([TESTNAME.out],[EXPECTEDDIR/TESTNAME.out])
+ SAME_FILES([TESTNAME.sed.out],[EXPECTEDDIR/TESTNAME.out])
  SAME_FILES([TESTNAME.err],[EXPECTEDDIR/TESTNAME.err])
  SAME_FILES([num.generated],[num.expected])
 ])
@@ -187,7 +189,7 @@ m4_define([TEST_EVAL_ERROR_IN],[
  m4_define([TESTDIR],["$TESTS"/CATEGORY/TESTNAME])
  m4_define([PROGRAM],[TESTDIR/TESTNAME.dl])
  m4_define([FACTS],[TESTDIR/facts])
- AT_CHECK(["$SOUFFLE" FLAGS -D. -F FACTS PROGRAM 0<TESTNAME.in 1>TESTNAME.out 2>TESTNAME.err], [1])
+ AT_CHECK(["$SOUFFLE" FLAGS -D. -F FACTS PROGRAM 0<TESTDIR/TESTNAME.in 1>TESTNAME.out 2>TESTNAME.err], [1])
  SAME_FILES([TESTNAME.out],[TESTDIR/TESTNAME.out])
  SAME_FILES([TESTNAME.err],[TESTDIR/TESTNAME.err])
 ])
@@ -210,6 +212,26 @@ m4_define([TEST_EVAL_INTERFACE],[
  SAME_FILES([TESTNAME.out],[TESTDIR/TESTNAME.out])
 ])
 
+dnl Execute a negative interface test case
+dnl $1 -- test case
+dnl $2 -- category
+m4_define([TEST_EVAL_ERROR_INTERFACE],[
+ m4_define([TESTNAME],[$1])
+ m4_define([CATEGORY],[$2])
+ m4_define([TESTDIR],["$TESTS"/CATEGORY/TESTNAME])
+ m4_define([PROGRAM],[TESTDIR/TESTNAME.dl])
+ m4_define([FACTS],[TESTDIR/facts])
+ # invoke souffle
+ AT_CHECK(["$SOUFFLE" -D- -g $1.cpp -F FACTS PROGRAM 1>TESTNAME.out 2>TESTNAME.err], [0])
+ # remove executable and re-build it from scratch
+ AT_CHECK([rm TESTNAME.err],[0])
+ AT_CHECK(["$CXX" "-I$SOUFFLE_INC" $CXXFLAGS -D__EMBEDDED_SOUFFLE__ -o $1 TESTDIR/driver.cpp $1.cpp $LIBS 2>>TESTNAME.err],[0])
+ AT_CHECK([rm TESTNAME.err],[0])
+ AT_CHECK([./$1 FACTS 1>TESTNAME.out 2>>TESTNAME.err], [1])
+ SAME_FILES([TESTNAME.out],[TESTDIR/TESTNAME.out])
+ SAME_FILES([TESTNAME.err],[TESTDIR/TESTNAME.err])
+])
+
 dnl Positive testcase for Souffle
 dnl $1 -- test name
 dnl $2 -- category
@@ -219,13 +241,14 @@ m4_define([POSITIVE_TEST],[
     ])
 ])
 
-dnl Positive testcase for Souffle
+dnl Positive testcase for Souffle provenance explainer
 dnl $1 -- test name
 dnl $2 -- category
-m4_define([POSITIVE_TEST_IN],[
-    TEST_GROUP([$1],[
-        TEST_EVAL_IN([$1],[$2], facts)
-    ])
+m4_define([POSITIVE_PROVENANCE_TEST],[
+  AT_SETUP([$1])
+  m4_define([FLAGS],[])
+  TEST_EVAL_IN([$1],[$2], facts)
+  AT_CLEANUP([])
 ])
 
 dnl Positive testcase for Souffle
@@ -249,6 +272,15 @@ m4_define([POSITIVE_INTERFACE_TEST],[
   AT_CLEANUP([])
 ])
 
+dnl Negative interface testcase for Souffle
+dnl $1 -- test name
+dnl $2 -- category
+m4_define([NEGATIVE_INTERFACE_TEST],[
+  AT_SETUP([$1])
+  TEST_EVAL_ERROR_INTERFACE([$1],[$2])
+  AT_CLEANUP([])
+])
+
 dnl Negative testcase for Souffle
 dnl $1 -- test name
 dnl $2 -- category
@@ -258,29 +290,33 @@ m4_define([NEGATIVE_TEST],[
     ])
 ])
 
-dnl Negative testcase for Souffle
+dnl Negative testcase for Souffle provenance explainer
 dnl $1 -- test name
 dnl $2 -- category
-m4_define([NEGATIVE_TEST_IN],[
-    TEST_GROUP([$1],[
-        TEST_EVAL_ERROR_IN([$1],[$2])
-    ])
+m4_define([NEGATIVE_PROVENANCE_TEST],[
+  AT_SETUP([$1])
+  m4_define([FLAGS],[])
+  TEST_EVAL_ERROR_IN([$1],[$2])
+  AT_CLEANUP([])
 ])
 
 ##########################################################################
 
-dnl Defines all possible Souffle flag configurations for testing.
+dnl Defines most relevant Souffle flag configurations for testing.
 dnl NOTE: This is the default configuration that can be overridden
 dnl using SOUFFLE_CONFS environment variable.
-m4_define([DEFAULT_CONFS], [[], dnl interpreter
- [-c],                  dnl compilation
- [-t0],                 dnl provenance transformation
- [-c -t0],              dnl provenance transformation / compilation
- [-j8],                 dnl interpreter / parallel execution
- [-c -j8],              dnl compilation & parallel execution
- [--auto-schedule -o testprog],  dnl auto-scheduling & compilation
- [-p profile.log],      dnl interpreter & profiling
- [-c -p profile.log]    dnl compiler & profiling
+m4_define([DEFAULT_CONFS], [[],     dnl run interpreter
+ [-c],                              dnl compile, then execute
+ [-j8],                             dnl run interpreter in parallel
+ [-j8 -p profile.log],              dnl run interpreter in parallel, with profiling enabled
+ [-c -j8],                          dnl compile, then execute in parallel
+ [-c -j8 -p profile.log],           dnl compile, then execute in parallel, with profiling enabled
+ [-f -j8],                          dnl run interpreter with fault-tolerance in parallel
+ [-f -j8 -p profile.log],           dnl run interpreter with fault-tolerance in parallel, with profiling enabled
+ [-c -f -j8],                       dnl compile with fault tolerance enabled, then execute in parallel
+ [-c -f -j8 -p profile.log],        dnl compile with fault tolerance enabled, then execute in parallel, with profiling enabled
+ [-c -j8 -s-],                      dnl compile to subprograms, then execute each in parallel
+ [-c -f -j8 -s-],                   dnl compile to subprograms with fault tolerance enabled, then execute each in parallel
 ])
 
 dnl Store user-defined souffle flag configuration given by the SOUFFLE_CONFS env (if any)
@@ -298,7 +334,8 @@ m4_define([DEFAULT_CATEGORIES], [[Syntactic],
   [Semantic],
   [Evaluation],
   [Interface],
-  [Profile]])
+  [Profile],
+  [Provenance]])
 
 dnl Store user-defined souffle flag configuration given by the SOUFFLE_CONFS env (if any)
 m4_define([ENV_CATEGORIES],
@@ -337,6 +374,11 @@ m4_foreach(current, [CATEGORIES],
   m4_if(current, Profile, [
     dnl Profile
     m4_include([profile.at])
+  ])
+
+  m4_if(current, Provenance, [
+   dnl Provenance
+   m4_include([provenance.at])
   ])
 
   m4_if(current, Example, [

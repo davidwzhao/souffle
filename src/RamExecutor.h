@@ -17,9 +17,12 @@
 #pragma once
 
 #include "RamData.h"
+#include "RamProgram.h"
 #include "RamRelation.h"
 #include "SymbolTable.h"
 #include "Util.h"
+
+#include "RamStatement.h"
 
 #include <functional>
 //#include <map>
@@ -65,9 +68,9 @@ public:
      * Runs the given RAM statement on an empty environment and returns
      * this environment after the completion of the execution.
      */
-    RamEnvironment* execute(SymbolTable& table, const RamStatement& stmt) const {
-        RamEnvironment* env = new RamEnvironment(table);
-        applyOn(stmt, *env, nullptr);
+    std::unique_ptr<RamEnvironment> execute(SymbolTable& table, const RamProgram& prog) const {
+        auto env = std::make_unique<RamEnvironment>(table);
+        applyOn(prog, *env, nullptr);
         return env;
     }
 
@@ -75,17 +78,24 @@ public:
      * Runs the given RAM statement on an empty environment and input data and returns
      * this environment after the completion of the execution.
      */
-    RamEnvironment* execute(SymbolTable& table, const RamStatement& stmt, RamData* data) const {
+    std::unique_ptr<RamEnvironment> execute(SymbolTable& table, const RamProgram& prog, RamData* data) const {
         // Ram env managed by the interface
-        RamEnvironment* env = new RamEnvironment(table);
-        applyOn(stmt, *env, data);
+        auto env = std::make_unique<RamEnvironment>(table);
+        applyOn(prog, *env, data);
         return env;
     }
 
     /**
+     * Runs a subroutine of a RamProgram
+     */
+    void executeSubroutine(RamEnvironment& env, const RamStatement& stmt,
+            const std::vector<RamDomain>& arguments, std::vector<RamDomain>& returnValues,
+            std::vector<bool>& returnErrors);
+
+    /**
      * Runs the given statement on the given environment.
      */
-    virtual void applyOn(const RamStatement& stmt, RamEnvironment& env, RamData* data) const = 0;
+    virtual void applyOn(const RamProgram& prog, RamEnvironment& env, RamData* data) const = 0;
 };
 
 /**
@@ -177,7 +187,7 @@ public:
      * The implementation of the interpreter applying the given program
      * on the given environment.
      */
-    void applyOn(const RamStatement& stmt, RamEnvironment& env, RamData* data) const override;
+    void applyOn(const RamProgram& prog, RamEnvironment& env, RamData* data) const override;
 };
 
 /**
@@ -207,35 +217,47 @@ public:
      * name is either set by the corresponding member field or will
      * be determined randomly. The chosen file-name will be returned.
      */
-    std::string generateCode(
-            const SymbolTable& symTable, const RamStatement& stmt, const std::string& filename = "") const;
+    std::string generateCode(const SymbolTable& symTable, const RamProgram& prog,
+            const std::string& filename = "", const int index = -1) const;
 
     /**
      * Generates the code for the given ram statement.The target file
      * name is either set by the corresponding member field or will
      * be determined randomly. The chosen file-name will be returned.
      */
-    std::string compileToLibrary(const SymbolTable& symTable, const RamStatement& stmt,
-            const std::string& filename = "default") const;
+    std::string compileToLibrary(const SymbolTable& symTable, const RamProgram& prog,
+            const std::string& filename = "default", const int index = -1) const;
 
     /**
      * Compiles the given statement to a binary file. The target file
      * name is either set by the corresponding member field or will
      * be determined randomly. The chosen file-name will be returned.
+     * Note that this uses the generateCode method for code generation.
      */
-    std::string compileToBinary(const SymbolTable& symTable, const RamStatement& stmt) const;
+    std::string compileToBinary(const SymbolTable& symTable, const RamProgram& prog,
+            const std::string& filename = "", const int index = -1) const;
+
+    /**
+     * Compiles the given statement to a binary file. The target file
+     * name is either set by the corresponding member field or will
+     * be determined randomly. The environment after execution will be returned.
+     * Note that this uses the compileToBinary method for code compilation.
+     */
+    std::string executeBinary(const SymbolTable& symTable, const RamProgram& prog,
+            const std::string& filename = "", const int index = -1) const;
 
     /**
      * The actual implementation of this executor encoding the given
      * program into a source file, compiling and executing it.
      */
-    void applyOn(const RamStatement& stmt, RamEnvironment& env, RamData* data) const override;
+    void applyOn(const RamProgram& prog, RamEnvironment& env, RamData* data) const override;
 
-private:
     /**
-     * Obtains a file name for the resulting source and executable file.
+     * Compiles a subroutine into a separate method in the compiled
+     * program
      */
-    std::string resolveFileName() const;
+    // void compileSubroutine(std::string name, const RamStatement& stmt, IndexMap& indices, std::ostream& os)
+    // const;
 };
 
 /**

@@ -24,6 +24,7 @@
 #include "AstUtils.h"
 #include "AstVisitor.h"
 #include "ComponentModel.h"
+#include "Global.h"
 #include "GraphUtils.h"
 #include "PrecedenceGraph.h"
 #include "Util.h"
@@ -122,6 +123,8 @@ void AstSemanticChecker::checkProgram(ErrorReport& report, const AstProgram& pro
     visitDepthFirst(nodes, [&](const AstNullConstant& cnst) {
         TypeSet types = typeAnalysis.getTypes(&cnst);
         if (!isRecordType(types)) {
+            // TODO (#467) remove the next line to enable subprogram compilation for record types
+            if (Global::config().has("stratify")) Global::config().unset("stratify");
             report.addError("Null constant used as a non-record", cnst.getSrcLoc());
         }
     });
@@ -130,6 +133,8 @@ void AstSemanticChecker::checkProgram(ErrorReport& report, const AstProgram& pro
     visitDepthFirst(nodes, [&](const AstRecordInit& cnst) {
         TypeSet types = typeAnalysis.getTypes(&cnst);
         if (isRecordType(types)) {
+            // TODO (#467) remove the next line to enable subprogram compilation for record types
+            if (Global::config().has("stratify")) Global::config().unset("stratify");
             for (const Type& type : types) {
                 if (cnst.getArguments().size() !=
                         dynamic_cast<const RecordType*>(&type)->getFields().size()) {
@@ -270,10 +275,10 @@ void AstSemanticChecker::checkProgram(ErrorReport& report, const AstProgram& pro
     // - stratification --
 
     // check for cyclic dependencies
-    const Graph<const AstRelation*, AstNameComparison>& depGraph = precedenceGraph.getGraph();
-    for (const AstRelation* cur : depGraph.getNodes()) {
+    const Graph<const AstRelation*, AstNameComparison>& depGraph = precedenceGraph.graph();
+    for (const AstRelation* cur : depGraph.vertices()) {
         if (depGraph.reaches(cur, cur)) {
-            AstRelationSet clique = depGraph.getClique(cur);
+            AstRelationSet clique = depGraph.clique(cur);
             for (const AstRelation* cyclicRelation : clique) {
                 // Negations and aggregations need to be stratified
                 const AstLiteral* foundLiteral = nullptr;
@@ -538,7 +543,7 @@ void AstSemanticChecker::checkClause(ErrorReport& report, const AstProgram& prog
         }
     }
     // check auto-increment
-    if (recursiveClauses.isRecursive(&clause)) {
+    if (recursiveClauses.recursive(&clause)) {
         visitDepthFirst(clause, [&](const AstCounter& ctr) {
             report.addError("Auto-increment functor in a recursive rule", ctr.getSrcLoc());
         });
@@ -890,11 +895,11 @@ bool AstExecutionPlanChecker::transform(AstTranslationUnit& translationUnit) {
     RelationSchedule* relationSchedule = translationUnit.getAnalysis<RelationSchedule>();
     RecursiveClauses* recursiveClauses = translationUnit.getAnalysis<RecursiveClauses>();
 
-    for (const RelationScheduleStep& step : relationSchedule->getSchedule()) {
-        const std::set<const AstRelation*>& scc = step.getComputedRelations();
+    for (const RelationScheduleStep& step : relationSchedule->schedule()) {
+        const std::set<const AstRelation*>& scc = step.computed();
         for (const AstRelation* rel : scc) {
             for (const AstClause* clause : rel->getClauses()) {
-                if (!recursiveClauses->isRecursive(clause)) {
+                if (!recursiveClauses->recursive(clause)) {
                     continue;
                 }
                 if (!clause->getExecutionPlan()) {
@@ -909,10 +914,10 @@ bool AstExecutionPlanChecker::transform(AstTranslationUnit& translationUnit) {
                 if (version <= clause->getExecutionPlan()->getMaxVersion()) {
                     for (const auto& cur : clause->getExecutionPlan()->getOrders()) {
                         if (cur.first >= version) {
-                            translationUnit.getErrorReport().addDiagnostic(Diagnostic(
-                                    Diagnostic::ERROR, DiagnosticMessage("execution plan for version " +
-                                                                                 std::to_string(cur.first),
-                                                               cur.second->getSrcLoc()),
+                            translationUnit.getErrorReport().addDiagnostic(Diagnostic(Diagnostic::ERROR,
+                                    DiagnosticMessage(
+                                            "execution plan for version " + std::to_string(cur.first),
+                                            cur.second->getSrcLoc()),
                                     {DiagnosticMessage("only versions 0.." + std::to_string(version - 1) +
                                                        " permitted")}));
                         }

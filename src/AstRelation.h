@@ -80,12 +80,12 @@ protected:
     int qualifier;
 
     /** Clauses associated with this relation. Clauses could be
-      * either facts or rules.
-      */
+     * either facts or rules.
+     */
     std::vector<std::unique_ptr<AstClause>> clauses;
 
     /** IO directives associated with this relation.
-      */
+     */
     std::vector<std::unique_ptr<AstIODirective>> ioDirectives;
 
 public:
@@ -177,6 +177,18 @@ public:
     /** Check whether relation is an overridable relation */
     bool isOverridable() const {
         return (qualifier & OVERRIDABLE_RELATION) != 0;
+    }
+
+    /** Check whether relation has a record in its head */
+    bool hasRecordInHead() const {
+        for (auto& cur : clauses) {
+            for (auto* arg : cur->getHead()->getArguments()) {
+                if (dynamic_cast<AstRecordInit*>(arg)) {
+                    return true;
+                }
+            };
+        }
+        return false;
     }
 
     /** Operator overload, calls print if reference is given */

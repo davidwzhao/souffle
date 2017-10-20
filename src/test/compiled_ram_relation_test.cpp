@@ -871,5 +871,5 @@ TEST(Relation, PartitionBug_InsertAll) {
     EXPECT_EQ(all, is);
 }
 
-}  // end namespace test
+}  // namespace ram
 }  // end namespace souffle

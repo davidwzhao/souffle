@@ -685,4 +685,4 @@ public:
         return false;
     }
 };
-}
+}  // namespace souffle

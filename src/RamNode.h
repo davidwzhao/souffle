@@ -31,6 +31,7 @@ enum RamNodeType {
     RN_TernaryOperator,
     RN_AutoIncrement,
     RN_Pack,
+    RN_Argument,
 
     // conditions
     RN_NotExists,
@@ -54,11 +55,13 @@ enum RamNodeType {
     RN_Drop,
     RN_PrintSize,
     RN_LogSize,
+    RN_Return,
 
     RN_Merge,
     RN_Swap,
 
     // control flow
+    RN_Program,
     RN_Sequence,
     RN_Loop,
     RN_Parallel,

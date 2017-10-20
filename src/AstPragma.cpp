@@ -27,6 +27,7 @@ bool AstPragmaChecker::transform(AstTranslationUnit& translationUnit) {
     visitDepthFirst(*program, [&](const AstPragma& pragma) {
         std::pair<std::string, std::string> kvp = pragma.getkvp();
         // command line options take precedence
+        // TODO (azreika): currently does not override default values if set
         if (!Global::config().has(kvp.first)) {
             changed = true;
             Global::config().set(kvp.first, kvp.second);

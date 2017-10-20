@@ -91,5 +91,5 @@ TEST(ParallelUtils, OptimisticReadWriteLock) {
 
     EXPECT_EQ(2 * (N / K), c);
 }
-}
+}  // namespace test
 }  // end namespace souffle

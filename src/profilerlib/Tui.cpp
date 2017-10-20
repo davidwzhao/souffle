@@ -1,10 +1,10 @@
 /*
-* Souffle - A Datalog Compiler
-* Copyright (c) 2016, The Souffle Developers. All rights reserved
-* Licensed under the Universal Permissive License v 1.0 as shown at:
-* - https://opensource.org/licenses/UPL
-* - <souffle root>/licenses/SOUFFLE-UPL.txt
-*/
+ * Souffle - A Datalog Compiler
+ * Copyright (c) 2016, The Souffle Developers. All rights reserved
+ * Licensed under the Universal Permissive License v 1.0 as shown at:
+ * - https://opensource.org/licenses/UPL
+ * - <souffle root>/licenses/SOUFFLE-UPL.txt
+ */
 
 #include "Tui.hpp"
 
@@ -151,7 +151,6 @@ void Tui::outputJson() {
         throw 1;
     }
     DIR* dir;
-    struct dirent* ent;
     bool exists = false;
 
     if ((dir = opendir((workingdir + std::string("/profiler_html")).c_str())) != NULL) {

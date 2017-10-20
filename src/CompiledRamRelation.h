@@ -86,7 +86,7 @@ namespace detail {
  */
 template <unsigned arity, typename... Indices>
 class AutoRelation;
-}
+}  // namespace detail
 
 /**
  * A generic, tuned setup, using a combination of direct and indirect
@@ -112,7 +112,7 @@ namespace detail {
 template <template <typename Tuple, typename Index, bool direct> class IndexFactory, unsigned arity,
         typename... Indices>
 class SingleIndexTypeRelation;
-}
+}  // namespace detail
 
 /**
  * A setup utilizing direct b-trees for relations exclusively.
@@ -225,6 +225,13 @@ struct RelationBase {
         return out.str();
     }
 
+    // -- Hint Profiling --
+
+    /* Prints a summary of the hint statistic of this relation */
+    void printHintStatistics(std::ostream& out, const std::string& prefix = "") const {
+        static_cast<const Derived*>(this)->printHintStatistics(out, prefix);
+    }
+
 private:
     /* Provides type-save access to the members of the derived class. */
     Derived& asDerived() {
@@ -297,8 +304,8 @@ public:
     typedef typename indices_t::operation_context operation_context;
 
     // import generic signatures from the base class
-    using base::insert;
     using base::contains;
+    using base::insert;
 
     // --- most general implementation ---
 
@@ -410,6 +417,11 @@ public:
         out << " ] where " << primary_index() << " is the primary index";
         return out;
     }
+
+    /* Prints a summary of the hint statistic of this relation */
+    void printHintStatistics(std::ostream& out, const std::string& prefix = "") const {
+        indices.printHintStatistics(out, prefix);
+    }
 };
 
 /**
@@ -459,8 +471,8 @@ public:
     typedef typename indices_t::operation_context operation_context;
 
     // import generic signatures from the base class
-    using base::insert;
     using base::contains;
+    using base::insert;
 
     // --- most general implementation ---
 
@@ -556,6 +568,11 @@ public:
         indices.printDescription(out);
         out << " ] where " << primary_index() << " is the primary index";
         return out;
+    }
+
+    /* Prints a summary of the hint statistic of this relation */
+    void printHintStatistics(std::ostream& out, const std::string& prefix = "") const {
+        indices.printHintStatistics(out, prefix);
     }
 };
 
@@ -744,6 +761,11 @@ public:
     std::ostream& printDescription(std::ostream& out = std::cout) const {
         return out << "Nullary Relation";
     }
+
+    /* Prints a summary of the hint statistic of this relation */
+    void printHintStatistics(std::ostream& out, const std::string& prefix = "") const {
+        out << prefix << " -- no hints used in nullary relation --\n";
+    }
 };
 
 /**
@@ -774,8 +796,8 @@ public:
     typedef typename table_t::iterator iterator;
 
     // import generic signatures from the base class
-    using base::insert;
     using base::contains;
+    using base::insert;
 
     typedef typename table_t::operation_hints operation_context;
 
@@ -881,6 +903,11 @@ public:
         out << "Index-Organized Relation of arity=" << arity << " based on a ";
         table_t::printDescription(out);
         return out;
+    }
+
+    /* Prints a summary of the hint statistic of this relation */
+    void printHintStatistics(std::ostream& out, const std::string& prefix = "") const {
+        data.printHintStatistics(out, prefix);
     }
 };
 

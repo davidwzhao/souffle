@@ -83,11 +83,9 @@ TEST(Stats, Convergence) {
         // if file not found => be done
         if (!in.is_open()) return;
 
-        std::unique_ptr<ReadStream> reader = IOSystem::getInstance().getReader(mask, symTable, ioDirectives);
-
-        while (auto next = reader->readNextTuple()) {
-            rel.insert(next.get());
-        }
+        std::unique_ptr<ReadStream> reader =
+                IOSystem::getInstance().getReader(mask, symTable, ioDirectives, false);
+        reader->readAll(rel);
     }
 
     std::cout << rel.size() << "\n";

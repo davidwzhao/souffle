@@ -37,7 +37,7 @@ namespace test {
 namespace binreltest {
 template <class T>
 void ignore(const T&) {}
-}
+}  // namespace binreltest
 
 TEST(BinRelTest, Scoping) {
     // simply test that namespaces were setup correctly
@@ -552,5 +552,5 @@ TEST(BinRelTest, ParallelScaling) {
     }
 }
 #endif
-}
-}
+}  // namespace test
+}  // namespace souffle

@@ -340,6 +340,9 @@ public:
         values.push_back(std::move(v));
     }
 
+    /** add condition to project, needed for different level check */
+    void addCondition(std::unique_ptr<RamCondition> c, RamOperation* root) override;
+
     const RamRelationIdentifier& getRelation() const {
         return relation;
     }
@@ -372,6 +375,34 @@ public:
             res.push_back(cur.get());
         }
         return res;
+    }
+};
+
+/** A statement for returning from a ram subroutine */
+class RamReturn : public RamOperation {
+protected:
+    std::vector<std::unique_ptr<RamValue>> values;
+
+public:
+    RamReturn(size_t level) : RamOperation(RN_Return, level) {}
+
+    void print(std::ostream& out, int tabpos) const override;
+
+    size_t getDepth() const override {
+        return 1;
+    }
+
+    void addValue(std::unique_ptr<RamValue> val) {
+        values.push_back(std::move(val));
+    }
+
+    std::vector<RamValue*> getValues() const {
+        return toPtrVector(values);
+    }
+
+    RamValue& getValue(size_t i) const {
+        assert(i < values.size() && "value index out of range");
+        return *values[i];
     }
 };
 

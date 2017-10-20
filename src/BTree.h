@@ -340,7 +340,7 @@ private:
 
             /**
              * The actual number of keys/node corrected by functional requirements.
-              */
+             */
             maxKeys = (desiredNumKeys > 3) ? desiredNumKeys : 3
         };
 
@@ -1147,6 +1147,26 @@ private:
     // a pointer to the left-most node of this tree (initial note for iteration)
     leaf_node* leftmost;
 
+    /* -------------- operator hint statistics ----------------- */
+
+    // an aggregation of statistical values of the hint utilization
+    struct hint_statistics {
+        // the counter for insertion operations
+        CacheAccessCounter inserts;
+
+        // the counter for contains operations
+        CacheAccessCounter contains;
+
+        // the counter for lower_bound operations
+        CacheAccessCounter lower_bound;
+
+        // the counter for upper_bound operations
+        CacheAccessCounter upper_bound;
+    };
+
+    // the hint statistic of this b-tree instance
+    mutable hint_statistics hint_stats;
+
 public:
     enum {
         // the maximum number of keys stored per node
@@ -1269,7 +1289,15 @@ public:
                     cur = hints.last_insert;
                     // and keep lease
                     cur_lease = hint_lease;
+                    // register this as a hit
+                    hint_stats.inserts.addHit();
+                } else {
+                    // register this as a miss
+                    hint_stats.inserts.addMiss();
                 }
+            } else {
+                // register this as a miss
+                hint_stats.inserts.addMiss();
             }
         }
 
@@ -1470,6 +1498,9 @@ public:
         // test last insert
         if (hints.last_insert && covers(hints.last_insert, k)) {
             cur = hints.last_insert;
+            hint_stats.inserts.addHit();
+        } else {
+            hint_stats.inserts.addMiss();
         }
 
         while (true) {
@@ -1641,6 +1672,11 @@ public:
         // test last location searched (temporal locality)
         if (hints.last_find_end && covers(hints.last_find_end, k)) {
             cur = hints.last_find_end;
+            // register it as a hit
+            hint_stats.contains.addHit();
+        } else {
+            // register it as a miss
+            hint_stats.contains.addMiss();
         }
 
         // an iterative implementation (since 2/7 faster than recursive)
@@ -1691,6 +1727,9 @@ public:
         // test last searched node
         if (hints.last_lower_bound_end && covers(hints.last_lower_bound_end, k)) {
             cur = hints.last_lower_bound_end;
+            hint_stats.lower_bound.addHit();
+        } else {
+            hint_stats.lower_bound.addMiss();
         }
 
         iterator res = end();
@@ -1743,6 +1782,9 @@ public:
         // test last search node
         if (hints.last_upper_bound_end && coversUpperBound(hints.last_upper_bound_end, k)) {
             cur = hints.last_upper_bound_end;
+            hint_stats.upper_bound.addHit();
+        } else {
+            hint_stats.upper_bound.addMiss();
         }
 
         iterator res = end();
@@ -1864,6 +1906,11 @@ public:
         return sizeof(*this) + (empty() ? 0 : root->getMemoryUsage());
     }
 
+    // Obtains a reference to the internally maintained hint statistics
+    const hint_statistics& getHintStatistics() const {
+        return hint_stats;
+    }
+
     /*
      * Prints a textual representation of this tree to the given
      * output stream (mostly for debugging and tuning).
@@ -1899,6 +1946,17 @@ public:
         out << "  avg keys / node:  " << (size() / (double)nodes) << "\n";
         out << "  avg filling rate: " << ((size() / (double)nodes) / node::maxKeys) << "\n";
         out << "---------------------------------\n";
+        if (isHintsProfilingEnabled()) {
+            out << "         insert hint hits: " << hint_stats.inserts.getHits() << "\n";
+            out << "       insert hint misses: " << hint_stats.inserts.getMisses() << "\n";
+            out << "       contains hint hits: " << hint_stats.contains.getHits() << "\n";
+            out << "     contains hint misses: " << hint_stats.contains.getMisses() << "\n";
+            out << "    lower_bound hint hits: " << hint_stats.lower_bound.getHits() << "\n";
+            out << "  lower_bound hint misses: " << hint_stats.lower_bound.getMisses() << "\n";
+            out << "    upper_bound hint hits: " << hint_stats.upper_bound.getHits() << "\n";
+            out << "  upper_bound hint misses: " << hint_stats.upper_bound.getMisses() << "\n";
+            out << "---------------------------------\n";
+        }
     }
 
     /**

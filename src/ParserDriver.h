@@ -47,14 +47,14 @@ public:
 
     std::unique_ptr<AstTranslationUnit> translationUnit;
 
-    void addRelation(AstRelation* r);
-    void addIODirective(AstIODirective* d);
-    void addIODirectiveChain(AstIODirective* d);
-    void addType(AstType* type);
-    void addClause(AstClause* c);
-    void addComponent(AstComponent* c);
-    void addInstantiation(AstComponentInit* ci);
-    void addPragma(AstPragma* p);
+    void addRelation(std::unique_ptr<AstRelation> r);
+    void addIODirective(std::unique_ptr<AstIODirective> d);
+    void addIODirectiveChain(std::unique_ptr<AstIODirective> d);
+    void addType(std::unique_ptr<AstType> type);
+    void addClause(std::unique_ptr<AstClause> c);
+    void addComponent(std::unique_ptr<AstComponent> c);
+    void addInstantiation(std::unique_ptr<AstComponentInit> ci);
+    void addPragma(std::unique_ptr<AstPragma> p);
 
     souffle::SymbolTable& getSymbolTable();
 

@@ -267,6 +267,9 @@ protected:
     /** Determines whether this is an internally generated clause resulting from resolving syntactic sugar */
     bool generated;
 
+    /** Stores a unique number for each clause in a relation */
+    size_t clauseNum;
+
 public:
     /** Construct an empty clause with empty list of literals and
         its head set to NULL */
@@ -355,6 +358,16 @@ public:
     /** Updates the generated flag */
     void setGenerated(bool value = true) {
         generated = value;
+    }
+
+    /** Gets the clause number */
+    size_t getClauseNum() const {
+        return clauseNum;
+    }
+
+    /** Sets the clause number */
+    void setClauseNum(size_t num) {
+        clauseNum = num;
     }
 
     /** Print this clause to a given stream */

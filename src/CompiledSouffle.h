@@ -64,11 +64,11 @@ private:
 
     class iterator_wrapper : public iterator_base {
         typename RelType::iterator it;
-        Relation* relation;
+        const Relation* relation;
         tuple t;
 
     public:
-        iterator_wrapper(uint32_t arg_id, Relation* rel, const typename RelType::iterator& arg_it)
+        iterator_wrapper(uint32_t arg_id, const Relation* rel, const typename RelType::iterator& arg_it)
                 : iterator_base(arg_id), it(arg_it), relation(rel), t(rel) {}
         void operator++() {
             ++it;
@@ -95,10 +95,10 @@ public:
     RelationWrapper(RelType& r, SymbolTable& s, std::string name, const std::array<const char*, Arity>& t,
             const std::array<const char*, Arity>& n)
             : relation(r), symTable(s), name(name), tupleType(t), tupleName(n) {}
-    iterator begin() {
+    iterator begin() const override {
         return iterator(new iterator_wrapper(id, this, relation.begin()));
     }
-    iterator end() {
+    iterator end() const override {
         return iterator(new iterator_wrapper(id, this, relation.end()));
     }
     void insert(const tuple& arg) {

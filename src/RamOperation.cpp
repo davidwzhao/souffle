@@ -260,19 +260,53 @@ void RamAggregate::print(std::ostream& os, int tabpos) const {
 void RamProject::print(std::ostream& os, int tabpos) const {
     const std::string tabs(tabpos, '\t');
 
-    // support table-less options
-    if (auto condition = getCondition()) {
-        os << "IF ";
-        condition->print(os);
-        os << " THEN ";
-    }
-
     os << tabs << "PROJECT (" << join(values, ", ", print_deref<std::unique_ptr<RamValue>>()) << ") INTO "
        << relation.getName();
+
+    // support table-less options
+    if (auto condition = getCondition()) {
+        os << " IF ";
+        condition->print(os);
+    }
 
     if (hasFilter()) {
         os << " UNLESS IN " << getFilter().getName();
     }
+}
+
+/* add condition */
+void RamProject::addCondition(std::unique_ptr<RamCondition> c, RamOperation* root) {
+    // we can have condition arguments from lower levels, since the values we project are also from lower
+    // levels
+    assert(c->getLevel() <= level);
+
+    if (condition) {
+        condition = std::unique_ptr<RamCondition>(new RamAnd(std::move(condition), std::move(c)));
+    } else {
+        condition.swap(c);
+    }
+}
+
+/* print return */
+void RamReturn::print(std::ostream& os, int tabpos) const {
+    const std::string tabs(tabpos, '\t');
+
+    // return
+    os << tabs << "RETURN (";
+
+    for (auto val : getValues()) {
+        if (val == nullptr) {
+            os << "_";
+        } else {
+            val->print(os);
+        }
+
+        if (val != *(getValues().end() - 1)) {
+            os << ", ";
+        }
+    }
+
+    os << ")";
 }
 
 }  // end of namespace souffle

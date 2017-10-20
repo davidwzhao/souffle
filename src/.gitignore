@@ -1,5 +1,6 @@
 .deps
 
+souffle.dSYM
 souffle
 souffle-compile
 souffle-config
@@ -16,3 +17,5 @@ libsouffle*
 
 test-suite.log
 wavelib/cpplexer/re2clex/.dirstamp
+
+souffle.dSYM

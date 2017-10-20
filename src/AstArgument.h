@@ -398,7 +398,7 @@ public:
 
     /** Print argument to the given output stream */
     void print(std::ostream& os) const override {
-        if (isNumericBinaryOp(fun)) {
+        if (fun < BinaryOp::MAX) {
             os << "(";
             lhs->print(os);
             os << getSymbolForBinaryOp(fun);
@@ -728,6 +728,48 @@ protected:
         assert(dynamic_cast<const AstAggregator*>(&node));
         const AstAggregator& other = static_cast<const AstAggregator&>(node);
         return fun == other.fun && equal_ptr(expr, other.expr) && equal_targets(body, other.body);
+    }
+};
+
+/**
+ * An argument taking its value from an argument of a RAM subroutine
+ */
+class AstSubroutineArgument : public AstArgument {
+private:
+    /** Index of argument in argument list*/
+    size_t number;
+
+public:
+    AstSubroutineArgument(size_t n) : AstArgument(), number(n) {}
+
+    /** Return argument number */
+    size_t getNumber() const {
+        return number;
+    }
+
+    /** Print argument to the given output stream */
+    void print(std::ostream& os) const override {
+        os << "arg_" << number;
+    }
+
+    /** Creates a clone if this AST sub-structure */
+    AstSubroutineArgument* clone() const override {
+        AstSubroutineArgument* res = new AstSubroutineArgument(number);
+        res->setSrcLoc(getSrcLoc());
+        return res;
+    }
+
+    /** Mutates this node */
+    void apply(const AstNodeMapper& /*mapper*/) override {
+        // no sub-nodes to consider
+    }
+
+protected:
+    /** Implements the node comparison for this node type */
+    bool equal(const AstNode& node) const override {
+        assert(dynamic_cast<const AstSubroutineArgument*>(&node));
+        const AstSubroutineArgument& other = static_cast<const AstSubroutineArgument&>(node);
+        return number == other.number;
     }
 };
 

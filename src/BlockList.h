@@ -39,8 +39,10 @@
 
 #pragma once
 
+#include <atomic>
 #include <exception>
 #include <iostream>
+#include <mutex>
 #include <vector>
 
 namespace souffle {
@@ -211,7 +213,6 @@ public:
         cData = curr;
     }
 };
-/* end concurrent_list MIT copyright */
 
 // number of elements in each array of the vector
 static constexpr uint8_t BLOCKBITS = 10u;
@@ -446,4 +447,4 @@ inline void BlockList<std::atomic<block_t>>::add(const std::atomic<block_t>& val
 
     ++m_size;
 }
-}
+}  // namespace souffle

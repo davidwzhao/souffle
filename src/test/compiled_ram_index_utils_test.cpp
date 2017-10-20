@@ -174,5 +174,5 @@ TEST(IndicesTools, GetPrefix) {
     EXPECT_EQ(typeid(index<0, 1, 3, 2>), typeid(index_utils::get_prefix<4, index<0, 1, 3, 2>>::type));
 }
 
-}  // end namespace test
+}  // namespace ram
 }  // end namespace souffle

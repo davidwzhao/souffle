@@ -41,18 +41,42 @@ AS_IF([test "x$enable_jni" = "xyes"], [
 ])
 AM_CONDITIONAL([JAVAI], [test "x$enable_jni" = "xyes"])
 
-# Enable curses library
-AX_WITH_CURSES
-AS_VAR_APPEND(LIBS, ["$CURSES_LIB"])
-
 dnl Do not set default CFLAGS and CXXFLAGS
 CXXFLAGS=" -Wall -std=c++11  $CXXFLAGS"
+
+# Disable provenance
+AC_ARG_ENABLE(
+  [provenance],
+  AS_HELP_STRING([--disable-provenance], [Disable provenance display])
+)
+AS_IF([test "x$enable_provenance" != "xno"], [
+  AX_WITH_CURSES
+  AS_IF([test "x$ax_cv_ncurses" != "xyes"],[AC_MSG_ERROR([ncurses library is needed for support of provenance display. To build without provenance support use --disable-provenance.])])
+  AS_VAR_APPEND(LIBS, ["$CURSES_LIB"])
+  AS_VAR_APPEND(CXXFLAGS, [" -DUSE_PROVENANCE "])
+])
+AM_CONDITIONAL([PROVENANCE], [test "x$enable_provenance" != "xno"])
+
+# Enable sanitise memory mode
+AC_ARG_ENABLE(
+  [sanitise-memory],
+  [AS_HELP_STRING([--enable-sanitise-memory], [Enable sanitise memory mode])]
+)
+AS_IF([test "x$enable_sanitise_memory" = "xyes"], [CXXFLAGS="$CXXFLAGS -fsanitize=address,leak"])
+
+# Enable sanitise threads mode
+AC_ARG_ENABLE(
+  [sanitise-thread],
+  [AS_HELP_STRING([--enable-sanitise-thread], [Enable sanitise thread mode])]
+)
+AS_IF([test "x$enable_sanitise_thread" = "xyes"], [CXXFLAGS="$CXXFLAGS -fsanitize=thread"])
 
 # Enable debug mode
 AC_ARG_ENABLE(
   [debug],
   [AS_HELP_STRING([--enable-debug], [Enable debug mode])]
 )
+
 AS_IF([test "x$enable_debug" = "xyes"], [CXXFLAGS="$CXXFLAGS -O0 -g3"],
   [test "x$enable_debug" != "xyes"], [CXXFLAGS="$CXXFLAGS -O3"]
 )
@@ -95,6 +119,7 @@ AS_IF([test -z "$FLEX"], [AC_MSG_ERROR([flex not found.])])
 # Check for bison
 AC_CHECK_PROG(BISON, bison, bison)
 AS_IF([test -z "$BISON"], [AC_MSG_ERROR([bison not found.])])
+AX_PROG_BISON_VERSION([3.0.2], [], [AC_MSG_ERROR([bison version 3.0.2 is required.])])
 
 # Enable packaging option
 AC_ARG_ENABLE(
@@ -111,8 +136,8 @@ AC_ARG_ENABLE(
   AS_HELP_STRING([--disable-libz], [Disable use of libz file compression])
 )
 AS_IF([test "x$enable_libz" != "xno"], [
-    AC_CHECK_HEADER(zlib.h,,[AC_MSG_ERROR([required library zlib missing])])
-    AC_CHECK_LIB(z, compress,,[AC_MSG_ERROR([required library zlib missing])])
+       AC_CHECK_HEADER(zlib.h,,[AC_MSG_ERROR([required library zlib missing. Use --disable-libz to build without gzip file IO.])])
+       AC_CHECK_LIB(z, compress,,[AC_MSG_ERROR([required library zlib missingi. Use --disable-libz to build without gzip file IO.])])
     AS_VAR_APPEND(CXXFLAGS, [" -DUSE_LIBZ "])
 ])
 AM_CONDITIONAL([LIBZ], [test "x$enable_libz" != "xno"])
@@ -123,8 +148,8 @@ AC_ARG_ENABLE(
   AS_HELP_STRING([--disable-sqlite], [Disable use of sqlite IO])
 )
 AS_IF([test "x$enable_sqlite" != "xno"], [
-    AC_CHECK_HEADER(sqlite3.h,,[AC_MSG_ERROR([required library sqlite3 missing])])
-    AC_CHECK_LIB(sqlite3, sqlite3_open,,[AC_MSG_ERROR([required library sqlite3 missing])])
+    AC_CHECK_HEADER(sqlite3.h,,[AC_MSG_ERROR([required library sqlite3 missing. Use --disable-sqlite without support for SQLite IO support.])])
+    AC_CHECK_LIB(sqlite3, sqlite3_open,,[AC_MSG_ERROR([required library sqlite3 missing. Use --disable-sqlite without support for SQLite IO support.])])
     AS_VAR_APPEND(CXXFLAGS, [" -DUSE_SQLITE "])
 ])
 AM_CONDITIONAL([SQLITE], [test "x$enable_sqlite" != "xno"])
@@ -285,10 +310,6 @@ m4_define(DIST_PACKAGING,[
 DIST_PACKAGING([debian ubuntu],[DEBIAN_PACKAGE],[DEBUILD],[debuild])
 DIST_PACKAGING([osx],[OSX_PACKAGE],[PKGBUILD],[pkgbuild])
 DIST_PACKAGING([bsd],[BSD_PACKAGE],[PKGBUILD],[pkgbuild])
-
-dnl Enable pthread library
-AC_CHECK_LIB(pthread, pthread_create,,
-          [AC_MSG_ERROR([required library pthread missing])])
 
 dnl Enables OpenMP in the souffle compiler and interpreter
 AC_OPENMP
@@ -524,6 +545,10 @@ AC_CONFIG_LINKS([include/souffle/Util.h:src/Util.h])
 AC_CONFIG_LINKS([include/souffle/Macro.h:src/Macro.h])
 AC_CONFIG_LINKS([include/souffle/RamLogger.h:src/RamLogger.h])
 AC_CONFIG_LINKS([include/souffle/Explain.h:src/Explain.h])
+AC_CONFIG_LINKS([include/souffle/ExplainTree.h:src/ExplainTree.h])
+AC_CONFIG_LINKS([include/souffle/ExplainProvenance.h:src/ExplainProvenance.h])
+AC_CONFIG_LINKS([include/souffle/ExplainProvenanceSLD.h:src/ExplainProvenanceSLD.h])
+AC_CONFIG_LINKS([include/souffle/ExplainProvenanceRecords.h:src/ExplainProvenanceRecords.h])
 AC_CONFIG_LINKS([include/souffle/SignalHandler.h:src/SignalHandler.h])
 AC_CONFIG_LINKS([include/souffle/IODirectives.h:src/IODirectives.h])
 AC_CONFIG_LINKS([include/souffle/IOSystem.h:src/IOSystem.h])

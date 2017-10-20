@@ -230,6 +230,11 @@ public:
     inline std::pair<iterator, iterator> lowerUpperBound(const RamDomain* low, const RamDomain* high) const {
         return std::pair<iterator, iterator>(set.lower_bound(low), set.upper_bound(high));
     }
+
+    // TODO: remove this temporary method
+    iterator indexEnd() const {
+        return set.end();
+    }
 };
 
 }  // end of namespace souffle

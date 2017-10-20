@@ -1451,6 +1451,32 @@ public:
     bool set(index_type i, op_context& ctxt) {
         atomic_value_t& val = store.getAtomic(i >> LEAF_INDEX_WIDTH, ctxt);
         value_t bit = (1ull << (i & LEAF_INDEX_MASK));
+
+#ifdef __GNUC__
+#if __GNUC__ >= 7
+        // In GCC >= 7 the usage of fetch_or causes a bug that needs further investigation
+        // For now, this two-instruction based implementation provides a fix that does
+        // not sacrifice too much performance.
+
+        while (true) {
+            auto order = std::memory_order::memory_order_relaxed;
+
+            // load current value
+            value_t old = val.load(order);
+
+            // if bit is already set => we are done
+            if (old & bit) return false;
+
+            // set the bit, if failed, repeat
+            if (!val.compare_exchange_strong(old, old | bit, order, order)) continue;
+
+            // it worked, new bit added
+            return true;
+        }
+
+#endif
+#endif
+
         value_t old = val.fetch_or(bit, std::memory_order::memory_order_relaxed);
         return !(old & bit);
     }
@@ -1814,6 +1840,30 @@ public:
             return out;
         }
     };
+
+    /* -------------- operator hint statistics ----------------- */
+
+    // an aggregation of statistical values of the hint utilization
+    struct hint_statistics {
+        // the counter for insertion operations
+        CacheAccessCounter inserts;
+
+        // the counter for contains operations
+        CacheAccessCounter contains;
+
+        // the counter for get_boundaries operations
+        CacheAccessCounter get_boundaries;
+    };
+
+protected:
+    // the hint statistic of this b-tree instance
+    mutable hint_statistics hint_stats;
+
+public:
+    // Obtains a reference to the internally maintained hint statistics
+    const hint_statistics& getHintStatistics() const {
+        return hint_stats;
+    }
 };
 
 /**
@@ -1959,7 +2009,7 @@ struct fix_binding<0, Dim, Dim> {
         return true;
     }
 };
-}
+}  // namespace detail
 
 /**
  * The most generic implementation of a Trie forming the top-level of any
@@ -2112,8 +2162,8 @@ public:
                   lastBoundaries(iterator(), iterator()) {}
     };
 
-    using base::insert;
     using base::contains;
+    using base::insert;
 
     /**
      * A simple destructore.
@@ -2294,9 +2344,13 @@ public:
 
             // if it fits => take it
             if (fit) {
+                base::hint_stats.get_boundaries.addHit();
                 return ctxt.lastBoundaries;
             }
         }
+
+        // the hint has not been a hit
+        base::hint_stats.get_boundaries.addMiss();
 
         // start with two end iterators
         iterator begin, end;
@@ -2383,7 +2437,10 @@ private:
 
         // check context
         if (ctxt.lastNested && ctxt.lastQuery == tuple[I]) {
+            base::hint_stats.inserts.addHit();
             return ctxt.lastNested->template insert_internal<I + 1>(tuple, ctxt.nestedCtxt);
+        } else {
+            base::hint_stats.inserts.addMiss();
         }
 
         // lookup nested
@@ -2433,7 +2490,10 @@ private:
     bool contains_internal(const Tuple& tuple, op_context& ctxt) const {
         // check context
         if (ctxt.lastNested && ctxt.lastQuery == tuple[I]) {
+            base::hint_stats.contains.addHit();
             return ctxt.lastNested->template contains_internal<I + 1>(tuple, ctxt.nestedCtxt);
+        } else {
+            base::hint_stats.contains.addMiss();
         }
 
         // lookup next step
@@ -2475,8 +2535,8 @@ class Trie<0u> : public detail::TrieBase<0u, Trie<0u>> {
 public:
     struct op_context {};
 
-    using base::insert;
     using base::contains;
+    using base::insert;
 
     // a simple default constructor
     Trie() : present(false) {}
@@ -2702,8 +2762,8 @@ class Trie<1u> : public detail::TrieBase<1u, Trie<1u>> {
 public:
     typedef typename map_type::op_context op_context;
 
-    using base::insert;
     using base::contains;
+    using base::insert;
 
     /**
      * Determines whether this trie is empty or not.

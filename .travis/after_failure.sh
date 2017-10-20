@@ -72,6 +72,12 @@ for EXTENSION in $RELEVANT_EXTENSIONS; do
     done
 done
 
+if [ -e "$TEST_ROOT/$CANDIDATE/core" ]
+then
+    pretty_print "Core dump found"
+    gdb -batch -ex 'bt' ./src/souffle "$TEST_ROOT/$CANDIDATE/core"
+fi
+
 if [ $TRAVIS_OS_NAME == osx ]
 then
     pretty_print "OSX Diagnostic Reports"

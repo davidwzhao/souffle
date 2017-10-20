@@ -9,6 +9,7 @@
 .output tcr  ()
 .decl base (node1:Node, node2:Node)
 .output base ()
+.input base ()
 .decl tc (node1:Node, node2:Node)
 .output tc ()
 
@@ -28,6 +29,3 @@ tc(X,Y) :- tc(X,Z),tc(Z,Y).
 base("a","b").
 base("b","c").
 base("c","d").
-base("d","e").
-base("e","f").
-base("f","g").

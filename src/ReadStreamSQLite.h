@@ -32,14 +32,20 @@ namespace souffle {
 class ReadStreamSQLite : public ReadStream {
 public:
     ReadStreamSQLite(const std::string& dbFilename, const std::string& relationName,
-            const SymbolMask& symbolMask, SymbolTable& symbolTable)
-            : dbFilename(dbFilename), relationName(relationName), symbolMask(symbolMask),
-              symbolTable(symbolTable) {
+            const SymbolMask& symbolMask, SymbolTable& symbolTable, const bool provenance)
+            : ReadStream(symbolMask, symbolTable, provenance), dbFilename(dbFilename),
+              relationName(relationName) {
         openDB();
         checkTableExists();
         prepareSelectStatement();
     }
 
+    ~ReadStreamSQLite() override {
+        sqlite3_finalize(selectStatement);
+        sqlite3_close(db);
+    }
+
+protected:
     /**
      * Read and return the next tuple.
      *
@@ -53,14 +59,15 @@ public:
 
         std::unique_ptr<RamDomain[]> tuple(new RamDomain[symbolMask.getArity()]);
 
-        for (uint32_t column = 0; column < symbolMask.getArity(); column++) {
+        uint32_t column;
+        for (column = 0; column < symbolMask.getArity(); column++) {
             std::string element(reinterpret_cast<const char*>(sqlite3_column_text(selectStatement, column)));
 
             if (element == "") {
                 element = "n/a";
             }
             if (symbolMask.isSymbol(column)) {
-                tuple[column] = symbolTable.lookup(element.c_str());
+                tuple[column] = symbolTable.unsafeLookup(element.c_str());
             } else {
                 try {
                     tuple[column] = std::stoi(element.c_str());
@@ -72,15 +79,14 @@ public:
             }
         }
 
+        if (isProvenance) {
+            tuple[symbolMask.getArity() - 2] = 0;
+            tuple[symbolMask.getArity() - 1] = 0;
+        }
+
         return tuple;
     }
 
-    ~ReadStreamSQLite() override {
-        sqlite3_finalize(selectStatement);
-        sqlite3_close(db);
-    }
-
-private:
     void executeSQL(const std::string& sql) {
         assert(db && "Database connection is closed");
 
@@ -144,26 +150,24 @@ private:
     }
     const std::string& dbFilename;
     const std::string& relationName;
-    const SymbolMask& symbolMask;
-    SymbolTable& symbolTable;
     sqlite3_stmt* selectStatement;
     sqlite3* db;
 };
 
-class ReadStreamSQLiteFactory : public ReadStreamFactory {
+class ReadSQLiteFactory : public ReadStreamFactory {
 public:
     std::unique_ptr<ReadStream> getReader(const SymbolMask& symbolMask, SymbolTable& symbolTable,
-            const IODirectives& ioDirectives) override {
+            const IODirectives& ioDirectives, const bool provenance) override {
         std::string dbName = ioDirectives.get("dbname");
         std::string relationName = ioDirectives.getRelationName();
         return std::unique_ptr<ReadStreamSQLite>(
-                new ReadStreamSQLite(dbName, relationName, symbolMask, symbolTable));
+                new ReadStreamSQLite(dbName, relationName, symbolMask, symbolTable, provenance));
     }
     const std::string& getName() const override {
         static const std::string name = "sqlite";
         return name;
     }
-    ~ReadStreamSQLiteFactory() override = default;
+    ~ReadSQLiteFactory() override = default;
 };
 
 } /* namespace souffle */

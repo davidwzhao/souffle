@@ -17,6 +17,7 @@
 #pragma once
 
 #include "AstTranslationUnit.h"
+#include "RamProgram.h"
 #include "RamRelation.h"
 
 #include <map>
@@ -57,7 +58,7 @@ public:
 
     /** generate RAM code for a clause */
     std::unique_ptr<RamStatement> translateClause(const AstClause& clause, const AstProgram* program,
-            const TypeEnvironment* typeEnv, int version = 0);
+            const TypeEnvironment* typeEnv, int version = 0, bool ret = false);
 
     /**
      * Generates RAM code for the non-recursive clauses of the given relation.
@@ -73,8 +74,12 @@ public:
             const AstProgram* program, const RecursiveClauses* recursiveClauses,
             const TypeEnvironment& typeEnv);
 
+    /** generate RAM code for subroutine to get subproofs */
+    std::unique_ptr<RamStatement> makeSubproofSubroutine(
+            const AstClause& clause, const AstProgram* program, const TypeEnvironment& typeEnv);
+
     /** translates the given datalog program into an equivalent RAM program  */
-    std::unique_ptr<RamStatement> translateProgram(const AstTranslationUnit& translationUnit);
+    std::unique_ptr<RamProgram> translateProgram(const AstTranslationUnit& translationUnit);
 };
 
 }  // end of namespace souffle

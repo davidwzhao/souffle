@@ -7,3 +7,4 @@
 POSITIVE_INTERFACE_TEST([insert_print],[interface])
 POSITIVE_INTERFACE_TEST([insert_for],[interface])
 POSITIVE_INTERFACE_TEST([load_print],[interface])
+NEGATIVE_INTERFACE_TEST([signal_error],[interface])

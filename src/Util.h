@@ -19,8 +19,10 @@
 #include "Macro.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdlib>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -41,6 +43,42 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+#if __cplusplus == 201103L
+// make_unique implementation for C++11
+// https://isocpp.org/files/papers/N3656.txt
+namespace std {
+template <class T>
+struct _Unique_if {
+    typedef unique_ptr<T> _Single_object;
+};
+
+template <class T>
+struct _Unique_if<T[]> {
+    typedef unique_ptr<T[]> _Unknown_bound;
+};
+
+template <class T, size_t N>
+struct _Unique_if<T[N]> {
+    typedef void _Known_bound;
+};
+
+template <class T, class... Args>
+typename _Unique_if<T>::_Single_object make_unique(Args&&... args) {
+    return unique_ptr<T>(new T(std::forward<Args>(args)...));
+}
+
+template <class T>
+typename _Unique_if<T>::_Unknown_bound make_unique(size_t n) {
+    typedef typename remove_extent<T>::type U;
+    return unique_ptr<T>(new U[n]());
+}
+
+template <class T, class... Args>
+typename _Unique_if<T>::_Known_bound make_unique(Args&&...) = delete;
+}  // namespace std
+
+#endif
 
 namespace souffle {
 
@@ -116,6 +154,18 @@ std::vector<T*> toPtrVector(const std::vector<std::shared_ptr<T>>& v) {
         res.push_back(e.get());
     }
     return res;
+}
+
+/**
+ * A utility function that moves a vector of unique pointers from a source to a destination.
+ */
+template <typename X, typename Y>
+void movePtrVector(std::vector<std::unique_ptr<X>>& source, std::vector<std::unique_ptr<Y>>& destination) {
+    while (!source.empty()) {
+        auto it = source.begin();
+        destination.push_back(std::move(std::make_unique<Y>(std::move(*it))));
+        source.erase(it);
+    }
 }
 
 /**
@@ -607,8 +657,8 @@ ostream& operator<<(ostream& out, const set<K, C, A>& s) {
 template <typename K, typename T, typename C, typename A>
 ostream& operator<<(ostream& out, const map<K, T, C, A>& m) {
     return out << "{" << souffle::join(m, ",", [](ostream& out, const pair<K, T>& cur) {
-               out << cur.first << "->" << cur.second;
-           }) << "}";
+        out << cur.first << "->" << cur.second;
+    }) << "}";
 }
 
 }  // end namespace std
@@ -962,6 +1012,17 @@ inline std::string absPath(const std::string& path) {
     return (res == nullptr) ? "" : std::string(buf);
 }
 
+/**
+ *  Join two paths together; note that this does not resolve overlaps or relative paths.
+ */
+inline std::string pathJoin(const std::string& first, const std::string& second) {
+    unsigned firstPos = first.size() - 1;
+    while (first.at(firstPos) == '/') firstPos--;
+    unsigned secondPos = 0;
+    while (second.at(secondPos) == '/') secondPos++;
+    return first.substr(0, firstPos + 1) + '/' + second.substr(secondPos);
+}
+
 /*
  * Find out if an executable given by @p tool exists in the path given @p path
  * relative to the directory given by @ base. A path here refers a
@@ -1002,6 +1063,45 @@ inline std::string baseName(const std::string& filename) {
 }
 
 /**
+ * File name, with extension removed.
+ */
+inline std::string simpleName(const std::string& path) {
+    std::string name = path;
+    const size_t lastDot = name.find_last_of('.');
+    // file has no extension
+    if (lastDot == std::string::npos) return name;
+    const size_t lastSlash = name.find_last_of('/');
+    // last slash occurs after last dot, so no extension
+    if (lastSlash != std::string::npos && lastSlash > lastDot) return name;
+    // last dot after last slash, or no slash
+    return name.substr(0, lastDot);
+}
+
+/**
+ * File extension, with all else removed.
+ */
+inline std::string fileExtension(const std::string& path) {
+    std::string name = path;
+    const size_t lastDot = name.find_last_of('.');
+    // file has no extension
+    if (lastDot == std::string::npos) return std::string();
+    const size_t lastSlash = name.find_last_of('/');
+    // last slash occurs after last dot, so no extension
+    if (lastSlash != std::string::npos && lastSlash > lastDot) return std::string();
+    // last dot after last slash, or no slash
+    return name.substr(lastDot + 1);
+}
+
+/**
+ * Generate temporary file.
+ */
+inline std::string tempFile() {
+    char templ[40] = "./souffleXXXXXX";
+    close(mkstemp(templ));
+    return std::string(templ);
+}
+
+/**
  * Stringify a string using escapes for newline, tab, double-quotes and semicolons
  */
 inline std::string stringify(const std::string& input) {
@@ -1032,6 +1132,16 @@ inline std::string stringify(const std::string& input) {
         start_pos += 2;
     }
     return str;
+}
+
+/** Valid C++ identifier, note that this does not ensure the uniqueness of identifiers returned. */
+inline std::string identifier(std::string id) {
+    for (size_t i = 0; i < id.length(); i++) {
+        if ((!isalpha(id[i]) && i == 0) || (!isalnum(id[i]) && id[i] != '_')) {
+            id[i] = '_';
+        }
+    }
+    return id;
 }
 
 /* begin reference implementation
@@ -1113,5 +1223,61 @@ public:
 };
 
 /* end http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2007/n2406.html#shared_mutex */
+
+// -------------------------------------------------------------------------------
+//                           Hint / Cache Profiling
+// -------------------------------------------------------------------------------
+
+/**
+ * A utility function to determine whether hints-profiling is enabled or
+ * disabled;
+ */
+inline bool isHintsProfilingEnabled() {
+    return std::getenv("SOUFFLE_PROFILE_HINTS");
+}
+
+/**
+ * A utility class to keep track of cache hits/misses.
+ */
+class CacheAccessCounter {
+    bool active;
+    std::atomic<std::size_t> hits;
+    std::atomic<std::size_t> misses;
+
+public:
+    CacheAccessCounter(bool active = isHintsProfilingEnabled()) : active(active), hits(0), misses(0) {}
+
+    CacheAccessCounter(const CacheAccessCounter& other)
+            : active(other.active), hits((active) ? other.getHits() : 0),
+              misses((active) ? other.getMisses() : 0) {}
+
+    void addHit() {
+        if (active) hits.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    void addMiss() {
+        if (active) misses.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    std::size_t getHits() const {
+        ASSERT(active);
+        return hits;
+    }
+
+    std::size_t getMisses() const {
+        ASSERT(active);
+        return misses;
+    }
+
+    std::size_t getAccesses() const {
+        ASSERT(active);
+        return getHits() + getMisses();
+    }
+
+    void reset() {
+        hits = 0;
+        misses = 0;
+    }
+};
 
 }  // end namespace souffle

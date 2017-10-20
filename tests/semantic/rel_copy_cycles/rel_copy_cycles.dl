@@ -13,7 +13,7 @@ A(x) :- B(x).
 B(x) :- A(x).
 
 .decl C(x:number)
-.printsize C
+.output C
 C(1).
 C(x) :- A(x), B(x).
 
@@ -35,7 +35,7 @@ H(x) :- G(x).
 G(x) :- F(x).
 
 .decl I(x:number)
-.printsize I
+.output I
 I(x) :- F(x).
 
 
@@ -57,14 +57,14 @@ T(x) :- Z(x).
 .decl U(x:number)
 U(x) :- T(x).
 .decl V(x:number)
-.printsize V
+.output V
 V(x) :- U(x).
 .decl W(x:number)
 W(x) :- V(x).
 .decl X(x:number)
 X(x) :- W(x).
 .decl Y(x:number)
-.printsize Y
+.output Y
 Y(x) :- X(x).
 .decl Z(x:number)
 Z(x) :- Y(x).

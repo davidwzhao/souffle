@@ -47,6 +47,7 @@ class AstProgram : public AstNode {
     friend class ParserDriver;
     friend class ComponentInstantiationTransformer;
     friend class NaiveProvenanceTransformer;
+    friend class ProvenanceTransformer;
     friend class AstBuilder;
 
     /** Program types  */

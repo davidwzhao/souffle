@@ -216,28 +216,28 @@ program
 /* Top-level statement */
 unit
   : unit type {
-        driver.addType($2);
+        driver.addType(std::unique_ptr<AstType>($2));
     }
   | unit relation {
-        driver.addRelation($2);
+        driver.addRelation(std::unique_ptr<AstRelation>($2));
     }
   | unit iodirective {
-        driver.addIODirectiveChain($2);
+        driver.addIODirectiveChain(std::unique_ptr<AstIODirective>($2));
     }
   | unit fact {
-        driver.addClause($2);
+        driver.addClause(std::unique_ptr<AstClause>($2));
     }
   | unit rule {
-        for(const auto& cur : $2) driver.addClause(cur);
+        for(const auto& cur : $2) driver.addClause(std::unique_ptr<AstClause>(cur));
     }
   | unit component {
-        driver.addComponent($2);
+        driver.addComponent(std::unique_ptr<AstComponent>($2));
     }
   | unit comp_init {
-        driver.addInstantiation($2);
+        driver.addInstantiation(std::unique_ptr<AstComponentInit>($2));
     }
   | unit pragma {
-        driver.addPragma($2);
+        driver.addPragma(std::unique_ptr<AstPragma>($2));
     }
   | %empty {
     }
@@ -248,6 +248,12 @@ pragma
         $$ = new AstPragma($2,$3);
         $$->setSrcLoc(@$);
     }
+
+  | PRAGMA STRING {
+        $$ = new AstPragma($2, "");
+        $$->setSrcLoc(@$);
+    }
+
 
 
 /* Type Identifier */
@@ -583,6 +589,14 @@ arg
         $$ = new AstBinaryFunctor(BinaryOp::EXP, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
         $$->setSrcLoc(@$);
     }
+  | MAX LPAREN arg COMMA arg RPAREN {
+        $$ = new AstBinaryFunctor(BinaryOp::MAX, std::unique_ptr<AstArgument>($3), std::unique_ptr<AstArgument>($5));
+        $$->setSrcLoc(@$);
+    }
+  | MIN LPAREN arg COMMA arg RPAREN {
+        $$ = new AstBinaryFunctor(BinaryOp::MIN, std::unique_ptr<AstArgument>($3), std::unique_ptr<AstArgument>($5));
+        $$->setSrcLoc(@$);
+    }
   | CAT LPAREN arg COMMA arg RPAREN {
         $$ = new AstBinaryFunctor(BinaryOp::CAT, std::unique_ptr<AstArgument>($3), std::unique_ptr<AstArgument>($5));
         $$->setSrcLoc(@$);
@@ -666,7 +680,7 @@ arg
         $$->setSrcLoc(@$);
     }
   | SUM arg COLON LBRACE body RBRACE {
-        auto res = new AstAggregator(AstAggregator::min);
+        auto res = new AstAggregator(AstAggregator::sum);
         res->setTargetExpression(std::unique_ptr<AstArgument>($2));
         auto bodies = $5->toClauseBodies();
         if (bodies.size() != 1) {

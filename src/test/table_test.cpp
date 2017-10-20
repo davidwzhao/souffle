@@ -61,5 +61,5 @@ TEST(Table, Stress) {
         EXPECT_EQ(last + 1, i);
     }
 }
-}
+}  // namespace test
 }  // end namespace souffle

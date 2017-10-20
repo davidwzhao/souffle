@@ -133,6 +133,24 @@ public:
         return newSymbolOfIndex(symbol);
     }
 
+    /** Finds the index of a symbol in the table, giving an error if it's not found */
+    const size_t lookupExisting(const char* str) const {
+        auto lease = access.acquire();
+        (void)lease;  // avoid warning;
+        auto result = strToNum.find(str);
+        if (result == strToNum.end()) {
+            std::cerr << "Error string not found in call to SymbolTable::lookupExisting.\n";
+            exit(1);
+        } else {
+            return result->second;
+        }
+    }
+
+    /** Find the index of a symbol in the table, inserting a new symbol if it does not exist there already. */
+    const size_t unsafeLookup(const char* symbol) {
+        return newSymbolOfIndex(symbol);
+    }
+
     /** Find a symbol in the table by its index, note that this gives an error if the index is out of bounds.
      */
     const char* resolve(const size_t idx) const {
@@ -183,6 +201,10 @@ public:
             out << entry.first << "\t => " << entry.second;
         }) << "\n";
         out << "}\n";
+    }
+
+    Lock::Lease acquireLock() const {
+        return access.acquire();
     }
 
     /** Stream operator, used as a convenience for print. */

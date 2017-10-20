@@ -32,15 +32,13 @@
 
 namespace souffle {
 
-typedef Graph<const AstRelation*, AstNameComparison> AstRelationGraph;
-
 /**
  * Analysis pass computing the precedence graph of the relations of the datalog progam.
  */
 class PrecedenceGraph : public AstAnalysis {
 private:
     /** Adjacency list of precedence graph (determined by the dependencies of the relations) */
-    AstRelationGraph precedenceGraph;
+    Graph<const AstRelation*, AstNameComparison> backingGraph;
 
 public:
     static constexpr const char* name = "precedence-graph";
@@ -48,20 +46,10 @@ public:
     void run(const AstTranslationUnit& translationUnit) override;
 
     /** Output precedence graph in graphviz format to a given stream */
-    void outputPrecedenceGraph(std::ostream& os) const;
+    void print(std::ostream& os) const override;
 
-    const AstRelationSet& getPredecessors(const AstRelation* relation) const {
-        assert(precedenceGraph.contains(relation) && "Relation not present in precedence graph!");
-        return precedenceGraph.getEdges(relation);
-    }
-
-    const AstRelationSet& getSuccessors(const AstRelation* relation) const {
-        assert(precedenceGraph.contains(relation) && "Relation not present in precedence graph!");
-        return precedenceGraph.getReverseEdges(relation);
-    }
-
-    const AstRelationGraph getGraph() const {
-        return precedenceGraph;
+    const Graph<const AstRelation*, AstNameComparison>& graph() const {
+        return backingGraph;
     }
 };
 
@@ -79,6 +67,8 @@ public:
     static constexpr const char* name = "redundant-relations";
 
     void run(const AstTranslationUnit& translationUnit) override;
+
+    void print(std::ostream& os) const override;
 
     const std::set<const AstRelation*>& getRedundantRelations() const {
         return redundantRelations;
@@ -100,7 +90,9 @@ public:
 
     void run(const AstTranslationUnit& translationUnit) override;
 
-    bool isRecursive(const AstClause* clause) const {
+    void print(std::ostream& os) const override;
+
+    bool recursive(const AstClause* clause) const {
         return recursiveClauses.count(clause);
     }
 };
@@ -113,56 +105,130 @@ private:
     PrecedenceGraph* precedenceGraph;
 
     /** Map from node number to SCC number */
-    std::map<const AstRelation*, int> nodeToSCC;
+    std::map<const AstRelation*, int> relationToScc;
 
     /** Adjacency lists for the SCC graph */
-    std::vector<std::set<unsigned>> succSCC;
+    std::vector<std::set<unsigned>> successors;
 
     /** Predecessor set for the SCC graph */
-    std::vector<std::set<unsigned>> predSCC;
+    std::vector<std::set<unsigned>> predecessors;
 
     /** Relations contained in a SCC */
-    std::vector<std::set<const AstRelation*>> SCC;
+    std::vector<std::set<const AstRelation*>> sccToRelation;
 
     /** Recursive scR method for computing SCC */
     void scR(const AstRelation* relation, std::map<const AstRelation*, int>& preOrder, unsigned& counter,
             std::stack<const AstRelation*>& S, std::stack<const AstRelation*>& P, unsigned& numSCCs);
+
+    void printDot(std::ostream& os) const;
+
+    void printJson(std::ostream& os) const;
 
 public:
     static constexpr const char* name = "scc-graph";
 
     void run(const AstTranslationUnit& translationUnit) override;
 
-    unsigned getSCCForRelation(const AstRelation* relation) const {
-        return nodeToSCC.at(relation);
+    /** Return the number of strongly connected components in the SCC graph */
+    size_t size() const {
+        return sccToRelation.size();
     }
 
-    /** True if the given relation has any successors in another SCC, false otherwise. **/
-    bool isOutbound(const AstRelation* relation) const {
-        const int scc = nodeToSCC.at(relation);
-        for (auto succ : precedenceGraph->getSuccessors(relation))
-            if (nodeToSCC.at(succ) != scc) return true;
-        return false;
+    /** Get all successor SCCs of a specified scc. */
+    const std::set<unsigned>& successorSCCs(const unsigned scc) const {
+        return successors.at(scc);
     }
 
-    /** True if the given relation has any predecessors in another SCC, false otherwise. **/
-    bool isInbound(const AstRelation* relation) const {
-        const int scc = nodeToSCC.at(relation);
-        for (auto pred : precedenceGraph->getPredecessors(relation))
-            if (nodeToSCC.at(pred) != scc) return true;
-        return false;
+    /** Get all predecessor SCCs of a specified scc. */
+    const std::set<unsigned>& predecessorSCCs(const unsigned scc) const {
+        return predecessors.at(scc);
+    }
+
+    /** Get the relations for a given scc. */
+    const std::set<const AstRelation*> relations(const unsigned scc) const {
+        return sccToRelation.at(scc);
+    }
+
+    /** Get the scc of a given relation. */
+    unsigned scc(const AstRelation* relation) const {
+        return relationToScc.at(relation);
+    }
+
+    /** Get all inbound and all input relations in the given SCC. */
+    std::set<const AstRelation*> getIns(const unsigned scc) const {
+        auto inbound = getInbound(scc);
+        const auto inputs = getInputs(scc);
+        inbound.insert(inputs.begin(), inputs.end());
+        return inbound;
+    }
+
+    /** Get all outbound and all output relations in the given SCC. */
+    std::set<const AstRelation*> getOuts(const unsigned scc) const {
+        auto outbound = getOutbound(scc);
+        const auto outputs = getOutputs(scc);
+        outbound.insert(outputs.begin(), outputs.end());
+        return outbound;
+    }
+
+    /** Get all input relations in the given SCC. */
+    std::set<const AstRelation*> getInputs(const unsigned scc) const {
+        std::set<const AstRelation*> inputs;
+        for (const auto& rel : relations(scc)) {
+            if (rel->isInput()) {
+                inputs.insert(rel);
+            }
+        }
+        return inputs;
+    }
+
+    /** Get all output relations in the given SCC. */
+    std::set<const AstRelation*> getOutputs(const unsigned scc) const {
+        std::set<const AstRelation*> outputs;
+        for (const auto& rel : relations(scc)) {
+            if (rel->isOutput()) {
+                outputs.insert(rel);
+            }
+        }
+        return outputs;
+    }
+
+    /** Get all relations in a predecessor SCC that have a successor relation in the given SCC. */
+    std::set<const AstRelation*> getInbound(const unsigned scc) const {
+        std::set<const AstRelation*> inbound;
+        for (const auto& rel : relations(scc)) {
+            for (const auto& pred : precedenceGraph->graph().predecessors(rel)) {
+                if ((unsigned)relationToScc.at(pred) != scc) {
+                    inbound.insert(pred);
+                }
+            }
+        }
+        return inbound;
+    }
+
+    /** Get all relations in the given SCC that have a successor relation in another SCC. */
+    std::set<const AstRelation*> getOutbound(const unsigned scc) const {
+        std::set<const AstRelation*> outbound;
+        for (const auto& rel : relations(scc)) {
+            for (const auto& succ : precedenceGraph->graph().successors(rel)) {
+                if ((unsigned)relationToScc.at(succ) != scc) {
+                    outbound.insert(rel);
+                    break;
+                }
+            }
+        }
+        return outbound;
     }
 
     /** True if both given relations are in the same SCC, false otherwise. **/
     bool isInSameSCC(const AstRelation* relation1, const AstRelation* relation2) const {
-        return nodeToSCC.at(relation1) == nodeToSCC.at(relation2);
+        return relationToScc.at(relation1) == relationToScc.at(relation2);
     }
 
     bool isRecursive(const unsigned scc) const {
-        const std::set<const AstRelation*>& sccRelations = SCC.at(scc);
+        const std::set<const AstRelation*>& sccRelations = sccToRelation.at(scc);
         if (sccRelations.size() == 1) {
             const AstRelation* singleRelation = *sccRelations.begin();
-            if (!precedenceGraph->getPredecessors(singleRelation).count(singleRelation)) {
+            if (!precedenceGraph->graph().predecessors(singleRelation).count(singleRelation)) {
                 return false;
             }
         }
@@ -170,30 +236,13 @@ public:
     }
 
     bool isRecursive(const AstRelation* relation) const {
-        return isRecursive(getSCCForRelation(relation));
+        return isRecursive(scc(relation));
     }
 
-    /** Return the number of strongly connected components in the SCC graph */
-    unsigned getNumSCCs() const {
-        return succSCC.size();
-    }
-
-    /** Get all successor SCCs of a specified scc. */
-    const std::set<unsigned>& getSuccessorSCCs(const unsigned scc) const {
-        return succSCC.at(scc);
-    }
-
-    /** Get all predecessor SCCs of a specified scc. */
-    const std::set<unsigned>& getPredecessorSCCs(const unsigned scc) const {
-        return predSCC.at(scc);
-    }
-
-    const std::set<const AstRelation*> getRelationsForSCC(const unsigned scc) const {
-        return SCC.at(scc);
-    }
+    void print(std::ostream& os, const std::string& format) const;
 
     /** Output strongly connected component graph in graphviz format */
-    void outputSCCGraph(std::ostream& os) const;
+    void print(std::ostream& os) const override;
 };
 
 /**
@@ -205,7 +254,7 @@ private:
     SCCGraph* sccGraph;
 
     /** The final topological ordering of the SCCs. */
-    std::vector<unsigned> orderedSCCs;
+    std::vector<unsigned> sccOrder;
 
     /** Calculate the topological ordering cost of a permutation of as of yet unordered SCCs
     using the ordered SCCs. Returns -1 if the given vector is not a valid topological ordering. */
@@ -219,16 +268,12 @@ public:
 
     void run(const AstTranslationUnit& translationUnit) override;
 
-    SCCGraph* getSCCGraph() const {
-        return sccGraph;
-    }
-
-    const std::vector<unsigned>& getSCCOrder() const {
-        return orderedSCCs;
+    const std::vector<unsigned>& order() const {
+        return sccOrder;
     }
 
     /** Output topologically sorted strongly connected component graph in text format */
-    void outputTopologicallySortedSCCGraph(std::ostream& os) const;
+    void print(std::ostream& os) const override;
 };
 
 /**
@@ -239,24 +284,32 @@ class RelationScheduleStep {
 private:
     std::set<const AstRelation*> computedRelations;
     std::set<const AstRelation*> expiredRelations;
-    const bool recursive;
+    const bool isRecursive;
 
 public:
     RelationScheduleStep(std::set<const AstRelation*> computedRelations,
-            std::set<const AstRelation*> expiredRelations, const bool recursive)
-            : computedRelations(computedRelations), expiredRelations(expiredRelations), recursive(recursive) {
-    }
+            std::set<const AstRelation*> expiredRelations, const bool isRecursive)
+            : computedRelations(computedRelations), expiredRelations(expiredRelations),
+              isRecursive(isRecursive) {}
 
-    const std::set<const AstRelation*>& getComputedRelations() const {
+    const std::set<const AstRelation*>& computed() const {
         return computedRelations;
     }
 
-    const std::set<const AstRelation*>& getExpiredRelations() const {
+    const std::set<const AstRelation*>& expired() const {
         return expiredRelations;
     }
 
-    bool isRecursive() const {
-        return recursive;
+    bool recursive() const {
+        return isRecursive;
+    }
+
+    void print(std::ostream& os) const;
+
+    /** Add support for printing nodes */
+    friend std::ostream& operator<<(std::ostream& out, const RelationScheduleStep& other) {
+        other.print(out);
+        return out;
     }
 };
 
@@ -269,7 +322,7 @@ private:
     PrecedenceGraph* precedenceGraph;
 
     /** Relations computed and expired relations at each step */
-    std::vector<RelationScheduleStep> schedule;
+    std::vector<RelationScheduleStep> relationSchedule;
 
     std::vector<std::set<const AstRelation*>> computeRelationExpirySchedule(
             const AstTranslationUnit& translationUnit);
@@ -279,86 +332,12 @@ public:
 
     void run(const AstTranslationUnit& translationUnit) override;
 
-    const std::vector<RelationScheduleStep>& getSchedule() const {
-        return schedule;
-    }
-
-    /** Check if a given relation is recursive. */
-    bool isRecursive(const AstRelation* relation) const {
-        return topsortSCCGraph->getSCCGraph()->isRecursive(relation);
-    }
-
-    /** Check if a given relation has predecessor relations in another SCC. */
-    bool isInbound(const AstRelation* relation) const {
-        return topsortSCCGraph->getSCCGraph()->isInbound(relation);
-    }
-
-    /** Check if a given relation has successor relations in another SCC. */
-    bool isOutbound(const AstRelation* relation) const {
-        return topsortSCCGraph->getSCCGraph()->isOutbound(relation);
-    }
-
-    /** Get all predecessor relations in a different SCC to the given relation. */
-    const std::set<const AstRelation*> getInboundPredecessors(const AstRelation* relation) const {
-        std::set<const AstRelation*> res;
-        for (const auto& pred : precedenceGraph->getPredecessors(relation))
-            if (!topsortSCCGraph->getSCCGraph()->isInSameSCC(pred, relation)) res.insert(pred);
-        return res;
-    }
-
-    /** Get all successor relations in a different SCC to the given relation. */
-    const std::set<const AstRelation*> getOutboundSuccessors(const AstRelation* relation) const {
-        std::set<const AstRelation*> res;
-        for (const auto& succ : precedenceGraph->getSuccessors(relation))
-            if (!topsortSCCGraph->getSCCGraph()->isInSameSCC(succ, relation)) res.insert(succ);
-        return res;
-    }
-
-    /** Get the dependency graph of the relation schedule as an adjacency list. Note that this is identical to
-     * the SCC graph however with relation schedule step names represented by their index in the computed
-     * topological order. */
-    std::unique_ptr<std::vector<std::vector<unsigned>>> asAdjacencyList() const {
-        std::unordered_map<unsigned, unsigned> sccIndices;
-        unsigned i = 0;
-        for (unsigned scc : topsortSCCGraph->getSCCOrder()) {
-            sccIndices.insert(std::make_pair(scc, i));
-            ++i;
-        }
-
-        std::unique_ptr<std::vector<std::vector<unsigned>>> adjacencyList =
-                std::unique_ptr<std::vector<std::vector<unsigned>>>(new std::vector<std::vector<unsigned>>());
-        for (const unsigned scc : topsortSCCGraph->getSCCOrder()) {
-            std::vector<unsigned> current = std::vector<unsigned>();
-            for (const unsigned succ : topsortSCCGraph->getSCCGraph()->getSuccessorSCCs(scc)) {
-                current.push_back(sccIndices.at(succ));
-            }
-            adjacencyList->push_back(current);
-        }
-        return adjacencyList;
+    const std::vector<RelationScheduleStep>& schedule() const {
+        return relationSchedule;
     }
 
     /** Dump this relation schedule to standard error. */
-    void dump() const {
-        std::cerr << "begin schedule\n";
-        for (const RelationScheduleStep& step : schedule) {
-            std::cerr << "computed: ";
-            for (const AstRelation* compRel : step.getComputedRelations()) {
-                std::cerr << compRel->getName() << ", ";
-            }
-            std::cerr << "\nexpired: ";
-            for (const AstRelation* compRel : step.getExpiredRelations()) {
-                std::cerr << compRel->getName() << ", ";
-            }
-            std::cerr << "\n";
-            if (step.isRecursive()) {
-                std::cerr << "recursive";
-            } else {
-                std::cerr << "not recursive";
-            }
-            std::cerr << "\n";
-        }
-        std::cerr << "end schedule\n";
-    }
+    void print(std::ostream& os) const override;
 };
 
 }  // end of namespace souffle

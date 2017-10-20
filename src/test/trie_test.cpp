@@ -615,7 +615,7 @@ template <typename Container>
 int card(const Container& c) {
     return card(make_range(c.begin(), c.end()));
 }
-}
+}  // namespace
 
 TEST(Trie, Iterator) {
     Trie<2> set;
@@ -669,7 +669,7 @@ namespace {
 RamDomain rand(RamDomain max) {
     return random() % max;
 }
-}
+}  // namespace
 
 TEST(Trie, IteratorStress_1D) {
     typedef typename ram::Tuple<RamDomain, 1> tuple;

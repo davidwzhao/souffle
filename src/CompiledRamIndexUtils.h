@@ -166,7 +166,7 @@ struct print<First, Second, Rest...> {
     }
 };
 
-}  // end namespace utils
+}  // namespace index_utils
 
 /**
  * The index class is utilized as a template-meta-programming structure
@@ -343,14 +343,14 @@ template <unsigned i, unsigned arity, typename Index>
 struct extend_to_full_index_aux {
     typedef typename extend_to_full_index_aux<i + 1, arity,
             typename std::conditional<(Index::template covers<i>::value), Index,
-                                                      typename extend<Index, i>::type>::type>::type type;
+                    typename extend<Index, i>::type>::type>::type type;
 };
 
 template <unsigned arity, typename Index>
 struct extend_to_full_index_aux<arity, arity, Index> {
     typedef Index type;
 };
-}
+}  // namespace detail
 
 template <unsigned arity, typename Index>
 struct extend_to_full_index : public detail::extend_to_full_index_aux<0, arity, Index> {};
@@ -393,7 +393,7 @@ template <>
 struct get_prefix_aux<0> {
     typedef index<> type;
 };
-}
+}  // namespace detail
 
 template <unsigned L, typename I>
 struct get_prefix;
@@ -455,7 +455,7 @@ template <unsigned... A, unsigned... B, unsigned... R>
 struct is_compatible_with_aux<index<A...>, index<>, index<B...>, index<R...>> {
     enum { value = is_permutation<index<A...>, index<B...>>::value };
 };
-}
+}  // namespace detail
 
 template <typename I1, typename I2>
 struct is_compatible_with {
@@ -652,6 +652,22 @@ public:
     static void printDescription(std::ostream& out) {
         out << "direct-btree-index(" << Index() << ")";
     }
+
+    void printHintStatistics(std::ostream& out, const std::string& prefix) const {
+        const auto& stats = index.getHintStatistics();
+        out << prefix << "Direct B-Tree Index: (Hits/Misses/Total)\n";
+        out << prefix << "       Insert: " << stats.inserts.getHits() << "/" << stats.inserts.getMisses()
+            << "/" << stats.inserts.getAccesses() << "\n";
+
+        out << prefix << "     Contains: " << stats.contains.getHits() << "/" << stats.contains.getMisses()
+            << "/" << stats.contains.getAccesses() << "\n";
+
+        out << prefix << "  lower bound: " << stats.lower_bound.getHits() << "/"
+            << stats.lower_bound.getMisses() << "/" << stats.lower_bound.getAccesses() << "\n";
+
+        out << prefix << "  upper bound: " << stats.upper_bound.getHits() << "/"
+            << stats.upper_bound.getMisses() << "/" << stats.upper_bound.getAccesses() << "\n";
+    }
 };
 
 /**
@@ -758,6 +774,22 @@ public:
 
     static void printDescription(std::ostream& out) {
         out << "indirect-btree-index(" << Index() << ")";
+    }
+
+    void printHintStatistics(std::ostream& out, const std::string& prefix) const {
+        const auto& stats = index.getHintStatistics();
+        out << prefix << "Indirect B-Tree Index: (Hits/Misses/Total)\n";
+        out << prefix << "       Insert: " << stats.inserts.getHits() << "/" << stats.inserts.getMisses()
+            << "/" << stats.inserts.getAccesses() << "\n";
+
+        out << prefix << "     Contains: " << stats.contains.getHits() << "/" << stats.contains.getMisses()
+            << "/" << stats.contains.getAccesses() << "\n";
+
+        out << prefix << "  lower bound: " << stats.lower_bound.getHits() << "/"
+            << stats.lower_bound.getMisses() << "/" << stats.lower_bound.getAccesses() << "\n";
+
+        out << prefix << "  upper bound: " << stats.upper_bound.getHits() << "/"
+            << stats.upper_bound.getMisses() << "/" << stats.upper_bound.getAccesses() << "\n";
     }
 };
 
@@ -933,6 +965,19 @@ public:
         out << "trie-index(" << Index() << ")";
     }
 
+    void printHintStatistics(std::ostream& out, const std::string& prefix) const {
+        const auto& stats = data.getHintStatistics();
+        out << prefix << "Trie-Index: (Hits/Misses/Total)\n";
+        out << prefix << "      Insert: " << stats.inserts.getHits() << "/" << stats.inserts.getMisses()
+            << "/" << stats.inserts.getAccesses() << "\n";
+
+        out << prefix << "    Contains: " << stats.contains.getHits() << "/" << stats.contains.getMisses()
+            << "/" << stats.contains.getAccesses() << "\n";
+
+        out << prefix << "  RangeQuery: " << stats.get_boundaries.getHits() << "/"
+            << stats.get_boundaries.getMisses() << "/" << stats.get_boundaries.getAccesses() << "\n";
+    }
+
 private:
     static tuple_type orderIn(const tuple_type& tuple) {
         tuple_type res;
@@ -1106,15 +1151,17 @@ public:
 
     template <typename SubIndex>
     range<iterator> equalRange(const tuple_type& tuple, operation_hints& ctxt) const {
-        // TODO: unimplemented
-        std::cout << "poor call\n";
-        std::cerr << "poor call\n";
-        throw "unimplemented";
-        return make_range(iterator(begin()), iterator(end()));
+        static_assert(is_compatible_with<SubIndex, Index>::value, "Invalid sub-index query!");
+        auto r = data.template getBoundaries<SubIndex::size>(orderIn(tuple), ctxt);
+        return make_range(iterator(r.begin()), iterator(r.end()));
     }
 
     static void printDescription(std::ostream& out) {
         out << "disjoint-set-index(" << Index() << ")";
+    }
+
+    void printHintStatistics(std::ostream& out, const std::string& prefix) const {
+        out << prefix << "Disjoint Set Index: no hint statistics supported\n";
     }
 
 private:
@@ -1167,9 +1214,9 @@ struct index_factory<T, Index, true> {
     // pick direct or indirect indexing based on size of tuple
     typedef typename std::conditional<sizeof(T) <= 2 * sizeof(void*),  // if tuple is not bigger than a bound
             typename direct_index_factory<T, Index,
-                                              true>::type,  // use a direct index
+                    true>::type,  // use a direct index
             IndirectIndex<T,
-                                              Index>  // otherwise use an indirect, pointer based index
+                    Index>  // otherwise use an indirect, pointer based index
             >::type type;
 };
 
@@ -1331,6 +1378,16 @@ public:
         nested.printDescription(out);
         return out;
     }
+
+    void printHintStatistics(std::ostream& out, const std::string& prefix) const {
+        out << prefix << "Multi-Index Relation:\n";
+        printHintStatisticsInternal(out, prefix + "  ");
+    }
+
+    void printHintStatisticsInternal(std::ostream& out, const std::string& prefix) const {
+        index.printHintStatistics(out, prefix);
+        nested.printHintStatisticsInternal(out, prefix);
+    }
 };
 
 /* The based-case of indices containing no more nested indices. */
@@ -1397,8 +1454,12 @@ public:
     std::ostream& printDescription(std::ostream& out = std::cout) const {
         return out;
     }
+
+    void printHintStatisticsInternal(std::ostream&, const std::string&) const {
+        // nothing to do here
+    }
 };
-}
+}  // namespace index_utils
 
 namespace iterator_utils {
 
@@ -1485,7 +1546,7 @@ private:
     }
 };
 
-}  // end namespace iterator utils
+}  // namespace iterator_utils
 
 }  // end namespace ram
 

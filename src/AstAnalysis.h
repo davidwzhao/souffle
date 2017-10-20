@@ -15,6 +15,8 @@
  ***********************************************************************/
 #pragma once
 
+#include <iostream>
+
 namespace souffle {
 
 class AstTranslationUnit;
@@ -24,6 +26,14 @@ public:
     virtual ~AstAnalysis() = default;
 
     virtual void run(const AstTranslationUnit& translationUnit) = 0;
+
+    virtual void print(std::ostream& os) const {}
+
+    /** Add support for printing nodes */
+    friend std::ostream& operator<<(std::ostream& out, const AstAnalysis& other) {
+        other.print(out);
+        return out;
+    }
 };
 
 }  // end of namespace souffle

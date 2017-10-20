@@ -4,5 +4,8 @@
 # - https://opensource.org/licenses/UPL
 # - <souffle root>/licenses/SOUFFLE-UPL.txt
 
-POSITIVE_TEST_IN([path],[provenance])
-dnl NEGATIVE_TEST_IN([test2],[provenance])
+POSITIVE_PROVENANCE_TEST([path],[provenance])
+POSITIVE_PROVENANCE_TEST([path-records],[provenance])
+POSITIVE_PROVENANCE_TEST([negation],[provenance])
+POSITIVE_PROVENANCE_TEST([negation-records],[provenance])
+POSITIVE_PROVENANCE_TEST([cprog1],[provenance])

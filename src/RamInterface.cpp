@@ -74,12 +74,12 @@ bool RamRelationInterface::contains(const tuple& t) const {
     return ramRelation.exists(convertTupleToNums(t));
 }
 
-typename RamRelationInterface::iterator RamRelationInterface::begin() {
+typename RamRelationInterface::iterator RamRelationInterface::begin() const {
     return RamRelationInterface::iterator(
             new RamRelationInterface::iterator_base(id, this, ramRelation.begin()));
 }
 
-typename RamRelationInterface::iterator RamRelationInterface::end() {
+typename RamRelationInterface::iterator RamRelationInterface::end() const {
     return RamRelationInterface::iterator(
             new RamRelationInterface::iterator_base(id, this, ramRelation.end()));
 }

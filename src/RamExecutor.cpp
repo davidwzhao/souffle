@@ -21,6 +21,7 @@
 #include "BinaryFunctorOps.h"
 #include "Global.h"
 #include "IOSystem.h"
+#include "Macro.h"
 #include "RamAutoIndex.h"
 #include "RamData.h"
 #include "RamLogger.h"
@@ -39,6 +40,7 @@
 #include <utility>
 
 #include <unistd.h>
+
 #ifdef _OPENMP
 #include <omp.h>
 #endif
@@ -46,6 +48,7 @@
 namespace souffle {
 
 static const char ENV_NO_INDEX[] = "SOUFFLE_USE_NO_INDEX";
+
 bool useNoIndex() {
     static bool flag = std::getenv(ENV_NO_INDEX);
     static bool first = true;
@@ -73,6 +76,9 @@ namespace {
 
 class EvalContext {
     std::vector<const RamDomain*> data;
+    std::vector<RamDomain>* returnValues = nullptr;
+    std::vector<bool>* returnErrors = nullptr;
+    const std::vector<RamDomain>* args = nullptr;
 
 public:
     EvalContext(size_t size = 0) : data(size) {}
@@ -83,6 +89,41 @@ public:
 
     const RamDomain* const& operator[](size_t index) const {
         return data[index];
+    }
+
+    std::vector<RamDomain>& getReturnValues() const {
+        return *returnValues;
+    }
+
+    void setReturnValues(std::vector<RamDomain>& retVals) {
+        returnValues = &retVals;
+    }
+
+    void addReturnValue(RamDomain val, bool err = false) {
+        assert(returnValues != nullptr && returnErrors != nullptr);
+        returnValues->push_back(val);
+        returnErrors->push_back(err);
+    }
+
+    std::vector<bool>& getReturnErrors() const {
+        return *returnErrors;
+    }
+
+    void setReturnErrors(std::vector<bool>& retErrs) {
+        returnErrors = &retErrs;
+    }
+
+    const std::vector<RamDomain>& getArguments() const {
+        return *args;
+    }
+
+    void setArguments(const std::vector<RamDomain>& a) {
+        args = &a;
+    }
+
+    RamDomain getArgument(size_t i) const {
+        assert(args != nullptr && i < args->size() && "argument out of range");
+        return (*args)[i];
     }
 };
 
@@ -195,13 +236,19 @@ RamDomain eval(const RamValue& value, RamEnvironment& env, const EvalContext& ct
                 case BinaryOp::LOR: {
                     return visit(op.getLHS()) || visit(op.getRHS());
                 }
+                case BinaryOp::MAX: {
+                    return std::max(visit(op.getLHS()), visit(op.getRHS()));
+                }
+                case BinaryOp::MIN: {
+                    return std::min(visit(op.getLHS()), visit(op.getRHS()));
+                }
 
                 // strings
                 case BinaryOp::CAT: {
-                    return env.getSymbolTable().lookup(
-                            (std::string(env.getSymbolTable().resolve(visit(op.getLHS()))) +
-                                    std::string(env.getSymbolTable().resolve(visit(op.getRHS()))))
-                                    .c_str());
+                    return env.getSymbolTable().lookup((
+                            std::string(env.getSymbolTable().resolve(visit(op.getLHS()))) +
+                            std::string(env.getSymbolTable().resolve(
+                                    visit(op.getRHS())))).c_str());
                 }
                 default:
                     assert(0 && "unsupported operator");
@@ -223,7 +270,7 @@ RamDomain eval(const RamValue& value, RamEnvironment& env, const EvalContext& ct
                         sub_str = str.substr(idx, len);
                     } catch (...) {
                         std::cerr << "warning: wrong index position provided by substr(\"";
-                        std::cerr << str << "\"," << idx << "," << len << ") functor.\n";
+                        std::cerr << str << "\"," << (int32_t)idx << "," << (int32_t)len << ") functor.\n";
                     }
                     return env.getSymbolTable().lookup(sub_str.c_str());
                 }
@@ -243,6 +290,12 @@ RamDomain eval(const RamValue& value, RamEnvironment& env, const EvalContext& ct
                 data[i] = visit(values[i]);
             }
             return pack(data, arity);
+        }
+
+        // -- subroutine argument
+
+        RamDomain visitArgument(const RamArgument& arg) override {
+            return ctxt.getArgument(arg.getNumber());
         }
 
         // -- safety net --
@@ -309,9 +362,11 @@ bool eval(const RamCondition& cond, RamEnvironment& env, const EvalContext& ctxt
 
             // obtain index
             auto idx = ne.getIndex();
-            if (!idx) {
+            auto idxRelationName = ne.getIndexRelationName();
+            if (idxRelationName != rel.getID().getName() || !idx) {
                 idx = rel.getIndex(ne.getKey());
                 ne.setIndex(idx);
+                ne.setIndexRelationName(rel.getID().getName());
             }
 
             auto range = idx->lowerUpperBound(low, high);
@@ -351,12 +406,33 @@ bool eval(const RamCondition& cond, RamEnvironment& env, const EvalContext& ctxt
                     }
                     return result;
                 }
+                case BinaryConstraintOp::NOT_MATCH: {
+                    RamDomain l = eval(relOp.getLHS(), env, ctxt);
+                    RamDomain r = eval(relOp.getRHS(), env, ctxt);
+                    const std::string& pattern = env.getSymbolTable().resolve(l);
+                    const std::string& text = env.getSymbolTable().resolve(r);
+                    bool result = false;
+                    try {
+                        result = !std::regex_match(text, std::regex(pattern));
+                    } catch (...) {
+                        std::cerr << "warning: wrong pattern provided for !match(\"" << pattern << "\",\""
+                                  << text << "\")\n";
+                    }
+                    return result;
+                }
                 case BinaryConstraintOp::CONTAINS: {
                     RamDomain l = eval(relOp.getLHS(), env, ctxt);
                     RamDomain r = eval(relOp.getRHS(), env, ctxt);
                     const std::string& pattern = env.getSymbolTable().resolve(l);
                     const std::string& text = env.getSymbolTable().resolve(r);
                     return text.find(pattern) != std::string::npos;
+                }
+                case BinaryConstraintOp::NOT_CONTAINS: {
+                    RamDomain l = eval(relOp.getLHS(), env, ctxt);
+                    RamDomain r = eval(relOp.getRHS(), env, ctxt);
+                    const std::string& pattern = env.getSymbolTable().resolve(l);
+                    const std::string& text = env.getSymbolTable().resolve(r);
+                    return text.find(pattern) == std::string::npos;
                 }
                 default:
                     assert(0 && "unsupported operator");
@@ -377,7 +453,7 @@ bool eval(const RamCondition& cond, RamEnvironment& env, const EvalContext& ctxt
     return Evaluator(env, ctxt)(cond);
 }
 
-void apply(const RamOperation& op, RamEnvironment& env) {
+void apply(const RamOperation& op, RamEnvironment& env, const EvalContext& args = EvalContext()) {
     class Interpreter : public RamVisitor<void> {
         RamEnvironment& env;
         EvalContext& ctxt;
@@ -607,6 +683,17 @@ void apply(const RamOperation& op, RamEnvironment& env) {
             env.getRelation(project.getRelation()).insert(tuple);
         }
 
+        // -- return from subroutine --
+        void visitReturn(const RamReturn& ret) override {
+            for (auto val : ret.getValues()) {
+                if (val == nullptr) {
+                    ctxt.addReturnValue(0, true);
+                } else {
+                    ctxt.addReturnValue(eval(val, env, ctxt));
+                }
+            }
+        }
+
         // -- safety net --
         void visitNode(const RamNode& node) override {
             std::cerr << "Unsupported node type: " << typeid(node).name() << "\n";
@@ -616,6 +703,9 @@ void apply(const RamOperation& op, RamEnvironment& env) {
 
     // create and run interpreter
     EvalContext ctxt(op.getDepth());
+    ctxt.setReturnValues(args.getReturnValues());
+    ctxt.setReturnErrors(args.getReturnErrors());
+    ctxt.setArguments(args.getArguments());
     Interpreter(env, ctxt).visit(op);
 }
 
@@ -626,12 +716,11 @@ void run(const QueryExecutionStrategy& executor, std::ostream* report, std::ostr
         const QueryExecutionStrategy& queryExecutor;
         std::ostream* report;
         std::ostream* profile;
-        RamData* data;
 
     public:
         Interpreter(RamEnvironment& env, const QueryExecutionStrategy& executor, std::ostream* report,
                 std::ostream* profile, RamData* data)
-                : env(env), queryExecutor(executor), report(report), profile(profile), data(data) {}
+                : env(env), queryExecutor(executor), report(report), profile(profile) {}
 
         // -- Statements -----------------------------
 
@@ -660,12 +749,6 @@ void run(const QueryExecutionStrategy& executor, std::ostream* report, std::ostr
             if (stmts.size() == 1) {
                 return visit(stmts[0]);
             }
-
-#ifdef _OPENMP
-            if (std::stoi(Global::config().get("jobs")) != 0) {
-                omp_set_num_threads(std::stoi(Global::config().get("jobs")));
-            }
-#endif
 
             // parallel execution
             bool cond = true;
@@ -712,11 +795,15 @@ void run(const QueryExecutionStrategy& executor, std::ostream* report, std::ostr
         }
 
         bool visitPrintSize(const RamPrintSize& print) override {
+            auto lease = getOutputLock().acquire();
+            (void)lease;
             std::cout << print.getLabel() << env.getRelation(print.getRelation()).size() << "\n";
             return true;
         }
 
         bool visitLogSize(const RamLogSize& print) override {
+            auto lease = getOutputLock().acquire();
+            (void)lease;
             *profile << print.getLabel() << env.getRelation(print.getRelation()).size() << "\n";
             return true;
         }
@@ -743,9 +830,9 @@ void run(const QueryExecutionStrategy& executor, std::ostream* report, std::ostr
 #endif
             try {
                 RamRelation& relation = env.getRelation(load.getRelation());
-                std::unique_ptr<ReadStream> reader =
-                        IOSystem::getInstance().getReader(load.getRelation().getSymbolMask(),
-                                env.getSymbolTable(), load.getRelation().getInputDirectives());
+                std::unique_ptr<ReadStream> reader = IOSystem::getInstance().getReader(
+                        load.getRelation().getSymbolMask(), env.getSymbolTable(),
+                        load.getRelation().getInputDirectives(), Global::config().has("provenance"));
                 reader->readAll(relation);
             } catch (std::exception& e) {
                 std::cerr << e.what();
@@ -760,13 +847,12 @@ void run(const QueryExecutionStrategy& executor, std::ostream* report, std::ostr
                 return true;
             }
 #endif
-            auto& rel = env.getRelation(store.getRelation());
             for (IODirectives ioDirectives : store.getRelation().getOutputDirectives()) {
                 try {
                     IOSystem::getInstance()
-                            .getWriter(
-                                    store.getRelation().getSymbolMask(), env.getSymbolTable(), ioDirectives)
-                            ->writeAll(rel);
+                            .getWriter(store.getRelation().getSymbolMask(), env.getSymbolTable(),
+                                    ioDirectives, Global::config().has("provenance"))
+                            ->writeAll(env.getRelation(store.getRelation()));
                 } catch (std::exception& e) {
                     std::cerr << e.what();
                     exit(1);
@@ -814,6 +900,8 @@ void run(const QueryExecutionStrategy& executor, std::ostream* report, std::ostr
         // -- safety net --
 
         bool visitNode(const RamNode& node) override {
+            auto lease = getOutputLock().acquire();
+            (void)lease;
             std::cerr << "Unsupported node type: " << typeid(node).name() << "\n";
             assert(false && "Unsupported Node Type!");
             return false;
@@ -825,20 +913,21 @@ void run(const QueryExecutionStrategy& executor, std::ostream* report, std::ostr
 }
 }  // namespace
 
-void RamGuidedInterpreter::applyOn(const RamStatement& stmt, RamEnvironment& env, RamData* data) const {
+void RamGuidedInterpreter::applyOn(const RamProgram& prog, RamEnvironment& env, RamData* data) const {
+    SignalHandler::instance()->set();
     if (Global::config().has("profile")) {
         std::string fname = Global::config().get("profile");
         // open output stream
         std::ofstream os(fname);
         if (!os.is_open()) {
-            // TODO: use different error reporting here!!
-            std::cerr << "Cannot open fact file " << fname << " for profiling\n";
+            throw std::invalid_argument("Cannot open profile log file <" + fname + ">");
         }
         os << "@start-debug\n";
-        run(queryStrategy, report, &os, stmt, env, data);
+        run(queryStrategy, report, &os, *(prog.getMain()), env, data);
     } else {
-        run(queryStrategy, report, nullptr, stmt, env, data);
+        run(queryStrategy, report, nullptr, *(prog.getMain()), env, data);
     }
+    SignalHandler::instance()->reset();
 }
 
 namespace {
@@ -1086,19 +1175,32 @@ std::set<RamRelationIdentifier> getReferencedRelations(const RamOperation& op) {
             res.insert(scan->getRelation());
         } else if (auto agg = dynamic_cast<const RamAggregate*>(&node)) {
             res.insert(agg->getRelation());
+        } else if (auto notExist = dynamic_cast<const RamNotExists*>(&node)) {
+            res.insert(notExist->getRelation());
         } else if (auto project = dynamic_cast<const RamProject*>(&node)) {
             res.insert(project->getRelation());
             if (project->hasFilter()) {
                 res.insert(project->getFilter());
             }
-        } else if (auto notExist = dynamic_cast<const RamNotExists*>(&node)) {
-            res.insert(notExist->getRelation());
         }
     });
     return res;
 }
 
 class Printer : public RamVisitor<void, std::ostream&> {
+// macros to add comments to generated code for debugging
+#ifndef PRINT_BEGIN_COMMENT
+#define PRINT_BEGIN_COMMENT(os)                                                  \
+    if (Global::config().has("debug-report") || Global::config().has("verbose")) \
+    os << "/* BEGIN " << __FUNCTION__ << " @" << __FILE__ << ":" << __LINE__ << " */\n"
+#endif
+
+#ifndef PRINT_END_COMMENT
+#define PRINT_END_COMMENT(os)                                                    \
+    if (Global::config().has("debug-report") || Global::config().has("verbose")) \
+    os << "/* END " << __FUNCTION__ << " @" << __FILE__ << ":" << __LINE__ << " */\n"
+#endif
+
     // const IndexMap& indices;
 
     std::function<void(std::ostream&, const RamNode*)> rec;
@@ -1106,8 +1208,11 @@ class Printer : public RamVisitor<void, std::ostream&> {
     struct printer {
         Printer& p;
         const RamNode& node;
+
         printer(Printer& p, const RamNode& n) : p(p), node(n) {}
+
         printer(const printer& other) = default;
+
         friend std::ostream& operator<<(std::ostream& out, const printer& p) {
             p.p.visit(p.node, out);
             return out;
@@ -1121,18 +1226,65 @@ public:
 
     // -- relation statements --
 
-    void visitCreate(const RamCreate& /*create*/, std::ostream& /*out*/) override {}
-
-    void visitFact(const RamFact& fact, std::ostream& out) override {
-        out << getRelationName(fact.getRelation()) << "->"
-            << "insert(" << join(fact.getValues(), ",", rec) << ");\n";
+    void visitCreate(const RamCreate& /*create*/, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
+        PRINT_END_COMMENT(out);
     }
 
-    void visitLoad(const RamLoad& /*load*/, std::ostream& /*out*/) override {}
+    void visitFact(const RamFact& fact, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
+        out << getRelationName(fact.getRelation()) << "->"
+            << "insert(" << join(fact.getValues(), ",", rec) << ");\n";
+        PRINT_END_COMMENT(out);
+    }
 
-    void visitStore(const RamStore& /*store*/, std::ostream& /*out*/) override {}
+    void visitLoad(const RamLoad& load, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
+        out << "if (performIO) {\n";
+        // get some table details
+        out << "try {";
+        out << "std::map<std::string, std::string> directiveMap(";
+        out << load.getRelation().getInputDirectives() << ");\n";
+        out << "if (!inputDirectory.empty() && directiveMap[\"IO\"] == \"file\" && ";
+        out << "directiveMap[\"filename\"].front() != '/') {";
+        out << "directiveMap[\"filename\"] = inputDirectory + \"/\" + directiveMap[\"filename\"];";
+        out << "}\n";
+        out << "IODirectives ioDirectives(directiveMap);\n";
+        out << "IOSystem::getInstance().getReader(";
+        out << "SymbolMask({" << load.getRelation().getSymbolMask() << "})";
+        out << ", symTable, ioDirectives";
+        out << ", " << Global::config().has("provenance");
+        out << ")->readAll(*" << getRelationName(load.getRelation());
+        out << ");\n";
+        out << "} catch (std::exception& e) {std::cerr << e.what();exit(1);}\n";
+        out << "}\n";
+        PRINT_END_COMMENT(out);
+    }
+
+    void visitStore(const RamStore& store, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
+        out << "if (performIO) {\n";
+        for (IODirectives ioDirectives : store.getRelation().getOutputDirectives()) {
+            out << "try {";
+            out << "std::map<std::string, std::string> directiveMap(" << ioDirectives << ");\n";
+            out << "if (!outputDirectory.empty() && directiveMap[\"IO\"] == \"file\" && ";
+            out << "directiveMap[\"filename\"].front() != '/') {";
+            out << "directiveMap[\"filename\"] = outputDirectory + \"/\" + directiveMap[\"filename\"];";
+            out << "}\n";
+            out << "IODirectives ioDirectives(directiveMap);\n";
+            out << "IOSystem::getInstance().getWriter(";
+            out << "SymbolMask({" << store.getRelation().getSymbolMask() << "})";
+            out << ", symTable, ioDirectives";
+            out << ", " << Global::config().has("provenance");
+            out << ")->writeAll(*" << getRelationName(store.getRelation()) << ");\n";
+            out << "} catch (std::exception& e) {std::cerr << e.what();exit(1);}\n";
+        }
+        out << "}\n";
+        PRINT_END_COMMENT(out);
+    }
 
     void visitInsert(const RamInsert& insert, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         // enclose operation with a check for an empty relation
         std::set<RamRelationIdentifier> input_relations;
         visitDepthFirst(insert, [&](const RamScan& scan) { input_relations.insert(scan.getRelation()); });
@@ -1180,6 +1332,8 @@ public:
 
         // create operation contexts for this operation
         for (const RamRelationIdentifier& rel : getReferencedRelations(insert.getOperation())) {
+            // TODO (#467): this causes bugs for subprogram compilation for record types if artificial
+            // dependencies are introduces in the precedence graph
             out << "CREATE_OP_CONTEXT(" << getOpContextName(rel) << "," << getRelationName(rel) << "->"
                 << "createContext());\n";
         }
@@ -1214,63 +1368,89 @@ public:
 
             // print log entry
             out << "{ auto lease = getOutputLock().acquire(); ";
-            out << "profile << R\"(#" << label << ";)\" << num_failed_proofs << \"\\n\";\n";
+            out << "(void)lease;\n";
+            out << "profile << R\"(#" << label << ";)\" << num_failed_proofs << std::endl;\n";
             out << "}";
         }
 
         out << "}\n";  // end lambda
         // out << "();";  // call lambda
+        PRINT_END_COMMENT(out);
     }
 
     void visitMerge(const RamMerge& merge, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         out << getRelationName(merge.getTargetRelation()) << "->"
             << "insertAll("
             << "*" << getRelationName(merge.getSourceRelation()) << ");\n";
+        PRINT_END_COMMENT(out);
     }
 
     void visitClear(const RamClear& clear, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         out << getRelationName(clear.getRelation()) << "->"
             << "purge();\n";
+        PRINT_END_COMMENT(out);
     }
 
     void visitDrop(const RamDrop& drop, std::ostream& out) override {
-        if (drop.getRelation().isTemp()) {
-            out << getRelationName(drop.getRelation()) << "->"
-                << "purge();\n";
-        }
+        PRINT_BEGIN_COMMENT(out);
+        out << "if (!isHintsProfilingEnabled() && (performIO || " << drop.getRelation().isTemp() << ")) ";
+        out << getRelationName(drop.getRelation()) << "->"
+            << "purge();\n";
+        PRINT_END_COMMENT(out);
     }
 
-    void visitPrintSize(const RamPrintSize& /*print*/, std::ostream& /*out*/) override {}
+    void visitPrintSize(const RamPrintSize& print, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
+        out << "if (performIO) {\n";
+        out << "{ auto lease = getOutputLock().acquire(); \n";
+        out << "(void)lease;\n";
+        out << "std::cout << R\"(" << print.getLabel() << ")\" <<  ";
+        out << getRelationName(print.getRelation()) << "->"
+            << "size() << std::endl;\n";
+        out << "}";
+        out << "}\n";
+        PRINT_END_COMMENT(out);
+    }
 
     void visitLogSize(const RamLogSize& print, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         out << "{ auto lease = getOutputLock().acquire(); \n";
+        out << "(void)lease;\n";
         out << "profile << R\"(" << print.getLabel() << ")\" <<  ";
         out << getRelationName(print.getRelation());
         out << "->"
-            << "size() << \"\\n\";\n"
+            << "size() << std::endl;\n"
             << "}";
+        PRINT_END_COMMENT(out);
     }
 
     // -- control flow statements --
 
     void visitSequence(const RamSequence& seq, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         for (const auto& cur : seq.getStatements()) {
             out << print(cur);
         }
+        PRINT_END_COMMENT(out);
     }
 
     void visitParallel(const RamParallel& parallel, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         auto stmts = parallel.getStatements();
 
         // special handling cases
         if (stmts.empty()) {
             return;
+            PRINT_END_COMMENT(out);
         }
 
         // a single statement => save the overhead
         if (stmts.size() == 1) {
             out << print(stmts[0]);
             return;
+            PRINT_END_COMMENT(out);
         }
 
         // more than one => parallel sections
@@ -1287,13 +1467,17 @@ public:
 
         // done
         out << "SECTIONS_END;\n";
+        PRINT_END_COMMENT(out);
     }
 
     void visitLoop(const RamLoop& loop, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         out << "for(;;) {\n" << print(loop.getBody()) << "}\n";
+        PRINT_END_COMMENT(out);
     }
 
     void visitSwap(const RamSwap& swap, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         const std::string tempKnowledge = "rel_0";
         const std::string& deltaKnowledge = getRelationName(swap.getFirstRelation());
         const std::string& newKnowledge = getRelationName(swap.getSecondRelation());
@@ -1303,13 +1487,17 @@ public:
             << deltaKnowledge << " = " << newKnowledge << ";\n"
             << newKnowledge << " = " << tempKnowledge << ";\n"
             << "}\n";
+        PRINT_END_COMMENT(out);
     }
 
     void visitExit(const RamExit& exit, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         out << "if(" << print(exit.getCondition()) << ") break;\n";
+        PRINT_END_COMMENT(out);
     }
 
     void visitLogTimer(const RamLogTimer& timer, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         // create local scope for name resolution
         out << "{\n";
 
@@ -1321,20 +1509,24 @@ public:
 
         // done
         out << "}\n";
+        PRINT_END_COMMENT(out);
     }
 
     void visitDebugInfo(const RamDebugInfo& dbg, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         out << "SignalHandler::instance()->setMsg(R\"_(";
         out << dbg.getLabel();
         out << ")_\");\n";
 
         // insert statements of the rule
         visit(dbg.getNested(), out);
+        PRINT_END_COMMENT(out);
     }
 
     // -- operations --
 
     void visitSearch(const RamSearch& search, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         auto condition = search.getCondition();
         if (condition) {
             out << "if( " << print(condition) << ") {\n" << print(search.getNestedOperation()) << "}\n";
@@ -1344,9 +1536,11 @@ public:
         } else {
             out << print(search.getNestedOperation());
         }
+        PRINT_END_COMMENT(out);
     }
 
     void visitScan(const RamScan& scan, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         // get relation name
         const auto& rel = scan.getRelation();
         auto relName = getRelationName(rel);
@@ -1375,6 +1569,7 @@ public:
                 out << "}\n";
             }
             return;
+            PRINT_END_COMMENT(out);
         }
 
         // check list of keys
@@ -1415,10 +1610,11 @@ public:
         }
         visitSearch(scan, out);
         out << "}\n";
-        return;
+        PRINT_END_COMMENT(out);
     }
 
     void visitLookup(const RamLookup& lookup, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         auto arity = lookup.getArity();
 
         // get the tuple type working with
@@ -1436,9 +1632,11 @@ public:
         visitSearch(lookup, out);
 
         out << "}\n";
+        PRINT_END_COMMENT(out);
     }
 
     void visitAggregate(const RamAggregate& aggregate, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         // get some properties
         const auto& rel = aggregate.getRelation();
         auto arity = rel.getArity();
@@ -1447,7 +1645,7 @@ public:
         auto level = aggregate.getLevel();
 
         // get the tuple type working with
-        std::string tuple_type = "ram::Tuple<RamDomain," + toString(arity) + ">";
+        std::string tuple_type = "ram::Tuple<RamDomain," + toString(std::max(1u, arity)) + ">";
 
         // declare environment variable
         out << tuple_type << " env" << level << ";\n";
@@ -1458,6 +1656,7 @@ public:
             out << "env" << level << "[0] = " << relName << "->"
                 << "size();\n";
             visitSearch(aggregate, out);
+            PRINT_END_COMMENT(out);
             return;
         }
 
@@ -1577,9 +1776,11 @@ public:
         if (aggregate.getFunction() != RamAggregate::COUNT) {
             out << "}\n";
         }
+        PRINT_END_COMMENT(out);
     }
 
     void visitProject(const RamProject& project, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         const auto& rel = project.getRelation();
         auto arity = rel.getArity();
         auto relName = getRelationName(rel);
@@ -1634,15 +1835,19 @@ public:
                 out << " else { ++private_num_failed_proofs; }";
             }
         }
+        PRINT_END_COMMENT(out);
     }
 
     // -- conditions --
 
     void visitAnd(const RamAnd& c, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         out << "((" << print(c.getLHS()) << ") && (" << print(c.getRHS()) << "))";
+        PRINT_END_COMMENT(out);
     }
 
     void visitBinaryRelation(const RamBinaryRelation& rel, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         switch (rel.getOperator()) {
             // comparison operators
             case BinaryConstraintOp::EQ:
@@ -1701,14 +1906,18 @@ public:
                 assert(0 && "Unsupported Operation!");
                 break;
         }
+        PRINT_END_COMMENT(out);
     }
 
     void visitEmpty(const RamEmpty& empty, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         out << getRelationName(empty.getRelation()) << "->"
             << "empty()";
+        PRINT_END_COMMENT(out);
     }
 
     void visitNotExists(const RamNotExists& ne, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         // get some details
         const auto& rel = ne.getRelation();
         auto relName = getRelationName(rel);
@@ -1721,6 +1930,7 @@ public:
                 << "contains(Tuple<RamDomain," << arity << ">({" << join(ne.getValues(), ",", rec) << "}),"
                 << ctxName << ")";
             return;
+            PRINT_END_COMMENT(out);
         }
 
         // else we conduct a range query
@@ -1736,22 +1946,30 @@ public:
             }
         });
         out << "})," << ctxName << ").empty()";
+        PRINT_END_COMMENT(out);
     }
 
     // -- values --
     void visitNumber(const RamNumber& num, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         out << num.getConstant();
+        PRINT_END_COMMENT(out);
     }
 
     void visitElementAccess(const RamElementAccess& access, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         out << "env" << access.getLevel() << "[" << access.getElement() << "]";
+        PRINT_END_COMMENT(out);
     }
 
     void visitAutoIncrement(const RamAutoIncrement& /*inc*/, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         out << "(ctr++)";
+        PRINT_END_COMMENT(out);
     }
 
     void visitUnaryOperator(const RamUnaryOperator& op, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         switch (op.getOperator()) {
             case UnaryOp::ORD:
                 out << print(op.getValue());
@@ -1814,9 +2032,11 @@ public:
                 assert(0 && "Unsupported Operation!");
                 break;
         }
+        PRINT_END_COMMENT(out);
     }
 
     void visitBinaryOperator(const RamBinaryOperator& op, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         switch (op.getOperator()) {
             // arithmetic
             case BinaryOp::ADD: {
@@ -1864,6 +2084,16 @@ public:
                 out << "(" << print(op.getLHS()) << ") || (" << print(op.getRHS()) << ")";
                 break;
             }
+            case BinaryOp::MAX: {
+                out << "(AstDomain)(std::max((AstDomain)" << print(op.getLHS()) << ","
+                    << "(AstDomain)" << print(op.getRHS()) << "))";
+                break;
+            }
+            case BinaryOp::MIN: {
+                out << "(AstDomain)(std::min((AstDomain)" << print(op.getLHS()) << ","
+                    << "(AstDomain)" << print(op.getRHS()) << "))";
+                break;
+            }
 
             // strings
             case BinaryOp::CAT: {
@@ -1878,9 +2108,11 @@ public:
             default:
                 assert(0 && "Unsupported Operation!");
         }
+        PRINT_END_COMMENT(out);
     }
 
     void visitTernaryOperator(const RamTernaryOperator& op, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         switch (op.getOperator()) {
             case TernaryOp::SUBSTR:
                 out << "(RamDomain)symTable.lookup(";
@@ -1895,15 +2127,38 @@ public:
             default:
                 assert(0 && "Unsupported Operation!");
         }
+        PRINT_END_COMMENT(out);
     }
 
     // -- records --
 
     void visitPack(const RamPack& pack, std::ostream& out) override {
+        PRINT_BEGIN_COMMENT(out);
         out << "pack("
             << "ram::Tuple<RamDomain," << pack.getValues().size() << ">({" << join(pack.getValues(), ",", rec)
             << "})"
             << ")";
+        PRINT_END_COMMENT(out);
+    }
+
+    // -- subroutine argument --
+
+    void visitArgument(const RamArgument& arg, std::ostream& out) override {
+        out << "(*args)[" << arg.getNumber() << "]";
+    }
+
+    // -- subroutine return --
+
+    void visitReturn(const RamReturn& ret, std::ostream& out) override {
+        for (auto val : ret.getValues()) {
+            if (val == nullptr) {
+                out << "ret.push_back(0);\n";
+                out << "err.push_back(true);\n";
+            } else {
+                out << "ret.push_back(" << print(val) << ");\n";
+                out << "err.push_back(false);\n";
+            }
+        }
     }
 
     // -- safety net --
@@ -1929,25 +2184,15 @@ void genCode(std::ostream& out, const RamStatement& stmt, const IndexMap& indice
 }
 }  // namespace
 
-std::string RamCompiler::resolveFileName() const {
-    if (Global::config().get("dl-program") == "") {
-        // generate temporary file
-        char templ[40] = "./souffleXXXXXX";
-        close(mkstemp(templ));
-        return templ;
-    }
-    return Global::config().get("dl-program");
-}
-
-std::string RamCompiler::generateCode(
-        const SymbolTable& symTable, const RamStatement& stmt, const std::string& filename) const {
+std::string RamCompiler::generateCode(const SymbolTable& symTable, const RamProgram& prog,
+        const std::string& filename, const int index) const {
     // ---------------------------------------------------------------
     //                      Auto-Index Generation
     // ---------------------------------------------------------------
 
     // collect all used indices
     IndexMap indices;
-    visitDepthFirst(stmt, [&](const RamNode& node) {
+    visitDepthFirst(prog, [&](const RamNode& node) {
         if (const RamScan* scan = dynamic_cast<const RamScan*>(&node)) {
             indices[scan->getRelation()].addSearch(scan->getRangeQueryColumns());
         }
@@ -1994,34 +2239,22 @@ std::string RamCompiler::generateCode(
     // ---------------------------------------------------------------
 
     // generate class name
-    std::string simplename = baseName(filename);
-    // strip .h/.cpp, if present
-    if (endsWith(simplename, ".h")) {
-        simplename = simplename.substr(0, simplename.size() - 2);
-    } else if (endsWith(simplename, ".cpp")) {
-        simplename = simplename.substr(0, simplename.size() - 4);
-    }
-    // Remove invalid characters
-    for (size_t i = 0; i < simplename.length(); i++) {
-        if ((!isalpha(simplename[i]) && i == 0) || !isalnum(simplename[i])) {
-            simplename[i] = '_';
-        }
-    }
 
-    std::string classname = "Sf_" + simplename;
+    const std::string nameNoExtension = simpleName((filename != "") ? filename : tempFile());
+    const std::string indexStr = ((index != -1) ? "_" + std::to_string(index) : "");
+    const std::string id = identifier(baseName(nameNoExtension));
+
+    std::string classname = "Sf_" + id + indexStr;
 
     // add filename extension
-    std::string source = filename;
-    if (!(endsWith(source, ".h") || endsWith(source, ".cpp"))) {
-        source += ".cpp";
-    }
+    std::string sourceFilename = nameNoExtension + indexStr + ".cpp";
 
     // open output stream for header file
-    std::ofstream os(source);
+    std::ofstream os(sourceFilename);
 
     // generate C++ program
     os << "#include \"souffle/CompiledSouffle.h\"\n";
-    if (Global::config().has("provenance")) {
+    if (Global::config().has("provenance") || Global::config().has("record-provenance")) {
         os << "#include \"souffle/Explain.h\"\n";
         os << "#include <ncurses.h>\n";
     }
@@ -2043,7 +2276,8 @@ std::string RamCompiler::generateCode(
     os << "   std::string sub_str, result; \n";
     os << "   try { result = std::string(str).substr(idx,len); } catch(...) { \n";
     os << "     std::cerr << \"warning: wrong index position provided by substr(\\\"\";\n";
-    os << "     std::cerr << str << \"\\\",\" << idx << \",\" << len << \") functor.\\n\";\n";
+    os << "     std::cerr << str << \"\\\",\" << (int32_t)idx << \",\" << (int32_t)len << \") "
+          "functor.\\n\";\n";
     os << "   } return result;\n";
     os << "}\n";
 
@@ -2061,7 +2295,7 @@ std::string RamCompiler::generateCode(
     std::string registerRel;   // registration of relations
     int relCtr = 0;
     std::string tempType;  // string to hold the type of the temporary relations
-    visitDepthFirst(stmt, [&](const RamCreate& create) {
+    visitDepthFirst(*(prog.getMain()), [&](const RamCreate& create) {
 
         // get some table details
         const auto& rel = create.getRelation();
@@ -2084,7 +2318,7 @@ std::string RamCompiler::generateCode(
         }
         initCons += name + "(new " + type + "())";
         deleteForNew += "delete " + name + ";\n";
-        if ((rel.isInput() || rel.isComputed()) && !rel.isTemp()) {
+        if ((rel.isInput() || rel.isComputed() || Global::config().has("provenance")) && !rel.isTemp()) {
             os << "souffle::RelationWrapper<";
             os << relCtr++ << ",";
             os << type << ",";
@@ -2127,12 +2361,14 @@ std::string RamCompiler::generateCode(
     if (Global::config().has("profile")) {
         os << "(std::string pf=\"profile.log\") : profiling_fname(pf)";
         if (initCons.size() > 0) {
-            os << ",\n";
+            os << ",\n" << initCons;
         }
     } else {
-        os << "() : \n";
+        os << "()";
+        if (initCons.size() > 0) {
+            os << " : " << initCons;
+        }
     }
-    os << initCons;
     os << "{\n";
     os << registerRel;
 
@@ -2157,7 +2393,10 @@ std::string RamCompiler::generateCode(
 
     // -- run function --
 
-    os << "void run() {\n";
+    os << "private:\ntemplate <bool performIO> void runFunction(std::string inputDirectory = \".\", "
+          "std::string outputDirectory = \".\") {\n";
+
+    os << "SignalHandler::instance()->set();\n";
 
     // initialize counter
     os << "// -- initialize counter --\n";
@@ -2175,37 +2414,57 @@ std::string RamCompiler::generateCode(
     if (Global::config().has("profile")) {
         os << "std::ofstream profile(profiling_fname);\n";
         os << "profile << \"@start-debug\\n\";\n";
-        genCode(os, stmt, indices);
+        genCode(os, *(prog.getMain()), indices);
     } else {
-        genCode(os, stmt, indices);
+        genCode(os, *(prog.getMain()), indices);
     }
-    os << "}\n";  // end of run() method
+    // add code printing hint statistics
+    os << "\n// -- relation hint statistics --\n";
+    os << "if(isHintsProfilingEnabled()) {\n";
+    os << "std::cout << \" -- Operation Hint Statistics --\\n\";\n";
+    visitDepthFirst(*(prog.getMain()), [&](const RamCreate& create) {
+        auto name = getRelationName(create.getRelation());
+        os << "std::cout << \"Relation " << name << ":\\n\";\n";
+        os << name << "->printHintStatistics(std::cout,\"  \");\n";
+        os << "std::cout << \"\\n\";\n";
+    });
+    os << "}\n";
+
+    os << "SignalHandler::instance()->reset();\n";
+
+    os << "}\n";  // end of runFunction() method
+
+    // add methods to run with and without performing IO (mainly for the interface)
+    os << "public:\nvoid run() { runFunction<false>(); }\n";
+    os << "public:\nvoid runAll(std::string inputDirectory = \".\", std::string outputDirectory = \".\") { "
+          "runFunction<true>(inputDirectory, outputDirectory); }\n";
 
     // issue printAll method
     os << "public:\n";
-    os << "void printAll(std::string dirname) {\n";
-    visitDepthFirst(stmt, [&](const RamStatement& node) {
+    os << "void printAll(std::string outputDirectory = \".\") {\n";
+    visitDepthFirst(*(prog.getMain()), [&](const RamStatement& node) {
         if (auto store = dynamic_cast<const RamStore*>(&node)) {
             for (IODirectives ioDirectives : store->getRelation().getOutputDirectives()) {
                 os << "try {";
                 os << "std::map<std::string, std::string> directiveMap(" << ioDirectives << ");\n";
-                os << "if (!dirname.empty() && directiveMap[\"IO\"] == \"file\" && ";
+                os << "if (!outputDirectory.empty() && directiveMap[\"IO\"] == \"file\" && ";
                 os << "directiveMap[\"filename\"].front() != '/') {";
-                os << "directiveMap[\"filename\"] = dirname + \"/\" + directiveMap[\"filename\"];";
+                os << "directiveMap[\"filename\"] = outputDirectory + \"/\" + directiveMap[\"filename\"];";
                 os << "}\n";
                 os << "IODirectives ioDirectives(directiveMap);\n";
                 os << "IOSystem::getInstance().getWriter(";
                 os << "SymbolMask({" << store->getRelation().getSymbolMask() << "})";
-                os << ", symTable, ioDirectives";
+                os << ", symTable, ioDirectives, " << Global::config().has("provenance");
                 os << ")->writeAll(*" << getRelationName(store->getRelation()) << ");\n";
 
                 os << "} catch (std::exception& e) {std::cerr << e.what();exit(1);}\n";
             }
         } else if (auto print = dynamic_cast<const RamPrintSize*>(&node)) {
             os << "{ auto lease = getOutputLock().acquire(); \n";
+            os << "(void)lease;\n";
             os << "std::cout << R\"(" << print->getLabel() << ")\" <<  ";
             os << getRelationName(print->getRelation()) << "->"
-               << "size() << \"\\n\";\n";
+               << "size() << std::endl;\n";
             os << "}";
         }
     });
@@ -2213,22 +2472,23 @@ std::string RamCompiler::generateCode(
 
     // issue loadAll method
     os << "public:\n";
-    os << "void loadAll(std::string dirname) {\n";
-    visitDepthFirst(stmt, [&](const RamLoad& load) {
+    os << "void loadAll(std::string inputDirectory = \".\") {\n";
+    visitDepthFirst(*(prog.getMain()), [&](const RamLoad& load) {
         IODirectives ioDirectives = load.getRelation().getInputDirectives();
-
         // get some table details
         os << "try {";
         os << "std::map<std::string, std::string> directiveMap(";
         os << load.getRelation().getInputDirectives() << ");\n";
-        os << "if (!dirname.empty() && directiveMap[\"IO\"] == \"file\" && ";
+        os << "if (!inputDirectory.empty() && directiveMap[\"IO\"] == \"file\" && ";
         os << "directiveMap[\"filename\"].front() != '/') {";
-        os << "directiveMap[\"filename\"] = dirname + \"/\" + directiveMap[\"filename\"];";
+        os << "directiveMap[\"filename\"] = inputDirectory + \"/\" + directiveMap[\"filename\"];";
         os << "}\n";
         os << "IODirectives ioDirectives(directiveMap);\n";
         os << "IOSystem::getInstance().getReader(";
         os << "SymbolMask({" << load.getRelation().getSymbolMask() << "})";
-        os << ", symTable, ioDirectives)->readAll(*" << getRelationName(load.getRelation());
+        os << ", symTable, ioDirectives";
+        os << ", " << Global::config().has("provenance");
+        os << ")->readAll(*" << getRelationName(load.getRelation());
         os << ");\n";
         os << "} catch (std::exception& e) {std::cerr << e.what();exit(1);}\n";
     });
@@ -2244,7 +2504,7 @@ std::string RamCompiler::generateCode(
         os << "ioDirectives.setRelationName(\"" << name << "\");\n";
         os << "IOSystem::getInstance().getWriter(";
         os << "SymbolMask({" << mask << "})";
-        os << ", symTable, ioDirectives";
+        os << ", symTable, ioDirectives, " << Global::config().has("provenance");
         os << ")->writeAll(*" << relName << ");\n";
         os << "} catch (std::exception& e) {std::cerr << e.what();exit(1);}\n";
     };
@@ -2252,7 +2512,7 @@ std::string RamCompiler::generateCode(
     // dump inputs
     os << "public:\n";
     os << "void dumpInputs(std::ostream& out = std::cout) {\n";
-    visitDepthFirst(stmt, [&](const RamLoad& load) {
+    visitDepthFirst(*(prog.getMain()), [&](const RamLoad& load) {
         auto& name = getRelationName(load.getRelation());
         auto& mask = load.getRelation().getSymbolMask();
         size_t arity = load.getRelation().getArity();
@@ -2263,7 +2523,7 @@ std::string RamCompiler::generateCode(
     // dump outputs
     os << "public:\n";
     os << "void dumpOutputs(std::ostream& out = std::cout) {\n";
-    visitDepthFirst(stmt, [&](const RamStore& store) {
+    visitDepthFirst(*(prog.getMain()), [&](const RamStore& store) {
         auto& name = getRelationName(store.getRelation());
         auto& mask = store.getRelation().getSymbolMask();
         size_t arity = store.getRelation().getArity();
@@ -2276,11 +2536,45 @@ std::string RamCompiler::generateCode(
     os << "return symTable;\n";
     os << "}\n";  // end of getSymbolTable() method
 
+    // TODO: generate code for subroutines
+    if (Global::config().has("provenance")) {
+        // generate subroutine adapter
+        os << "void executeSubroutine(std::string name, const std::vector<RamDomain>* args, "
+              "std::vector<RamDomain>* ret, std::vector<bool>* err) override {\n";
+
+        // subroutine number
+        size_t subroutineNum = 0;
+        for (auto& sub : prog.getSubroutines()) {
+            os << "if (name == \"" << sub.first << "\") {\n"
+               << "subproof_" << subroutineNum
+               << "(args, ret, err);\n"  // subproof_i to deal with special characters in relation names
+               << "}\n";
+            subroutineNum++;
+        }
+        os << "}\n";  // end of executeSubroutine
+
+        // generate method for each subroutine
+        subroutineNum = 0;
+        for (auto& sub : prog.getSubroutines()) {
+            // method header
+            os << "void "
+               << "subproof_" << subroutineNum << "(const std::vector<RamDomain>* args, "
+                                                  "std::vector<RamDomain>* ret, std::vector<bool>* err) {\n";
+
+            // generate code for body
+            genCode(os, sub.second, indices);
+
+            os << "return;\n";
+            os << "}\n";  // end of subroutine
+            subroutineNum++;
+        }
+    }
+
     os << "};\n";  // end of class declaration
 
     // hidden hooks
-    os << "SouffleProgram *newInstance_" << simplename << "(){return new " << classname << ";}\n";
-    os << "SymbolTable *getST_" << simplename << "(SouffleProgram *p){return &reinterpret_cast<" << classname
+    os << "SouffleProgram *newInstance_" << id << "(){return new " << classname << ";}\n";
+    os << "SymbolTable *getST_" << id << "(SouffleProgram *p){return &reinterpret_cast<" << classname
        << "*>(p)->symTable;}\n";
 
     os << "#ifdef __EMBEDDED_SOUFFLE__\n";
@@ -2289,7 +2583,7 @@ std::string RamCompiler::generateCode(
     os << "return new " << classname << "();\n";
     os << "};\n";
     os << "public:\n";
-    os << "factory_" << classname << "() : ProgramFactory(\"" << simplename << "\"){}\n";
+    os << "factory_" << classname << "() : ProgramFactory(\"" << id << "\"){}\n";
     os << "};\n";
     os << "static factory_" << classname << " __factory_" << classname << "_instance;\n";
     os << "}\n";
@@ -2326,14 +2620,19 @@ std::string RamCompiler::generateCode(
         os << classname + " obj;\n";
     }
 
-    os << "obj.loadAll(opt.getInputFileDir());\n";
-    os << "obj.run();\n";
-    os << "obj.printAll(opt.getOutputFileDir());\n";
+    os << "obj.runAll(opt.getInputFileDir(), opt.getOutputFileDir());\n";
     if (Global::config().get("provenance") == "1") {
-        os << "explain(obj, true);\n";
+        os << "explain(obj, true, false);\n";
     } else if (Global::config().get("provenance") == "2") {
-        os << "explain(obj, false);\n";
+        os << "explain(obj, true, true);\n";
     }
+
+    if (Global::config().get("record-provenance") == "1") {
+        os << "explain(obj, false, false);\n";
+    } else if (Global::config().get("record-provenance") == "2") {
+        os << "explain(obj, false, true);\n";
+    }
+
     os << "return 0;\n";
     os << "} catch(std::exception &e) { souffle::SignalHandler::instance()->error(e.what());}\n";
     os << "}\n";
@@ -2343,15 +2642,15 @@ std::string RamCompiler::generateCode(
     os.close();
 
     // return the filename
-    return source;
+    return sourceFilename;
 }
 
-std::string RamCompiler::compileToLibrary(
-        const SymbolTable& symTable, const RamStatement& stmt, const std::string& filename) const {
-    std::string source = generateCode(symTable, stmt, filename + ".cpp");
+std::string RamCompiler::compileToLibrary(const SymbolTable& symTable, const RamProgram& prog,
+        const std::string& filename, const int index) const {
+    std::string sourceFilename = generateCode(symTable, prog, filename, index);
 
     // execute shell script that compiles the generated C++ program
-    std::string libCmd = "souffle-compilelib " + filename;
+    std::string libCmd = "souffle-compilelib " + sourceFilename;
 
     // separate souffle output form executable output
     if (Global::config().has("profile")) {
@@ -2360,22 +2659,22 @@ std::string RamCompiler::compileToLibrary(
 
     // run executable
     if (system(libCmd.c_str()) != 0) {
-        std::cerr << "failed to compile C++ source " << filename << "\n";
+        std::cerr << "failed to compile C++ source " << sourceFilename << "\n";
         std::cerr << "Have you installed souffle with java?\n";
         return "";
     }
 
     // done
-    return filename;
+    return sourceFilename;
 }
 
-std::string RamCompiler::compileToBinary(const SymbolTable& symTable, const RamStatement& stmt) const {
+std::string RamCompiler::compileToBinary(const SymbolTable& symTable, const RamProgram& prog,
+        const std::string& filename, const int index) const {
     // ---------------------------------------------------------------
     //                       Code Generation
     // ---------------------------------------------------------------
 
-    std::string binary = resolveFileName();
-    std::string source = generateCode(symTable, stmt, binary + ".cpp");
+    std::string sourceFilename = generateCode(symTable, prog, filename, index);
 
     // ---------------------------------------------------------------
     //                    Compilation & Execution
@@ -2390,7 +2689,7 @@ std::string RamCompiler::compileToBinary(const SymbolTable& symTable, const RamS
     }
 
     // add source code
-    cmd += source;
+    cmd += sourceFilename;
 
     // separate souffle output form executable output
     if (Global::config().has("profile")) {
@@ -2399,16 +2698,18 @@ std::string RamCompiler::compileToBinary(const SymbolTable& symTable, const RamS
 
     // run executable
     if (system(cmd.c_str()) != 0) {
-        std::cerr << "failed to compile C++ source " << binary << "\n";
+        throw std::invalid_argument("failed to compile C++ source <" + sourceFilename + ">");
     }
 
     // done
-    return binary;
+    return sourceFilename;
 }
 
-void RamCompiler::applyOn(const RamStatement& stmt, RamEnvironment& env, RamData* /*data*/) const {
+std::string RamCompiler::executeBinary(const SymbolTable& symTable, const RamProgram& prog,
+        const std::string& filename, const int index) const {
     // compile statement
-    std::string binary = compileToBinary(env.getSymbolTable(), stmt);
+    std::string sourceFilename = compileToBinary(symTable, prog, filename, index);
+    std::string binaryFilename = "./" + simpleName(sourceFilename);
 
     // separate souffle output form executable output
     if (Global::config().has("profile")) {
@@ -2416,19 +2717,37 @@ void RamCompiler::applyOn(const RamStatement& stmt, RamEnvironment& env, RamData
     }
 
     // check whether the executable exists
-    if (!isExecutable(binary)) {
-        std::cerr << "failed to run executable " << binary << "\n";
+    if (!isExecutable(binaryFilename)) {
+        throw std::invalid_argument("Generated executable <" + binaryFilename + "> could not be found");
     }
 
     // run executable
-    int result = system(binary.c_str());
+    int result = system(binaryFilename.c_str());
     if (Global::config().get("dl-program").empty()) {
-        remove(binary.c_str());
-        remove((binary + ".cpp").c_str());
+        remove(binaryFilename.c_str());
+        remove((binaryFilename + ".cpp").c_str());
     }
     if (result != 0) {
         exit(result);
     }
+    return sourceFilename;
+}
+
+void RamCompiler::applyOn(const RamProgram& prog, RamEnvironment& env, RamData* /*data*/) const {
+    executeBinary(env.getSymbolTable(), prog);
+}
+
+void RamExecutor::executeSubroutine(RamEnvironment& env, const RamStatement& stmt,
+        const std::vector<RamDomain>& arguments, std::vector<RamDomain>& returnValues,
+        std::vector<bool>& returnErrors) {
+    EvalContext ctxt;
+    ctxt.setReturnValues(returnValues);
+    ctxt.setReturnErrors(returnErrors);
+    ctxt.setArguments(arguments);
+
+    // run subroutine
+    const RamOperation& op = static_cast<const RamInsert&>(stmt).getOperation();
+    apply(op, env, ctxt);
 }
 
 }  // end of namespace souffle

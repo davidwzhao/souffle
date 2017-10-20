@@ -115,4 +115,4 @@ struct hash<souffle::ram::Tuple<Domain, arity>> {
         return res;
     }
 };
-}
+}  // namespace std

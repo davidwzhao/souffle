@@ -25,22 +25,31 @@ namespace souffle {
 
 class ReadStream {
 public:
+    ReadStream(const SymbolMask& symbolMask, SymbolTable& symbolTable, const bool prov)
+            : symbolMask(symbolMask), symbolTable(symbolTable), isProvenance(prov) {}
     template <typename T>
     void readAll(T& relation) {
+        auto lease = symbolTable.acquireLock();
+        (void)lease;
         while (const auto next = readNextTuple()) {
             const RamDomain* ramDomain = next.get();
             relation.insert(ramDomain);
         }
     }
 
-    virtual std::unique_ptr<RamDomain[]> readNextTuple() = 0;
     virtual ~ReadStream() = default;
+
+protected:
+    virtual std::unique_ptr<RamDomain[]> readNextTuple() = 0;
+    const SymbolMask& symbolMask;
+    SymbolTable& symbolTable;
+    const bool isProvenance;
 };
 
 class ReadStreamFactory {
 public:
-    virtual std::unique_ptr<ReadStream> getReader(
-            const SymbolMask& symbolMask, SymbolTable& symbolTable, const IODirectives& ioDirectives) = 0;
+    virtual std::unique_ptr<ReadStream> getReader(const SymbolMask& symbolMask, SymbolTable& symbolTable,
+            const IODirectives& ioDirectives, const bool provenance) = 0;
     virtual const std::string& getName() const = 0;
     virtual ~ReadStreamFactory() = default;
 };

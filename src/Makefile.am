@@ -112,6 +112,7 @@ souffle_sources = \
               RamData.h                                 \
               RamAutoIndex.cpp      RamAutoIndex.h      \
               RamOperation.cpp      RamOperation.h      \
+			  RamProgram.h                              \
               RamRecords.cpp        RamRecords.h        \
               RamRelation.cpp       RamRelation.h       \
               RamRelationStats.cpp  RamRelationStats.h  \
@@ -130,7 +131,8 @@ souffle_sources = \
               WriteStreamCSV.h                          \
               IOSystem.h                                \
               RamInterface.cpp      RamInterface.h      \
-              ProvenanceTransformer.cpp ProvenanceTransformer.h \
+              ProvenanceTransformer.cpp                 \
+			  ProvenanceRecordTransformer.cpp ProvenanceRecordTransformer.h \
               Global.cpp            Global.h
 
 # -- build souffle as a library so it can be reused in testing
@@ -183,7 +185,11 @@ soufflepublic_HEADERS = CompiledRamOptions.h    \
                         SymbolMask.h            \
                         WriteStream.h           \
                         WriteStreamCSV.h        \
-                        Explain.h
+                        Explain.h               \
+                        ExplainTree.h           \
+                        ExplainProvenance.h     \
+                        ExplainProvenanceSLD.h  \
+                        ExplainProvenanceRecords.h
 
 souffle_CPPFLAGS = -DPACKAGE_VERSION="\"${PACKAGE_VERSION}\""
 

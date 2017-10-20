@@ -33,6 +33,14 @@ private:
     // signal context information
     std::atomic<const char*> msg;
 
+    // state of signal handler
+    bool isSet;
+
+    // previous signal handler routines
+    void (*prevFpeHandler)(int);
+    void (*prevIntHandler)(int);
+    void (*prevSegVHandler)(int);
+
     /**
      * Signal handler for various types of signals.
      */
@@ -61,12 +69,7 @@ private:
         exit(1);
     }
 
-    SignalHandler() : msg(nullptr) {
-        // register signals
-        signal(SIGFPE, handler);   // floating point exception
-        signal(SIGINT, handler);   // user interrupts
-        signal(SIGSEGV, handler);  // memory issues
-    }
+    SignalHandler() : msg(nullptr), isSet(false) {}
 
 public:
     // get singleton
@@ -78,6 +81,55 @@ public:
     // set signal message
     void setMsg(const char* m) {
         msg = m;
+    }
+
+    /***
+     * set signal handlers
+     */
+    void set() {
+        if (!isSet) {
+            // register signals
+            // floating point exception
+            if ((prevFpeHandler = signal(SIGFPE, handler)) == SIG_ERR) {
+                perror("Failed to set SIGFPE signal handler.");
+                exit(1);
+            }
+            // user interrupts
+            if ((prevIntHandler = signal(SIGINT, handler)) == SIG_ERR) {
+                perror("Failed to set SIGINT signal handler.");
+                exit(1);
+            }
+            // memory issues
+            if ((prevSegVHandler = signal(SIGSEGV, handler)) == SIG_ERR) {
+                perror("Failed to set SIGSEGV signal handler.");
+                exit(1);
+            }
+            isSet = true;
+        }
+    }
+
+    /***
+     * reset signal handlers
+     */
+    void reset() {
+        if (isSet) {
+            // reset floating point exception
+            if (signal(SIGFPE, prevFpeHandler) == SIG_ERR) {
+                perror("Failed to reset SIGFPE signal handler.");
+                exit(1);
+            }
+            // user interrupts
+            if (signal(SIGINT, prevIntHandler) == SIG_ERR) {
+                perror("Failed to reset SIGINT signal handler.");
+                exit(1);
+            }
+            // memory issues
+            if (signal(SIGSEGV, prevSegVHandler) == SIG_ERR) {
+                perror("Failed to reset SIGSEGV signal handler.");
+                exit(1);
+            }
+            isSet = false;
+        }
     }
 
     /***

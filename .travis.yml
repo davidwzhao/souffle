@@ -1,54 +1,228 @@
-sudo: required
-language: cpp
-
-install:
-  - "./.travis/install.sh"
-
-os:
-  - linux
-  - osx
-compiler:
-  - clang
-  - gcc
-# The build takes about 4 minutes (2017016) before testsuite starts running
-env:
-  - TEST_FORMAT=1
-  - MAKEPACKAGE=1
-  - SOUFFLE_CATEGORY=Unit,Syntactic,Semantic,Interface,Profile SOUFFLE_CONFS=",-c,-c -p profile.log,-p profile.log,--auto-schedule -o testprog"
-  - SOUFFLE_CATEGORY=Unit,Syntactic,Semantic,Interface,Profile SOUFFLE_CONFS="-c -j8,-j8"
-  - SOUFFLE_CATEGORY=Evaluation SOUFFLE_CONFS="-j8,-c -j8"
-  - SOUFFLE_CATEGORY=Evaluation SOUFFLE_CONFS=",-c"
-  - SOUFFLE_CATEGORY=Evaluation SOUFFLE_CONFS="--auto-schedule -o testprog"
-  - SOUFFLE_CATEGORY=Evaluation SOUFFLE_CONFS="-p profile.log,-c -p profile.log"
+language: generic
 dist: trusty
-osx_image: xcode7.3
 
-matrix:
-  exclude:
-  - os: linux
-    compiler: gcc
-    env: TEST_FORMAT=1
-  - os: osx
+aliases:
+  -  &linux_deps
+    - build-essential
+    - automake
+    - autoconf
+    - bison
+    - flex
+    - lsb-release
+    - libncurses5-dev
+    - libtool
+  - &linuxgcc
+    stage: Testing
+    sudo: false
+    os: linux
+    addons:
+      apt:
+        sources:
+        - ubuntu-toolchain-r-test
+        packages:
+        - *linux_deps
+        - g++-7
+    before_script: ".travis/init_test.sh"
+    script: ".travis/run_test.sh"
+  - &linuxclang
+    stage: Testing
+    os: linux
+    # enable sudo for libomp-dev in debian-sid repository
+    # It clashes with the existing repo if we add it here.
+    sudo: required
+    addons:
+      apt:
+        sources:
+        - llvm-toolchain-trusty-4.0
+        packages:
+        - *linux_deps
+        - clang-4.0
+        - gdb
+    install: ".travis/linux/clang_install.sh"
+    before_script: ".travis/init_test.sh"
+    script: ".travis/run_test.sh"
+  - &linuxpackage
+    stage: Packaging
+    os: linux
+    sudo: false
+    addons:
+      apt:
+        sources:
+        - ubuntu-toolchain-r-test
+        packages:
+        - *linux_deps
+        - g++-7
+        - devscripts
+        - debhelper
+        - fakeroot
+        - openjdk-7-jdk
+    before_script: ".travis/init_make_package.sh"
+    script: ".travis/linux/make_package.sh"
+  - &osxgcc
+    stage: Testing
+    os: osx
+    osx_image: xcode8.3
+    install: ".travis/osx/install_withgcc.sh"
+    before_script: ".travis/init_test.sh"
+    script: ".travis/run_test.sh"
+    cache:
+      directories: $HOME/Library/Caches/Homebrew
+  - &osxclang
+    <<: *osxgcc
+    install: ".travis/osx/install.sh"
     compiler: clang
-    env: TEST_FORMAT=1
-  - os: osx
-    env: SOUFFLE_CATEGORY=Unit,Syntactic,Semantic,Interface,Profile SOUFFLE_CONFS="-c -j8,-j8"
-  - os: osx
-    env: SOUFFLE_CATEGORY=Evaluation SOUFFLE_CONFS="-j8,-c -j8"
-  - os: linux
-    compiler: clang
-    env: MAKEPACKAGE=1
-  - os: osx
-    compiler: gcc
+    language: cpp
+  - &osxpackage
+    <<: *osxclang
+    stage: Packaging
+    before_script: ".travis/init_make_package.sh"
+    script: ".travis/osx/make_package.sh"
+  - &gcc_environment CC=gcc-7 CXX=g++-7
+  - &clang_environment CC=clang-4.0 CXX=clang++-4.0
 
-before_script:
-  - "./.travis/init.sh"
+jobs:
+  include:
+# Style check stage
+  - stage: Style
+    os: linux
+    sudo: false
+    addons:
+      apt:
+        sources:
+        - llvm-toolchain-trusty-4.0
+        packages:
+        - clang-format-4.0
+    script: ".travis/run_test_format.sh"
 
-script:
-  - "./.travis/run.sh"
+# Testing stage (-j8,-c -j8,-c -j8 -p profile.log,-j8 -p profile.log)
+  - <<: *linuxgcc
+    env:
+    - *gcc_environment
+    - SOUFFLE_CATEGORY=Unit,Syntactic,Semantic,Interface,Profile,Provenance SOUFFLE_CONFS="-j8,-c -j8,-c -p profile.log,-p profile.log"
+  - <<: *linuxclang
+    env:
+    - *clang_environment
+    - SOUFFLE_CATEGORY=Unit,Syntactic,Semantic,Interface,Profile,Provenance SOUFFLE_CONFS="-j8,-c -j8,-c -p profile.log,-p profile.log"
+  - <<: *osxclang
+    env:
+    - SOUFFLE_CATEGORY=Unit,Syntactic,Semantic,Interface,Profile,Provenance SOUFFLE_CONFS="-j8,-c -j8,-c -p profile.log,-p profile.log"
+  - <<: *osxgcc
+    env:
+    - *gcc_environment
+    - SOUFFLE_CATEGORY=Unit,Syntactic,Semantic,Interface,Profile,Provenance SOUFFLE_CONFS="-j8,-c -j8,-c -p profile.log,-p profile.log"
+
+# Testing stage (-c -j8 -s-)
+  - <<: *linuxgcc
+    env:
+    - *gcc_environment
+    - SOUFFLE_CATEGORY=Syntactic,Semantic SOUFFLE_CONFS="-c -j8 -s-"
+  - <<: *linuxclang
+    env:
+    - *clang_environment
+    - SOUFFLE_CATEGORY=Syntactic,Semantic SOUFFLE_CONFS="-c -j8 -s-"
+  - <<: *osxclang
+    env:
+    - SOUFFLE_CATEGORY=Syntactic,Semantic SOUFFLE_CONFS="-c -j8 -s-"
+  - <<: *osxgcc
+    env:
+    - *gcc_environment
+    - SOUFFLE_CATEGORY=Syntactic,Semantic SOUFFLE_CONFS="-c -j8 -s-"
+
+# Testing stage (-f -j8,-c -f -j8)
+  - <<: *linuxgcc
+    env:
+    - *gcc_environment
+    - SOUFFLE_CATEGORY=Syntactic,Semantic SOUFFLE_CONFS="-f -j8,-c -f -j8"
+  - <<: *linuxclang
+    env:
+    - *clang_environment
+    - SOUFFLE_CATEGORY=Syntactic,Semantic SOUFFLE_CONFS="-f -j8,-c -f -j8"
+  - <<: *osxclang
+    env:
+    - SOUFFLE_CATEGORY=Syntactic,Semantic SOUFFLE_CONFS="-f -j8,-c -f -j8"
+  - <<: *osxgcc
+    env:
+    - *gcc_environment
+    - SOUFFLE_CATEGORY=Syntactic,Semantic SOUFFLE_CONFS="-f -j8,-c -f -j8"
+
+# Testing stage (-c -f -j8 -s-)
+  - <<: *linuxgcc
+    env:
+    - *gcc_environment
+    - SOUFFLE_CATEGORY=Syntactic,Semantic SOUFFLE_CONFS="-c -f -j8 -s-"
+  - <<: *linuxclang
+    env:
+    - *clang_environment
+    - SOUFFLE_CATEGORY=Syntactic,Semantic SOUFFLE_CONFS="-c -f -j8 -s-"
+  - <<: *osxclang
+    env:
+    - SOUFFLE_CATEGORY=Syntactic,Semantic SOUFFLE_CONFS="-c -f -j8 -s-"
+  - <<: *osxgcc
+    env:
+    - *gcc_environment
+    - SOUFFLE_CATEGORY=Syntactic,Semantic SOUFFLE_CONFS="-c -f -j8 -s-"
+
+# Testing stage (-j8,-c -j8)
+  - <<: *linuxgcc
+    env:
+    - *gcc_environment
+    - SOUFFLE_CATEGORY=Evaluation SOUFFLE_CONFS="-j8,-c -j8"
+  - <<: *linuxclang
+    env:
+    - *clang_environment
+    - SOUFFLE_CATEGORY=Evaluation SOUFFLE_CONFS="-j8,-c -j8"
+  - <<: *osxclang
+    env:
+    - SOUFFLE_CATEGORY=Evaluation SOUFFLE_CONFS="-j8,-c -j8"
+  - <<: *osxgcc
+    env:
+    - *gcc_environment
+    - SOUFFLE_CATEGORY=Evaluation SOUFFLE_CONFS="-j8,-c -j8"
+
+# Testing stage (-f -j8,-c -f -j8)
+  - <<: *linuxgcc
+    env:
+    - *gcc_environment
+    - SOUFFLE_CATEGORY=Evaluation SOUFFLE_CONFS="-f -j8,-c -f -j8"
+  - <<: *linuxclang
+    env:
+    - *clang_environment
+    - SOUFFLE_CATEGORY=Evaluation SOUFFLE_CONFS="-f -j8,-c -f -j8"
+  - <<: *osxclang
+    env:
+    - SOUFFLE_CATEGORY=Evaluation SOUFFLE_CONFS="-f -j8,-c -f -j8"
+  - <<: *osxgcc
+    env:
+    - *gcc_environment
+    - SOUFFLE_CATEGORY=Evaluation SOUFFLE_CONFS="-f -j8,-c -f -j8"
+
+# TODO (#468): these tests currently time out with travis, due to the significant increase in compilation time incurred by the -s option
+#  - <<: *linuxgcc
+#    env:
+#    - *gcc_environment
+#    - SOUFFLE_CATEGORY=Evaluation SOUFFLE_CONFS="-c -j8 -s-,-c -f -j8 -s-"
+#  - <<: *linuxclang
+#    env:
+#    - *clang_environment
+#    - SOUFFLE_CATEGORY=Evaluation SOUFFLE_CONFS="-c -j8 -s-,-c -f -j8 -s-"
+#  - <<: *osxclang
+#    env:
+#    - SOUFFLE_CATEGORY=Evaluation SOUFFLE_CONFS="-c -j8 -s-,-c -f -j8 -s-"
+#  - <<: *osxgcc
+#    env:
+#    - *gcc_environment
+#    - SOUFFLE_CATEGORY=Evaluation SOUFFLE_CONFS="-c -j8 -s-,-c -f -j8 -s-"
+
+# Packaging stage
+  # Make the linux deb packages.
+  - <<: *linuxpackage
+    env:
+    - *gcc_environment
+  # Make the OSX packages.
+  - <<: *osxpackage
 
 after_failure:
-  - "./.travis/after_failure.sh"
+  - ".travis/after_failure.sh"
 
 deploy:
   skip_cleanup: true

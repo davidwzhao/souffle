@@ -8,7 +8,7 @@
 
 /************************************************************************
  *
- * @file Graph.h
+ * @file GraphUtils.h
  *
  * A simple utility graph for conducting simple, graph-based operations.
  *
@@ -25,69 +25,69 @@ namespace souffle {
 /**
  * A simple graph structure for graph-based operations.
  */
-template <typename Node, typename Compare = std::less<Node>>
+template <typename Vertex, typename Compare = std::less<Vertex>>
 class Graph {
     // not a very efficient but simple graph representation
-    std::set<Node, Compare> nodes;                     // all the nodes in the graph
-    std::map<Node, std::set<Node, Compare>> forward;   // all edges forward directed
-    std::map<Node, std::set<Node, Compare>> backward;  // all edges backward
+    std::set<Vertex, Compare> _vertices;                        // all the vertices in the graph
+    std::map<Vertex, std::set<Vertex, Compare>> _successors;    // all edges forward directed
+    std::map<Vertex, std::set<Vertex, Compare>> _predecessors;  // all edges backward
 
 public:
     /**
-     * Adds a new edge from the given node to the target node.
+     * Adds a new edge from the given vertex to the target vertex.
      */
-    void addEdge(const Node& from, const Node& to) {
-        addNode(from);
-        addNode(to);
-        forward[from].insert(to);
-        backward[to].insert(from);
+    void insert(const Vertex& from, const Vertex& to) {
+        insert(from);
+        insert(to);
+        _successors[from].insert(to);
+        _predecessors[to].insert(from);
     }
 
     /**
-     * Adds a node.
+     * Adds a vertex.
      */
-    void addNode(const Node& node) {
-        auto iter = nodes.insert(node);
+    void insert(const Vertex& vertex) {
+        auto iter = _vertices.insert(vertex);
         if (iter.second) {
-            forward.insert(std::make_pair(node, std::set<Node, Compare>()));
-            backward.insert(std::make_pair(node, std::set<Node, Compare>()));
+            _successors.insert(std::make_pair(vertex, std::set<Vertex, Compare>()));
+            _predecessors.insert(std::make_pair(vertex, std::set<Vertex, Compare>()));
         }
     }
 
-    /** Obtains a reference to the set of all nodes */
-    const std::set<Node, Compare>& getNodes() const {
-        return nodes;
+    /** Obtains a reference to the set of all vertices */
+    const std::set<Vertex, Compare>& vertices() const {
+        return _vertices;
     }
 
-    /** Returns the set of nodes the given node has edges to */
-    const std::set<Node, Compare>& getEdges(const Node& from) const {
+    /** Returns the set of vertices the given vertex has edges to */
+    const std::set<Vertex, Compare>& successors(const Vertex& from) const {
         assert(contains(from));
-        return forward.find(from)->second;
+        return _successors.find(from)->second;
     }
 
-    /** Returns the set of nodes the given node has edges from */
-    const std::set<Node, Compare>& getReverseEdges(const Node& to) const {
+    /** Returns the set of vertices the given vertex has edges from */
+    const std::set<Vertex, Compare>& predecessors(const Vertex& to) const {
         assert(contains(to));
-        return backward.find(to)->second;
+        return _predecessors.find(to)->second;
     }
 
-    /** Determines whether the given node is present */
-    bool contains(const Node& node) const {
-        return nodes.find(node) != nodes.end();
+    /** Determines whether the given vertex is present */
+    bool contains(const Vertex& vertex) const {
+        return _vertices.find(vertex) != _vertices.end();
     }
 
     /** Determines whether the given edge is present */
-    bool contains(const Node& from, const Node& to) const {
-        auto pos = forward.find(from);
-        if (pos == forward.end()) {
+    bool contains(const Vertex& from, const Vertex& to) const {
+        auto pos = _successors.find(from);
+        if (pos == _successors.end()) {
             return false;
         }
         auto p2 = pos->second.find(to);
         return p2 != pos->second.end();
     }
 
-    /** Determines whether there is a directed path between the two nodes */
-    bool reaches(const Node& from, const Node& to) const {
+    /** Determines whether there is a directed path between the two vertices */
+    bool reaches(const Vertex& from, const Vertex& to) const {
         // quick check
         if (!contains(from) || !contains(to)) {
             return false;
@@ -96,19 +96,19 @@ public:
         // conduct a depth-first search starting at from
         bool found = false;
         bool first = true;
-        visitDepthFirst(from, [&](const Node& cur) {
+        visitDepthFirst(from, [&](const Vertex& cur) {
             found = !first && (found || cur == to);
             first = false;
         });
         return found;
     }
 
-    /** Obtains the set of all nodes in the same clique than the given node */
-    const std::set<Node, Compare> getClique(const Node& node) const {
-        std::set<Node, Compare> res;
-        res.insert(node);
-        for (const auto& cur : getNodes()) {
-            if (reaches(node, cur) && reaches(cur, node)) {
+    /** Obtains the set of all vertices in the same clique than the given vertex */
+    const std::set<Vertex, Compare> clique(const Vertex& vertex) const {
+        std::set<Vertex, Compare> res;
+        res.insert(vertex);
+        for (const auto& cur : vertices()) {
+            if (reaches(vertex, cur) && reaches(cur, vertex)) {
                 res.insert(cur);
             }
         }
@@ -117,16 +117,16 @@ public:
 
     /** A generic utility for depth-first visits */
     template <typename Lambda>
-    void visitDepthFirst(const Node& node, const Lambda& lambda) const {
-        std::set<Node, Compare> visited;
-        visitDepthFirst(node, lambda, visited);
+    void visitDepthFirst(const Vertex& vertex, const Lambda& lambda) const {
+        std::set<Vertex, Compare> visited;
+        visitDepthFirst(vertex, lambda, visited);
     }
 
     /** Enables graphs to be printed (e.g. for debugging) */
     void print(std::ostream& out) const {
         bool first = true;
         out << "{";
-        for (const auto& cur : forward) {
+        for (const auto& cur : _successors) {
             for (const auto& trg : cur.second) {
                 if (!first) {
                     out << ",";
@@ -146,10 +146,11 @@ public:
 private:
     /** The internal implementation of depth-first visits */
     template <typename Lambda>
-    void visitDepthFirst(const Node& node, const Lambda& lambda, std::set<Node, Compare>& visited) const {
-        lambda(node);
-        auto pos = forward.find(node);
-        if (pos == forward.end()) {
+    void visitDepthFirst(
+            const Vertex& vertex, const Lambda& lambda, std::set<Vertex, Compare>& visited) const {
+        lambda(vertex);
+        auto pos = _successors.find(vertex);
+        if (pos == _successors.end()) {
             return;
         }
         for (const auto& cur : pos->second) {
