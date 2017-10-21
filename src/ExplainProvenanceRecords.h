@@ -294,7 +294,7 @@ public:
         auto relation = prog.getRelation(relName + "-@output");
 
         auto size = relation->size();
-        int skip = size / 1000;
+        int skip = size / 50;
 
         if (skip == 0) skip = 1;
 
