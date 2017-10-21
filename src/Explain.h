@@ -223,6 +223,13 @@ public:
                     printStr("Usage: printrel <relation name>\n");
                     continue;
                 }
+            } else if (command[0] == "measure") {
+                try {
+                    printStr(prov.measureRelation(command[1]));
+                } catch (std::exception& e) {
+                    printStr("Usage: printrel <relation name>\n");
+                    continue;
+                }
             } else if (command[0] == "help") {
                 printStr(
                         "\n----------\n"

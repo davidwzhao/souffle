@@ -23,6 +23,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <chrono>
 
 namespace souffle {
 
@@ -248,6 +249,55 @@ public:
             return rule->second;
         }
     }
+
+    std::string measureRelation(std::string relName) override {
+        auto rel = prog.getRelation(relName);
+
+        if (rel == nullptr) {
+            return "no relation found";
+        }
+
+        auto before_time = std::chrono::high_resolution_clock::now();
+
+        int numTuples = 0;
+        for (auto& tuple : *rel) {
+            std::vector<RamDomain> currentTuple;
+
+            for (size_t i = 0; i < rel->getArity() - 2; i++) {
+                RamDomain n;
+                if (*rel->getAttrType(i) == 's') {
+                    std::string s;
+                    tuple >> s;
+                    n = prog.getSymbolTable().lookupExisting(s.c_str());
+                } else {
+                    tuple >> n;
+                }
+
+                currentTuple.push_back(n);
+            }
+
+            RamDomain ruleNum;
+            tuple >> ruleNum;
+
+            RamDomain levelNum;
+            tuple >> levelNum;
+
+            explain(relName, currentTuple, ruleNum, levelNum, 10000000);
+            numTuples++;
+        }
+
+        auto after_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(after_time - before_time);
+
+        std::stringstream ss;
+        ss << numTuples << " ";
+        ss << duration.count() << std::endl;
+
+        return ss.str();
+    }
+
+
+        
 };
 
 }  // end of namespace souffle

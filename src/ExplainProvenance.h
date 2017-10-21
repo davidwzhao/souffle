@@ -111,6 +111,8 @@ public:
 
     virtual std::string getRule(std::string relName, size_t ruleNum) = 0;
 
+    virtual std::string measureRelation(std::string relName) = 0;
+
     virtual std::string getRelationOutput(std::string relName) {
         auto rel = prog.getRelation(relName);
         if (rel == nullptr) {
