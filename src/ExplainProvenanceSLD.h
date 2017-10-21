@@ -257,11 +257,22 @@ public:
             return "no relation found";
         }
 
+        auto size = rel->size();
+        int skip = size / 1000;
+
+        if (skip == 0) skip = 1;
+
         auto before_time = std::chrono::high_resolution_clock::now();
 
         int numTuples = 0;
+        int proc = 0;
         for (auto& tuple : *rel) {
             std::vector<RamDomain> currentTuple;
+
+            if (numTuples % skip != 0) {
+                numTuples++;
+                continue;
+            }
 
             for (size_t i = 0; i < rel->getArity() - 2; i++) {
                 RamDomain n;
@@ -284,13 +295,14 @@ public:
 
             explain(relName, currentTuple, ruleNum, levelNum, 10000000);
             numTuples++;
+            proc++;
         }
 
         auto after_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(after_time - before_time);
 
         std::stringstream ss;
-        ss << numTuples << " ";
+        ss << proc << " ";
         ss << duration.count() << std::endl;
 
         return ss.str();

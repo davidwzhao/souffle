@@ -293,23 +293,34 @@ public:
     std::string measureRelation(std::string relName) override {
         auto relation = prog.getRelation(relName + "-@output");
 
+        auto size = relation->size();
+        int skip = size / 1000;
+
+        if (skip == 0) skip = 1;
+
         auto before_time = std::chrono::high_resolution_clock::now();
 
         int numTuples = 0;
+        int proc = 0;
         for (auto& tuple : *relation) {
+            if (numTuples % skip != 0) {
+                numTuples++;
+                continue;
+            }
             RamDomain label;
             tuple >> label;
 
             explainSubproof(relName, label, 10000000);
 
             numTuples++;
+            proc++;
         }
         
         auto after_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(after_time - before_time);
 
         std::stringstream ss;
-        ss << numTuples << " ";
+        ss << proc << " ";
         ss << duration.count() << std::endl;
 
         return ss.str();
