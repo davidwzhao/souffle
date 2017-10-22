@@ -42,7 +42,9 @@ enum class UnaryOp {
     ACOSH,   // mathematical acosh
     ATANH,   // mathematical atanh
     LOG,     // mathematical natural logarithm
-    EXP      // mathematical natural exponent
+    EXP,     // mathematical natural exponent
+    SIGN,
+    RAND
 };
 
 /**
@@ -88,6 +90,10 @@ inline std::string getSymbolForUnaryOp(UnaryOp op) {
             return "log";
         case UnaryOp::EXP:
             return "exp";
+        case UnaryOp::SIGN:
+            return "sign";
+        case UnaryOp::RAND:
+            return "rand";
         default:
             break;
     }
@@ -118,6 +124,8 @@ inline UnaryOp getUnaryOpForSymbol(const std::string& symbol) {
     if (symbol == "atanh") return UnaryOp::ATANH;
     if (symbol == "tan") return UnaryOp::TAN;
     if (symbol == "exp") return UnaryOp::EXP;
+    if (symbol == "sign") return UnaryOp::SIGN;
+    if (symbol == "rand") return UnaryOp::RAND;
     std::cout << "Unrecognised operator: " << symbol << "\n";
     assert(false && "Unsupported Operator!");
     return UnaryOp::__UNDEFINED__;
@@ -147,6 +155,8 @@ inline bool isNumericUnaryOp(const UnaryOp op) {
         case UnaryOp::ATANH:
         case UnaryOp::LOG:
         case UnaryOp::EXP:
+        case UnaryOp::SIGN:
+        case UnaryOp::RAND:
             return true;
         default:
             break;
@@ -184,6 +194,8 @@ inline bool unaryOpAcceptsNumbers(const UnaryOp op) {
         case UnaryOp::ATANH:
         case UnaryOp::LOG:
         case UnaryOp::EXP:
+        case UnaryOp::SIGN:
+        case UnaryOp::RAND:
             return true;
         case UnaryOp::ORD:
         case UnaryOp::STRLEN:

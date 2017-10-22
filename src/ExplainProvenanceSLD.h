@@ -270,13 +270,13 @@ public:
         int proc = 0;
         for (auto& tuple : *rel) {
             auto tupleStart = std::chrono::high_resolution_clock::now();
-            std::vector<RamDomain> currentTuple;
 
             if (numTuples % skip != 0) {
                 numTuples++;
                 continue;
             }
 
+            std::vector<RamDomain> currentTuple;
             for (size_t i = 0; i < rel->getArity() - 2; i++) {
                 RamDomain n;
                 if (*rel->getAttrType(i) == 's') {
@@ -296,12 +296,12 @@ public:
             RamDomain levelNum;
             tuple >> levelNum;
 
-            explain(relName, currentTuple, ruleNum, levelNum, 10000000);
+            explain(relName, currentTuple, ruleNum, levelNum, 1000);
             numTuples++;
             proc++;
             
             auto tupleEnd = std::chrono::high_resolution_clock::now();
-            auto tupleDuration = std::chrono::duration_cast<std::chrono::duration<double>>(tupleStart - tupleEnd);
+            auto tupleDuration = std::chrono::duration_cast<std::chrono::duration<double>>(tupleEnd - tupleStart);
 
             std::cout << tupleDuration.count() << std::endl;
         }

@@ -190,6 +190,10 @@ RamDomain eval(const RamValue& value, RamEnvironment& env, const EvalContext& ct
                     return log(visit(op.getValue()));
                 case UnaryOp::EXP:
                     return exp(visit(op.getValue()));
+                case UnaryOp::SIGN: {
+                    auto val = visit(op.getValue());
+                    return (val > 0) - (val < 0);
+                }
                 default:
                     assert(0 && "unsupported operator");
                     return 0;
@@ -2027,6 +2031,9 @@ public:
                 break;
             case UnaryOp::EXP:
                 out << "exp((" << print(op.getValue()) << "))";
+                break;
+            case UnaryOp::SIGN:
+                out << "((" << print(op.getValue()) << " > 0) - (" << print(op.getValue()) << " < 0))";
                 break;
             default:
                 assert(0 && "Unsupported Operation!");
