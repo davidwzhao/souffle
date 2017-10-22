@@ -258,15 +258,18 @@ public:
         }
 
         auto size = rel->size();
-        int skip = size / 50;
+        int skip = size / 10;
 
         if (skip == 0) skip = 1;
+
+        std::stringstream ss;
 
         auto before_time = std::chrono::high_resolution_clock::now();
 
         int numTuples = 0;
         int proc = 0;
         for (auto& tuple : *rel) {
+            auto tupleStart = std::chrono::high_resolution_clock::now();
             std::vector<RamDomain> currentTuple;
 
             if (numTuples % skip != 0) {
@@ -296,13 +299,17 @@ public:
             explain(relName, currentTuple, ruleNum, levelNum, 10000000);
             numTuples++;
             proc++;
+            
+            auto tupleEnd = std::chrono::high_resolution_clock::now();
+            auto tupleDuration = std::chrono::duration_cast<std::chrono::duration<double>>(tupleStart - tupleEnd);
+
+            std::cout << tupleDuration.count() << std::endl;
         }
 
         auto after_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(after_time - before_time);
 
-        std::stringstream ss;
-        ss << proc << " ";
+        ss << "total: " << proc << " ";
         ss << duration.count() << std::endl;
 
         return ss.str();

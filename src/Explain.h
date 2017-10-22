@@ -47,14 +47,14 @@ private:
     // parse relation, split into relation name and values
     std::pair<std::string, std::vector<std::string>> parseRel(std::string rel) {
         // remove spaces
-        rel.erase(std::remove(rel.begin(), rel.end(), ' '), rel.end());
+        // rel.erase(std::remove(rel.begin(), rel.end(), ' '), rel.end());
 
         // remove last closing parenthesis
         if (rel.back() == ')') {
             rel.pop_back();
         }
 
-        auto splitRel = split(rel, '(');
+        auto splitRel = split(rel, '(', 1);
         std::string relName;
         if (splitRel.size() > 0) {
             relName = splitRel[0];
@@ -194,6 +194,7 @@ public:
                     printStr("Usage: explain relation_name(<element1>, <element2>, ...)\n");
                     continue;
                 }
+                std::cout << query.second << std::endl;
                 std::unique_ptr<TreeNode> t = prov.explain(query.first, query.second, depthLimit);
                 printTree(std::move(t));
             } else if (command[0] == "subproof") {

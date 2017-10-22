@@ -71,6 +71,11 @@ protected:
 
         size_t start = 0, end = 0, columnsFilled = 0;
         for (uint32_t column = 0; end < line.length(); column++) {
+            if (isProvenance && columnsFilled >= symbolMask.getArity() - 2) {
+                end = line.length();
+                break;
+            }
+
             end = line.find(delimiter, start);
             if (end == std::string::npos) {
                 end = line.length();
@@ -115,7 +120,11 @@ protected:
         if (isProvenance) {
             tuple[symbolMask.getArity() - 2] = 0;
             tuple[symbolMask.getArity() - 1] = 0;
-            columnsFilled += 2;
+            // columnsFilled += 2;
+
+            if (columnsFilled >= symbolMask.getArity() - 2 && columnsFilled <= symbolMask.getArity()) {
+                columnsFilled = symbolMask.getArity();
+            }
         }
 
         if (columnsFilled != symbolMask.getArity()) {
