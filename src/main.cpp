@@ -411,7 +411,7 @@ int main(int argc, char** argv) {
             SouffleInterpreterInterface interface(
                     *ramProg, *executor, *env, translationUnit->getSymbolTable());
 
-            if (Global::config().get("provenance") == "1") {
+            if (Global::config().get("provenance") == "1" || Global::config().get("provenance") == "3") {
                 explain(interface, true, false);
             } else if (Global::config().get("provenance") == "2") {
                 explain(interface, true, true);

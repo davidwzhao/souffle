@@ -194,6 +194,13 @@ RamDomain eval(const RamValue& value, RamEnvironment& env, const EvalContext& ct
                     auto val = visit(op.getValue());
                     return (val > 0) - (val < 0);
                 }
+
+                // temporary implementation
+                case UnaryOp::RAND: {
+                    int r = rand() % 9;
+                    return (r > 0) ? 0 : 1;
+                }
+
                 default:
                     assert(0 && "unsupported operator");
                     return 0;
@@ -2035,6 +2042,18 @@ public:
             case UnaryOp::SIGN:
                 out << "((" << print(op.getValue()) << " > 0) - (" << print(op.getValue()) << " < 0))";
                 break;
+
+            // temporary implementation
+            case UnaryOp::RAND: {
+                int r = rand() % 9;
+
+                if (r > 0) {
+                    out << "(0)";
+                } else {
+                    out << "(1)";
+                }
+                break;
+            }
             default:
                 assert(0 && "Unsupported Operation!");
                 break;
@@ -2630,7 +2649,7 @@ std::string RamCompiler::generateCode(const SymbolTable& symTable, const RamProg
     }
 
     os << "obj.runAll(opt.getInputFileDir(), opt.getOutputFileDir());\n";
-    if (Global::config().get("provenance") == "1") {
+    if (Global::config().get("provenance") == "1" || Global::config().get("provenance") == "3") {
         os << "explain(obj, true, false);\n";
     } else if (Global::config().get("provenance") == "2") {
         os << "explain(obj, true, true);\n";

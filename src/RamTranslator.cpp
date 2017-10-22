@@ -1197,10 +1197,15 @@ std::unique_ptr<RamStatement> RamTranslator::makeSubproofSubroutine(
         if (auto atom = dynamic_cast<AstAtom*>(lit)) {
             auto arity = atom->getArity();
 
-            // arity - 1 is the level number in body atoms
-            intermediateClause->addToBody(std::make_unique<AstConstraint>(BinaryConstraintOp::LT,
-                    std::unique_ptr<AstArgument>(atom->getArgument(arity - 1)->clone()),
-                    std::make_unique<AstSubroutineArgument>(levelIndex)));
+            if (Global::config().get("provenance") == "3") {
+                intermediateClause->addToBody(std::make_unique<AstConstraint>(BinaryConstraintOp::EQ,
+                            std::make_unique<AstUnaryFunctor>(UnaryOp::SIGN, std::make_unique<AstBinaryFunctor>(BinaryOp::ADD, std::make_unique<AstNumberConstant>(1), std::make_unique<AstUnaryFunctor>(UnaryOp::SIGN, std::make_unique<AstBinaryFunctor>(BinaryOp::SUB, std::make_unique<AstSubroutineArgument>(levelIndex), std::unique_ptr<AstArgument>(atom->getArgument(arity - 1)->clone()))))), std::make_unique<AstUnaryFunctor>(UnaryOp::RAND, std::make_unique<AstNumberConstant>(0))));
+            } else {
+                // arity - 1 is the level number in body atoms
+                intermediateClause->addToBody(std::make_unique<AstConstraint>(BinaryConstraintOp::LT,
+                        std::unique_ptr<AstArgument>(atom->getArgument(arity - 1)->clone()),
+                        std::make_unique<AstSubroutineArgument>(levelIndex)));
+            }
         }
     }
 
