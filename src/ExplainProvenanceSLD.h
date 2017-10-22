@@ -195,9 +195,11 @@ public:
                 auto joinedTupleStr = joinedTuple.str();
                 internalNode->add_child(
                         std::unique_ptr<TreeNode>(new LeafNode(bodyRel + "(" + joinedTupleStr + ")")));
+                internalNode->setSize(internalNode->getSize() + 1);
             } else {
-                internalNode->add_child(
-                        explain(bodyRel, subproofTuple, subproofRuleNum, subproofLevelNum, depthLimit - 1));
+                auto child = explain(bodyRel, subproofTuple, subproofRuleNum, subproofLevelNum, depthLimit - 1);
+                internalNode->setSize(internalNode->getSize() + child->getSize());
+                internalNode->add_child(std::move(child));
             }
 
             tupleCurInd = tupleEnd;
@@ -296,7 +298,7 @@ public:
             RamDomain levelNum;
             tuple >> levelNum;
 
-            explain(relName, currentTuple, ruleNum, levelNum, 1000);
+            std::cout << explain(relName, currentTuple, ruleNum, levelNum, 100)->getSize() << " ";
             numTuples++;
             proc++;
             

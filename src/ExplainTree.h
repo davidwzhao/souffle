@@ -80,9 +80,10 @@ protected:
     uint32_t height;  // height of node (including sub-trees)
     int xpos;         // x-position of text
     int ypos;         // y-position of text
+    uint32_t size;
 
 public:
-    TreeNode(const std::string& t = "") : txt(t), width(0), height(0), xpos(0), ypos(0) {}
+    TreeNode(const std::string& t = "") : txt(t), width(0), height(0), xpos(0), ypos(0), size(1) {}
     virtual ~TreeNode() {}
 
     // get width
@@ -100,6 +101,14 @@ public:
 
     // render node in screen buffer
     virtual void render(ScreenBuffer& s) = 0;
+
+    size_t getSize() {
+        return size;
+    }
+
+    void setSize(size_t s) {
+        size = s;
+    }
 };
 
 /***
