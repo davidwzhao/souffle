@@ -1145,7 +1145,7 @@ std::string getRelationType(
     } else if (rel.isEqRel()) {
         res << "EqRel,";
     } else {
-        res << "Auto,";
+        res << "BTree,";
     }
 
     res << arity;
