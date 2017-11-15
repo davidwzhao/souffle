@@ -99,6 +99,7 @@
 %token BTREE_QUALIFIER           "BTREE datastructure qualifier"
 %token EQREL_QUALIFIER           "equivalence relation qualifier"
 %token OVERRIDABLE_QUALIFIER     "relation qualifier overidable"
+%token INLINE_QUALIFIER          "relation qualifier inline"
 %token TMATCH                    "match predicate"
 %token TCONTAINS                 "checks whether substring is contained in a string"
 %token CAT                       "concatenation of two strings"
@@ -374,6 +375,10 @@ qualifiers
   | qualifiers OVERRIDABLE_QUALIFIER {
         if($1 & OVERRIDABLE_RELATION) driver.error(@2, "overridable qualifier already set");
         $$ = $1 | OVERRIDABLE_RELATION;
+    }
+  | qualifiers INLINE_QUALIFIER {
+        if($1 & INLINE_RELATION) driver.error(@2, "inline qualifier already set");
+        $$ = $1 | INLINE_RELATION;
     }
   | qualifiers BRIE_QUALIFIER {
         if($1 & (BRIE_RELATION|BTREE_RELATION|EQREL_RELATION)) driver.error(@2, "btree/brie/eqrel qualifier already set");
@@ -871,7 +876,7 @@ disjunction
         $$->disjunct(std::move(*$3));
         delete $3;
     }
- 
+
 /* Body */
 body
   : disjunction                        { $$ = $1;

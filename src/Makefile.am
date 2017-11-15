@@ -112,7 +112,7 @@ souffle_sources = \
               RamData.h                                 \
               RamAutoIndex.cpp      RamAutoIndex.h      \
               RamOperation.cpp      RamOperation.h      \
-			  RamProgram.h                              \
+              RamProgram.h                              \
               RamRecords.cpp        RamRecords.h        \
               RamRelation.cpp       RamRelation.h       \
               RamRelationStats.cpp  RamRelationStats.h  \
@@ -123,6 +123,7 @@ souffle_sources = \
               TypeSystem.cpp        TypeSystem.h        \
               PrecedenceGraph.cpp   PrecedenceGraph.h   \
               MagicSet.cpp          MagicSet.h          \
+              InlineRelationsTransformer.cpp            \
               $(sqlite_sources)     $(libz_sources)     \
               ReadStream.h                              \
               ReadStreamCSV.h                           \
@@ -132,7 +133,7 @@ souffle_sources = \
               IOSystem.h                                \
               RamInterface.cpp      RamInterface.h      \
               ProvenanceTransformer.cpp                 \
-			  ProvenanceRecordTransformer.cpp ProvenanceRecordTransformer.h \
+              ProvenanceRecordTransformer.cpp ProvenanceRecordTransformer.h \
               Global.cpp            Global.h
 
 # -- build souffle as a library so it can be reused in testing

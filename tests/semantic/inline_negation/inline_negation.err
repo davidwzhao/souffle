@@ -1,0 +1,4 @@
+Error: Cannot inline negated relation which may introduce new variables in file inline_negation.dl at line 31
+a(x) :- c(x), !b(x).
+---------------^-----
+1 errors generated, evaluation aborted

@@ -92,6 +92,41 @@ dnl $2 -- category
 dnl $3 -- facts directory relative to the test directory
 dnl $4 -- directory with expected output
 dnl       (relative to the test dir, but starting with '/'), or empty string
+m4_define([TEST_EVAL_SQLITE3],[
+ m4_define([TESTNAME],[$1])
+ m4_define([CATEGORY],[$2])
+ m4_define([TESTDIR],["$TESTS"/CATEGORY/TESTNAME])
+ m4_define([PROGRAM],[TESTDIR/TESTNAME.dl])
+ m4_define([FACTS],[TESTDIR/$3])
+ m4_define([EXPECTEDDIR], [TESTDIR$4])
+ # invoke souffle
+ AT_CHECK(["$SOUFFLE" FLAGS -D. -F FACTS PROGRAM 1>TESTNAME.out 2>TESTNAME.err], [0])
+ # sort the expected and the generated CSV files
+ # and compare whether both files are the same.
+ for i in *.csv
+ do
+  sort "$i" > "$i.sorted.generated"
+  sort EXPECTEDDIR/"$i" > "$i.sorted.expected"
+  SAME_FILES(["$i.sorted.generated"],["$i.sorted.expected"])
+ done
+ # compare all other output files without sorting
+ for i in *.output
+ do
+  sqlite3 -batch $i -init EXPECTEDDIR/$i.script "" > "$i.unsorted.generated"
+  sort "$i.unsorted.generated" > "$i.sorted.generated"
+  SAME_FILES(["$i.sorted.generated"],["EXPECTEDDIR/$i.sorted.expected"])
+ done
+ # validate stdout and stderr
+ SAME_FILES([TESTNAME.out],[EXPECTEDDIR/TESTNAME.out])
+ SAME_FILES([TESTNAME.err],[EXPECTEDDIR/TESTNAME.err])
+])
+
+dnl Execute a positive test case for a given flag configuration
+dnl $1 -- test case
+dnl $2 -- category
+dnl $3 -- facts directory relative to the test directory
+dnl $4 -- directory with expected output
+dnl       (relative to the test dir, but starting with '/'), or empty string
 m4_define([TEST_EVAL_IN],[
  m4_define([TESTNAME],[$1])
  m4_define([CATEGORY],[$2])
@@ -238,6 +273,15 @@ dnl $2 -- category
 m4_define([POSITIVE_TEST],[
     TEST_GROUP([$1],[
         TEST_EVAL([$1],[$2], facts)
+    ])
+])
+
+dnl Positive sqlite3 testcase for Souffle
+dnl $1 -- test name
+dnl $2 -- category
+m4_define([POSITIVE_TEST_SQLITE3],[
+    TEST_GROUP([$1],[
+        TEST_EVAL_SQLITE3([$1],[$2], facts)
     ])
 ])
 

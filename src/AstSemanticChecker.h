@@ -88,6 +88,8 @@ private:
 
     static void checkNamespaces(ErrorReport& report, const AstProgram& program);
     static void checkIODirectives(ErrorReport& report, const AstProgram& program);
+    static void checkInlining(
+            ErrorReport& report, const AstProgram& program, const PrecedenceGraph& precedenceGraph);
 
 public:
     ~AstSemanticChecker() override = default;

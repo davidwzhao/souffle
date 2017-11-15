@@ -618,6 +618,10 @@ public:
         return value.get();
     }
 
+    const std::string& getType() const {
+        return type;
+    }
+
     /** Obtains a list of all embedded child nodes */
     std::vector<const AstNode*> getChildNodes() const override {
         auto res = AstArgument::getChildNodes();

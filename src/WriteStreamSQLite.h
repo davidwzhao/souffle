@@ -33,15 +33,16 @@ public:
             const SymbolMask& symbolMask, const SymbolTable& symbolTable, const bool provenance)
             : WriteStream(symbolMask, symbolTable, provenance), dbFilename(dbFilename),
               relationName(relationName) {
-        openDB();
-        createTables();
-        prepareStatements();
-        //        executeSQL("BEGIN TRANSACTION", db);
         if (provenance) {
             arity = symbolMask.getArity() - 2;
         } else {
             arity = symbolMask.getArity();
         }
+
+        openDB();
+        createTables();
+        prepareStatements();
+        //        executeSQL("BEGIN TRANSACTION", db);
     }
 
     ~WriteStreamSQLite() override {

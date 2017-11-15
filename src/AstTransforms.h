@@ -205,17 +205,28 @@ public:
 };
 
 /**
+ * Transformer that inlines marked relations.
+ */
+class InlineRelationsTransformer : public AstTransformer {
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
+
+public:
+    std::string getName() const override {
+        return "InlineRelationsTransformer";
+    }
+};
+
+/**
  * Transformation pass to normalise constraints.
  * E.g.: a(x) :- b(x, 1). -> a(x) :- b(x, tmp0), tmp0=1.
- *
- * TODO: Special identifiers to make sure tmp0 not used by user
  */
 class NormaliseConstraintsTransformer : public AstTransformer {
 private:
-    virtual bool transform(AstTranslationUnit& translationUnit);
+    bool transform(AstTranslationUnit& translationUnit) override;
 
 public:
-    virtual std::string getName() const {
+    std::string getName() const override {
         return "NormaliseConstraintsTransformer";
     }
 };
@@ -225,10 +236,10 @@ public:
  */
 class MagicSetTransformer : public AstTransformer {
 private:
-    virtual bool transform(AstTranslationUnit& translationUnit);
+    bool transform(AstTranslationUnit& translationUnit) override;
 
 public:
-    virtual std::string getName() const {
+    std::string getName() const override {
         return "MagicSetTransformer";
     }
 };

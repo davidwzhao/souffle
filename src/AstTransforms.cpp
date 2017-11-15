@@ -18,7 +18,6 @@
 #include "AstTypeAnalysis.h"
 #include "AstUtils.h"
 #include "AstVisitor.h"
-#include "MagicSet.h"
 #include "PrecedenceGraph.h"
 
 namespace souffle {
@@ -674,7 +673,10 @@ bool MaterializeAggregationQueriesTransformer::needsMaterializedRelation(const A
 
     // inspect remaining atom more closely
     const AstAtom* atom = dynamic_cast<const AstAtom*>(agg.getBodyLiterals()[0]);
-    assert(atom && "Body of aggregate is not containing an atom!");
+    if (!atom) {
+        // no atoms, so materialize
+        return true;
+    }
 
     // if the same variable occurs several times => materialize
     bool duplicates = false;

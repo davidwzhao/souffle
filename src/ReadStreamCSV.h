@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include "IODirectives.h"
 #include "RamTypes.h"
 #include "ReadStream.h"
 #include "SymbolMask.h"
@@ -37,10 +38,9 @@ namespace souffle {
 class ReadStreamCSV : public ReadStream {
 public:
     ReadStreamCSV(std::istream& file, const SymbolMask& symbolMask, SymbolTable& symbolTable,
-            std::map<int, int> inputMap = std::map<int, int>(), std::string delimiter = "\t",
-            const bool provenance = false)
-            : ReadStream(symbolMask, symbolTable, provenance), delimiter(std::move(delimiter)), file(file),
-              lineNumber(0), inputMap(inputMap) {
+            const IODirectives& ioDirectives, const bool provenance = false)
+            : ReadStream(symbolMask, symbolTable, provenance), delimiter(getDelimiter(ioDirectives)),
+              file(file), lineNumber(0), inputMap(getInputColumnMap(ioDirectives, symbolMask.getArity())) {
         while (this->inputMap.size() < symbolMask.getArity()) {
             int size = this->inputMap.size();
             this->inputMap[size] = size;
@@ -66,6 +66,10 @@ protected:
 
         if (!getline(file, line)) {
             return nullptr;
+        }
+        // Handle Windows line endings on non-Windows systems
+        if (line.back() == '\r') {
+            line = line.substr(0, line.length() - 1);
         }
         ++lineNumber;
 
@@ -137,6 +141,39 @@ protected:
         return tuple;
     }
 
+    std::string getDelimiter(const IODirectives& ioDirectives) const {
+        if (ioDirectives.has("delimiter")) {
+            return ioDirectives.get("delimiter");
+        }
+        return "\t";
+    }
+
+    std::map<int, int> getInputColumnMap(const IODirectives& ioDirectives, const unsigned arity) const {
+        std::string columnString = "";
+        if (ioDirectives.has("columns")) {
+            columnString = ioDirectives.get("columns");
+        }
+        std::map<int, int> inputMap;
+
+        if (!columnString.empty()) {
+            std::istringstream iss(columnString);
+            std::string mapping;
+            int index = 0;
+            while (std::getline(iss, mapping, ':')) {
+                inputMap[stoi(mapping)] = index++;
+            }
+            if (inputMap.size() < arity) {
+                throw std::invalid_argument("Invalid column set was given: <" + columnString + ">");
+            }
+        } else {
+            while (inputMap.size() < arity) {
+                int size = inputMap.size();
+                inputMap[size] = size;
+            }
+        }
+        return inputMap;
+    }
+
     const std::string delimiter;
     std::istream& file;
     size_t lineNumber;
@@ -145,13 +182,19 @@ protected:
 
 class ReadFileCSV : public ReadStreamCSV {
 public:
-    ReadFileCSV(const std::string& filename, const SymbolMask& symbolMask, SymbolTable& symbolTable,
-            std::map<int, int> inputMap = std::map<int, int>(), std::string delimiter = "\t",
-            const bool provenance = false, const bool isIntermediate = false)
-            : ReadStreamCSV(fileHandle, symbolMask, symbolTable, inputMap, delimiter, provenance),
-              baseName(souffle::baseName(filename)), fileHandle(filename) {
-        if (!fileHandle.is_open() && !isIntermediate) {
-            throw std::invalid_argument("Cannot open fact file " + baseName + "\n");
+    ReadFileCSV(const SymbolMask& symbolMask, SymbolTable& symbolTable, const IODirectives& ioDirectives,
+            const bool provenance = false)
+            : ReadStreamCSV(fileHandle, symbolMask, symbolTable, ioDirectives, provenance),
+              baseName(souffle::baseName(getFileName(ioDirectives))), fileHandle(getFileName(ioDirectives)) {
+        if (!ioDirectives.has("intermediate")) {
+            if (!fileHandle.is_open()) {
+                throw std::invalid_argument("Cannot open fact file " + baseName + "\n");
+            }
+            // Strip headers if we're using them
+            if (ioDirectives.has("headers") && ioDirectives.get("headers") == "true") {
+                std::string line;
+                getline(file, line);
+            }
         }
     }
     /**
@@ -173,7 +216,13 @@ public:
 
     ~ReadFileCSV() override = default;
 
-private:
+protected:
+    std::string getFileName(const IODirectives& ioDirectives) const {
+        if (ioDirectives.has("filename")) {
+            return ioDirectives.get("filename");
+        }
+        return ioDirectives.getRelationName() + ".facts";
+    }
     std::string baseName;
 #ifdef USE_LIBZ
     gzfstream::igzfstream fileHandle;
@@ -182,50 +231,12 @@ private:
 #endif
 };
 
-class ReadCSVFactory {
-protected:
-    std::string getDelimiter(const IODirectives& ioDirectives) {
-        if (ioDirectives.has("delimiter")) {
-            return ioDirectives.get("delimiter");
-        }
-        return "\t";
-    }
-    std::map<int, int> getInputColumnMap(const IODirectives& ioDirectives, const unsigned arity) {
-        std::string columnString = "";
-        if (ioDirectives.has("columns")) {
-            columnString = ioDirectives.get("columns");
-        }
-        std::map<int, int> inputMap;
-
-        if (!columnString.empty()) {
-            std::istringstream iss(columnString);
-            std::string mapping;
-            int index = 0;
-            while (std::getline(iss, mapping, ':')) {
-                // TODO (mmcgr): handle ranges like 4-7
-                inputMap[stoi(mapping)] = index++;
-            }
-            if (inputMap.size() < arity) {
-                throw std::invalid_argument("Invalid column set was given: <" + columnString + ">");
-            }
-        } else {
-            while (inputMap.size() < arity) {
-                int size = inputMap.size();
-                inputMap[size] = size;
-            }
-        }
-        return inputMap;
-    }
-};
-
-class ReadCinCSVFactory : public ReadStreamFactory, public ReadCSVFactory {
+class ReadCinCSVFactory : public ReadStreamFactory {
 public:
     std::unique_ptr<ReadStream> getReader(const SymbolMask& symbolMask, SymbolTable& symbolTable,
             const IODirectives& ioDirectives, const bool provenance) override {
-        std::map<int, int> inputMap = getInputColumnMap(ioDirectives, symbolMask.getArity());
-        std::string delimiter = getDelimiter(ioDirectives);
         return std::unique_ptr<ReadStreamCSV>(
-                new ReadStreamCSV(std::cin, symbolMask, symbolTable, inputMap, delimiter, provenance));
+                new ReadStreamCSV(std::cin, symbolMask, symbolTable, ioDirectives, provenance));
     }
     const std::string& getName() const override {
         static const std::string name = "stdin";
@@ -234,16 +245,12 @@ public:
     ~ReadCinCSVFactory() override = default;
 };
 
-class ReadFileCSVFactory : public ReadStreamFactory, public ReadCSVFactory {
+class ReadFileCSVFactory : public ReadStreamFactory {
 public:
     std::unique_ptr<ReadStream> getReader(const SymbolMask& symbolMask, SymbolTable& symbolTable,
             const IODirectives& ioDirectives, const bool provenance) override {
-        std::map<int, int> inputMap = getInputColumnMap(ioDirectives, symbolMask.getArity());
-        std::string delimiter = getDelimiter(ioDirectives);
-        std::string filename = ioDirectives.has("filename") ? ioDirectives.get("filename")
-                                                            : (ioDirectives.getRelationName() + ".facts");
-        return std::unique_ptr<ReadFileCSV>(new ReadFileCSV(filename, symbolMask, symbolTable, inputMap,
-                delimiter, provenance, ioDirectives.has("intermediate")));
+        return std::unique_ptr<ReadFileCSV>(
+                new ReadFileCSV(symbolMask, symbolTable, ioDirectives, provenance));
     }
     const std::string& getName() const override {
         static const std::string name = "file";

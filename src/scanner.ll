@@ -36,12 +36,12 @@
     #include "ParserDriver.h"
     #include "RamTypes.h"
     #include "parser.hh"
-    
+
     #define register
 
     /* String Pool declarations */
     StringPool::hashentry *StringPool::hashtab[HASH_SIZE];
-    
+
 #define yylloc yyget_extra(yyscanner)->yylloc
 
 #define yyfilename yyget_extra(yyscanner)->yyfilename
@@ -106,6 +106,7 @@
 "overridable"                         { return yy::parser::make_OVERRIDABLE_QUALIFIER(yylloc); }
 "printsize"                           { return yy::parser::make_PRINTSIZE_QUALIFIER(yylloc); }
 "eqrel"                               { return yy::parser::make_EQREL_QUALIFIER(yylloc); }
+"inline"                              { return yy::parser::make_INLINE_QUALIFIER(yylloc); }
 "brie"                                { return yy::parser::make_BRIE_QUALIFIER(yylloc); }
 "btree"                               { return yy::parser::make_BTREE_QUALIFIER(yylloc); }
 "min"                                 { return yy::parser::make_MIN(yylloc); }
