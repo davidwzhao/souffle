@@ -106,8 +106,8 @@ public:
         // and this is not normal souffle behaviour
         // statesLock.lock_shared();
 
-        orderedStates.erase(x);
-        orderedStates.erase(y);
+        orderedStates.erase(sds.readOnlyFindNode(x));
+        orderedStates.erase(sds.readOnlyFindNode(y));
         sds.unionNodes(x, y);
 
         bool retval = contains(x, y);
@@ -131,6 +131,34 @@ public:
         }
     }
 
+    void extend(const BinaryRelation<TupleType>& other) {
+        // iterate over all elements for each dj set in this BinRel
+        for (auto it = sds.beginReps(); it != sds.endReps(); ++it) {
+            DomainInt rep = *it;
+            // check if any of the elements in this disjoint set exists in the other's domain
+            for (auto setIt = sds.begin(rep); setIt != sds.end(rep); ++setIt) {
+                DomainInt el = *setIt;
+
+                // TODO: union the two DJ sets
+                if (other.containsElement(el)) {
+                    DomainInt otherRep = other.sds.readOnlyFindNode(el);
+                    for (auto otherIt = other.sds.begin(otherRep); otherIt != other.sds.end(otherRep);
+                            ++otherIt) {
+                        this->insert(el, *otherIt);
+                    }
+
+                    break;
+                }
+            }
+        }
+    }
+
+protected:
+    bool containsElement(DomainInt e) const {
+        return this->sds.nodeExists(e);
+    }
+
+public:
     /**
      * Returns whether there exists a pair with these two nodes
      * @param x front of pair

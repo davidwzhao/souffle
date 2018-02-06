@@ -1,2 +1,2 @@
-explain path(a, d)
+explain path("a", "d")
 exit

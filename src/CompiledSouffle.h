@@ -20,8 +20,8 @@
 #include "CompiledRamOptions.h"
 #include "CompiledRamRecord.h"
 #include "CompiledRamRelation.h"
+#include "Logger.h"
 #include "ParallelUtils.h"
-#include "RamLogger.h"
 #include "SignalHandler.h"
 #include "SouffleInterface.h"
 #include "SymbolTable.h"
@@ -39,15 +39,9 @@
 namespace souffle {
 
 extern "C" {
-#ifdef JNI_INTERFACE
-souffle::SouffleProgram* getInstance(const char* p) {
-    return souffle::ProgramFactory::newInstance(p);
-}
-#else
 inline souffle::SouffleProgram* getInstance(const char* p) {
     return souffle::ProgramFactory::newInstance(p);
 }
-#endif
 }
 
 /**

@@ -375,7 +375,7 @@ void ResolveAliasesTransformer::removeComplexTermsInAtoms(AstClause& clause) {
     int var_counter = 0;
     for (const AstArgument* arg : terms) {
         map.push_back(std::make_pair(std::unique_ptr<AstArgument>(arg->clone()),
-                std::unique_ptr<AstVariable>(new AstVariable(" _tmp_" + toString(var_counter++)))));
+                std::make_unique<AstVariable>(" _tmp_" + toString(var_counter++))));
     }
 
     // apply mapping to replace terms with variables
@@ -578,7 +578,7 @@ bool MaterializeAggregationQueriesTransformer::materializeAggregationQueries(
             head->setName(relName);
             std::vector<bool> symbolArguments;
             for (const auto& cur : vars) {
-                head->addArgument(std::unique_ptr<AstArgument>(new AstVariable(cur)));
+                head->addArgument(std::make_unique<AstVariable>(cur));
             }
 
             AstClause* aggClause = new AstClause();
@@ -653,7 +653,7 @@ bool MaterializeAggregationQueriesTransformer::materializeAggregationQueries(
                 if (AstVariable* var = dynamic_cast<AstVariable*>(aggAtom->getArgument(i))) {
                     // replace local variable by underscore if local
                     if (varCtr[var->getName()] == 0) {
-                        aggAtom->setArgument(i, std::unique_ptr<AstArgument>(new AstUnnamedVariable()));
+                        aggAtom->setArgument(i, std::make_unique<AstUnnamedVariable>());
                     }
                 }
             }
@@ -794,6 +794,326 @@ bool RemoveRedundantRelationsTransformer::transform(AstTranslationUnit& translat
             changed = true;
         }
     }
+    return changed;
+}
+
+bool ExtractDisconnectedLiteralsTransformer::transform(AstTranslationUnit& translationUnit) {
+    bool changed = false;
+    AstProgram& program = *translationUnit.getProgram();
+
+    /* Process:
+     * Go through each clause and construct a variable dependency graph G.
+     * The nodes of G are the variables. A path between a and b exists iff
+     * a and b appear in a common body literal.
+     *
+     * Based on the graph, we can extract the body literals that are not associated
+     * with the arguments in the head atom into a new relation.
+     *
+     * E.g. a(x) :- b(x), c(y), d(y). will be transformed into:
+     *      - a(x) :- b(x), newrel().
+     *      - newrel() :- c(y), d(y).
+     *
+     * Note that only one pass through the clauses is needed:
+     *  - All arguments in the body literals of the transformed clause cannot be
+     *    independent of the head arguments (by construction).
+     *  - The new relations holding the disconnected body literals have no
+     *    head arguments by definition, and so the transformation does not apply.
+     */
+
+    std::vector<AstClause*> clausesToAdd;
+    std::vector<const AstClause*> clausesToRemove;
+
+    visitDepthFirst(program, [&](const AstClause& clause) {
+        // get head variables
+        std::set<std::string> headVars;
+        visitDepthFirst(*clause.getHead(), [&](const AstVariable& var) { headVars.insert(var.getName()); });
+
+        // nothing to do if no arguments in the head
+        if (headVars.empty()) {
+            return;
+        }
+
+        // construct the graph
+        Graph<std::string> variableGraph = Graph<std::string>();
+
+        // add in its nodes
+        visitDepthFirst(clause, [&](const AstVariable& var) { variableGraph.insert(var.getName()); });
+
+        // add in the edges
+        // since we are only looking at reachability, we can just add in an
+        // undirected edge from the first argument in the literal to each of the others
+
+        // edges from the head
+        std::string firstVariable = *headVars.begin();
+        headVars.erase(headVars.begin());
+        for (const std::string& var : headVars) {
+            variableGraph.insert(firstVariable, var);
+            variableGraph.insert(var, firstVariable);
+        }
+
+        // edges from literals
+        for (AstLiteral* bodyLiteral : clause.getBodyLiterals()) {
+            std::set<std::string> litVars;
+
+            visitDepthFirst(*bodyLiteral, [&](const AstVariable& var) { litVars.insert(var.getName()); });
+
+            // no new edges if only one variable is present
+            if (litVars.size() > 1) {
+                std::string firstVariable = *litVars.begin();
+                litVars.erase(litVars.begin());
+
+                // create the undirected edge
+                for (const std::string& var : litVars) {
+                    variableGraph.insert(firstVariable, var);
+                    variableGraph.insert(var, firstVariable);
+                }
+            }
+        }
+
+        // run a DFS from the first head variable
+        std::set<std::string> importantVariables;
+        variableGraph.visitDepthFirst(
+                firstVariable, [&](const std::string& var) { importantVariables.insert(var); });
+
+        // partition the literals into connected and disconnected based on their variables
+        std::vector<AstLiteral*> connectedLiterals;
+        std::vector<AstLiteral*> disconnectedLiterals;
+
+        for (AstLiteral* bodyLiteral : clause.getBodyLiterals()) {
+            bool connected = false;
+            bool hasArgs = false;  // ignore literals with no arguments
+
+            visitDepthFirst(*bodyLiteral, [&](const AstArgument& arg) {
+                hasArgs = true;
+
+                if (auto var = dynamic_cast<const AstVariable*>(&arg)) {
+                    if (importantVariables.find(var->getName()) != importantVariables.end()) {
+                        connected = true;
+                    }
+                }
+            });
+
+            if (connected || !hasArgs) {
+                connectedLiterals.push_back(bodyLiteral);
+            } else {
+                disconnectedLiterals.push_back(bodyLiteral);
+            }
+        }
+
+        if (!disconnectedLiterals.empty()) {
+            // need to extract some disconnected lits!
+            changed = true;
+
+            static int disconnectedCount = 0;
+            std::stringstream nextName;
+            nextName << "+disconnected" << disconnectedCount;
+            AstRelationIdentifier newRelationName = nextName.str();
+            disconnectedCount++;
+
+            // create the extracted relation and clause
+            // newrel() :- disconnectedLiterals(x).
+            auto newRelation = std::make_unique<AstRelation>();
+            newRelation->setName(newRelationName);
+            program.appendRelation(std::move(newRelation));
+
+            AstClause* disconnectedClause = new AstClause();
+            disconnectedClause->setSrcLoc(clause.getSrcLoc());
+            disconnectedClause->setHead(std::make_unique<AstAtom>(newRelationName));
+
+            for (AstLiteral* disconnectedLit : disconnectedLiterals) {
+                disconnectedClause->addToBody(std::unique_ptr<AstLiteral>(disconnectedLit->clone()));
+            }
+
+            // create the replacement clause
+            // a(x) :- b(x), c(y). --> a(x) :- b(x), newrel().
+            AstClause* newClause = new AstClause();
+            newClause->setSrcLoc(clause.getSrcLoc());
+            newClause->setHead(std::unique_ptr<AstAtom>(clause.getHead()->clone()));
+
+            for (AstLiteral* connectedLit : connectedLiterals) {
+                newClause->addToBody(std::unique_ptr<AstLiteral>(connectedLit->clone()));
+            }
+
+            // add the disconnected clause to the body
+            newClause->addToBody(std::make_unique<AstAtom>(newRelationName));
+
+            // replace the original clause with the new clauses
+            clausesToAdd.push_back(newClause);
+            clausesToAdd.push_back(disconnectedClause);
+            clausesToRemove.push_back(&clause);
+        }
+    });
+
+    for (AstClause* newClause : clausesToAdd) {
+        program.appendClause(std::unique_ptr<AstClause>(newClause));
+    }
+
+    for (const AstClause* oldClause : clausesToRemove) {
+        program.removeClause(oldClause);
+    }
+
+    return changed;
+}
+
+bool ReduceExistentialsTransformer::transform(AstTranslationUnit& translationUnit) {
+    AstProgram& program = *translationUnit.getProgram();
+
+    // Checks whether a given clause is recursive
+    auto isRecursiveClause = [&](const AstClause& clause) {
+        AstRelationIdentifier relationName = clause.getHead()->getName();
+        bool recursive = false;
+        visitDepthFirst(clause.getBodyLiterals(), [&](const AstAtom& atom) {
+            if (atom.getName() == relationName) {
+                recursive = true;
+            }
+        });
+        return recursive;
+    };
+
+    // Checks whether an atom is of the form a(_,_,...,_)
+    auto isExistentialAtom = [&](const AstAtom& atom) {
+        for (AstArgument* arg : atom.getArguments()) {
+            if (!dynamic_cast<AstUnnamedVariable*>(arg)) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    // Construct a dependency graph G where:
+    // - Each relation is a node
+    // - An edge (a,b) exists iff a uses b "non-existentially" in one of its *recursive* clauses
+    // This way, a relation can be transformed into an existential form
+    // if and only if all its predecessors can also be transformed.
+    Graph<AstRelationIdentifier> relationGraph = Graph<AstRelationIdentifier>();
+
+    // Add in the nodes
+    for (AstRelation* relation : program.getRelations()) {
+        relationGraph.insert(relation->getName());
+    }
+
+    // Keep track of all relations that cannot be transformed
+    std::set<AstRelationIdentifier> minimalIrreducibleRelations;
+
+    for (AstRelation* relation : program.getRelations()) {
+        if (relation->isComputed() || relation->isInput()) {
+            // No I/O relations can be transformed
+            minimalIrreducibleRelations.insert(relation->getName());
+        }
+
+        for (AstClause* clause : relation->getClauses()) {
+            bool recursive = isRecursiveClause(*clause);
+            visitDepthFirst(*clause, [&](const AstAtom& atom) {
+                if (atom.getName() == clause->getHead()->getName()) {
+                    return;
+                }
+
+                if (!isExistentialAtom(atom)) {
+                    if (recursive) {
+                        // Clause is recursive, so add an edge to the dependency graph
+                        relationGraph.insert(clause->getHead()->getName(), atom.getName());
+                    } else {
+                        // Non-existential apperance in a non-recursive clause, so
+                        // it's out of the picture
+                        minimalIrreducibleRelations.insert(atom.getName());
+                    }
+                }
+            });
+        }
+    }
+
+    // TODO (see issue #564): Don't transform relations appearing in aggregators
+    //                        due to aggregator issues with unnamed variables.
+    visitDepthFirst(program, [&](const AstAggregator& aggr) {
+        visitDepthFirst(
+                aggr, [&](const AstAtom& atom) { minimalIrreducibleRelations.insert(atom.getName()); });
+    });
+
+    // Run a DFS from each 'bad' source
+    // A node is reachable in a DFS from an irreducible node if and only if it is
+    // also an irreducible node
+    std::set<AstRelationIdentifier> irreducibleRelations;
+    for (AstRelationIdentifier relationName : minimalIrreducibleRelations) {
+        relationGraph.visitDepthFirst(relationName,
+                [&](const AstRelationIdentifier& subRel) { irreducibleRelations.insert(subRel); });
+    }
+
+    // All other relations are necessarily existential
+    std::set<AstRelationIdentifier> existentialRelations;
+    for (AstRelation* relation : program.getRelations()) {
+        if (!relation->getClauses().empty() &&
+                irreducibleRelations.find(relation->getName()) == irreducibleRelations.end()) {
+            existentialRelations.insert(relation->getName());
+        }
+    }
+
+    // Reduce the existential relations
+    for (AstRelationIdentifier relationName : existentialRelations) {
+        AstRelation* originalRelation = program.getRelation(relationName);
+
+        std::stringstream newRelationName;
+        newRelationName << "+?exists_" << relationName;
+
+        auto newRelation = std::make_unique<AstRelation>();
+        newRelation->setName(newRelationName.str());
+        newRelation->setSrcLoc(originalRelation->getSrcLoc());
+
+        // EqRel relations require two arguments, so remove it from the qualifier
+        newRelation->setQualifier(originalRelation->getQualifier() & ~(EQREL_RELATION));
+
+        // Keep all non-recursive clauses
+        for (AstClause* clause : originalRelation->getClauses()) {
+            if (!isRecursiveClause(*clause)) {
+                auto newClause = std::make_unique<AstClause>();
+
+                newClause->setSrcLoc(clause->getSrcLoc());
+                if (const AstExecutionPlan* plan = clause->getExecutionPlan()) {
+                    newClause->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan->clone()));
+                }
+                newClause->setGenerated(clause->isGenerated());
+                newClause->setFixedExecutionPlan(clause->hasFixedExecutionPlan());
+                newClause->setHead(std::make_unique<AstAtom>(newRelationName.str()));
+                for (AstLiteral* lit : clause->getBodyLiterals()) {
+                    newClause->addToBody(std::unique_ptr<AstLiteral>(lit->clone()));
+                }
+
+                newRelation->addClause(std::move(newClause));
+            }
+        }
+
+        program.appendRelation(std::move(newRelation));
+    }
+
+    // Mapper that renames the occurrences of marked relations with their existential
+    // counterparts
+    struct M : public AstNodeMapper {
+        const std::set<AstRelationIdentifier>& relations;
+
+        M(std::set<AstRelationIdentifier>& relations) : relations(relations) {}
+
+        std::unique_ptr<AstNode> operator()(std::unique_ptr<AstNode> node) const override {
+            if (AstClause* clause = dynamic_cast<AstClause*>(node.get())) {
+                if (relations.find(clause->getHead()->getName()) != relations.end()) {
+                    // Clause is going to be removed, so don't rename it
+                    return node;
+                }
+            } else if (AstAtom* atom = dynamic_cast<AstAtom*>(node.get())) {
+                if (relations.find(atom->getName()) != relations.end()) {
+                    // Relation is now existential, so rename it
+                    std::stringstream newName;
+                    newName << "+?exists_" << atom->getName();
+                    return std::make_unique<AstAtom>(newName.str());
+                }
+            }
+            node->apply(*this);
+            return node;
+        }
+    };
+
+    M update(existentialRelations);
+    program.apply(update);
+
+    bool changed = !existentialRelations.empty();
     return changed;
 }
 

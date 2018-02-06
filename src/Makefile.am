@@ -7,7 +7,7 @@
 
 SUFFIXES = .cpp .h .yy .ll .cc .hh .hpp
 
-bin_PROGRAMS = souffle souffle-mcpp souffle-profile
+bin_PROGRAMS = souffle souffle-profile
 
 nodist_souffle_profile_SOURCES = $(BUILT_SOURCES)
 
@@ -42,15 +42,6 @@ souffle_profile_SOURCES = souffle_prof.cpp profilerlib/Cell.hpp \
 DIR := ${CURDIR}
 
 souffle_profile_CXXFLAGS = $(souffle_CPPFLAGS) -DMAKEDIR='"$(DIR)"'
-
-nodist_souffle_mcpp_SOURCES = $(BUILT_SOURCES)
-
-souffle_mcpp_SOURCES = mcpp-system.H mcpp-configed.H mcpp-internal.H mcpp-main.c mcpp-directive.c mcpp-eval.c \
-                        mcpp-expand.c mcpp-mbchar.c mcpp-support.c mcpp-system.c mcpp_out.h
-
-mcpp-main.o mcpp-directive.o mcpp-eval.o mcpp-expand.o mcpp-mbchar.o mcpp-support.o mcpp-system.o    :    \
-     mcpp-system.H mcpp-internal.H mcpp_out.h
-mcpp-system.H    : mcpp-configed.H
 
 
 # ... which should no go to distribution
@@ -94,6 +85,8 @@ souffle_sources = \
               ComponentModel.cpp    ComponentModel.h    \
               AstSemanticChecker.cpp                    \
               AstSemanticChecker.h                      \
+              AstComponentChecker.cpp                   \
+              AstComponentChecker.h                     \
               AstTransforms.cpp     AstTransforms.h     \
               UnaryFunctorOps.h                         \
               BinaryFunctorOps.h                        \
@@ -101,21 +94,22 @@ souffle_sources = \
               BinaryConstraintOps.h                     \
               Constraints.h                             \
               GraphUtils.h                              \
-              RamValue.h                                \
-              RamIndex.h                                \
+              AstTranslator.cpp     AstTranslator.h     \
+              Synthesiser.cpp       Synthesiser.h       \
+              MaxMatching.cpp       MaxMatching.h       \
+              AutoIndex.cpp         AutoIndex.h         \
+              RamAnalysis.h                             \
               RamCondition.h                            \
-              RamTranslator.cpp     RamTranslator.h     \
-              RamExecutor.cpp       RamExecutor.h       \
-              RamStatement.h                            \
-              RamMaxMatching.cpp    RamMaxMatching.h    \
               RamNode.h                                 \
-              RamData.h                                 \
-              RamAutoIndex.cpp      RamAutoIndex.h      \
               RamOperation.cpp      RamOperation.h      \
               RamProgram.h                              \
-              RamRecords.cpp        RamRecords.h        \
-              RamRelation.cpp       RamRelation.h       \
-              RamRelationStats.cpp  RamRelationStats.h  \
+              RamRelation.h                             \
+              RamSemanticChecker.h                      \
+              RamStatement.h                            \
+              RamTransformer.cpp    RamTransformer.h    \
+              RamTranslationUnit.h                      \
+              RamTypes.h                                \
+              RamValue.h                                \
               RamVisitor.h                              \
               RuleScheduler.h                           \
               SignalHandler.h                           \
@@ -131,19 +125,17 @@ souffle_sources = \
               IODirectives.h                            \
               WriteStreamCSV.h                          \
               IOSystem.h                                \
-              RamInterface.cpp      RamInterface.h      \
+              Interpreter.cpp       Interpreter.h       \
+              InterpreterInterface.h                    \
+              InterpreterIndex.h                        \
+              InterpreterRecords.cpp InterpreterRecords.h \
               ProvenanceTransformer.cpp                 \
-              ProvenanceRecordTransformer.cpp ProvenanceRecordTransformer.h \
               Global.cpp            Global.h
 
 # -- build souffle as a library so it can be reused in testing
 noinst_LTLIBRARIES = libsouffle.la
 libsouffle_la_SOURCES  = $(souffle_sources)
-if JAVAI
-libsouffle_la_CXXFLAGS = $(souffle_CPPFLAGS) -DJNI_INTERFACE
-else
 libsouffle_la_CXXFLAGS = $(souffle_CPPFLAGS)
-endif
 libsouffle_la_LDFLAGS = --static --dlopen --pic
 
 souffle_SOURCES = main.cpp
@@ -165,6 +157,7 @@ soufflepublic_HEADERS = CompiledRamOptions.h    \
                         SouffleInterface.h      \
                         ParallelUtils.h         \
                         BTree.h                 \
+                        htmx86.h                \
                         Trie.h                  \
                         UnionFind.h             \
                         BinaryRelation.h        \
@@ -173,10 +166,9 @@ soufflepublic_HEADERS = CompiledRamOptions.h    \
                         Util.h                  \
                         Macro.h                 \
                         AstTypes.h              \
-                        RamTypes.h              \
                         IterUtils.h             \
                         SymbolTable.h           \
-                        RamLogger.h             \
+                        Logger.h                \
                         $(sqlite_sources)       \
                         $(libz_sources)         \
                         IODirectives.h          \
@@ -189,8 +181,7 @@ soufflepublic_HEADERS = CompiledRamOptions.h    \
                         Explain.h               \
                         ExplainTree.h           \
                         ExplainProvenance.h     \
-                        ExplainProvenanceSLD.h  \
-                        ExplainProvenanceRecords.h
+                        ExplainProvenanceSLD.h 
 
 souffle_CPPFLAGS = -DPACKAGE_VERSION="\"${PACKAGE_VERSION}\""
 

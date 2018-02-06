@@ -17,8 +17,6 @@
 #pragma once
 
 #include "AstTransformer.h"
-#include "Global.h"
-#include "RamExecutor.h"
 
 namespace souffle {
 

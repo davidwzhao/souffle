@@ -266,22 +266,22 @@ void InputReader::backspace() {
         showFullText(output);
     }
 }
-void InputReader::showFullText(std::string text) {
+void InputReader::showFullText(const std::string& text) {
     clearPrompt(text.size());
-    for (unsigned long i = 0; i < text.size(); i++) {
+    for (size_t i = 0; i < text.size(); i++) {
         std::cout << text.at(i) << std::flush;
     }
 
-    for (unsigned long i = (unsigned)cursor_pos; i < text.size(); i++) {
+    for (size_t i = cursor_pos; i < text.size(); i++) {
         std::cout << "\b" << std::flush;
     }
 }
 
-void InputReader::clearPrompt(long text_len) {
-    for (unsigned long i = (unsigned)cursor_pos; i < text_len + 1; i++) {
+void InputReader::clearPrompt(size_t text_len) {
+    for (size_t i = cursor_pos; i < text_len + 1; i++) {
         std::cout << (char)27 << "[C" << std::flush;
     }
-    for (unsigned long i = 0; i < text_len + 1; i++) {
+    for (size_t i = 0; i < text_len + 1; i++) {
         std::cout << "\b \b" << std::flush;
     }
 }

@@ -11,7 +11,7 @@
  * @file Trie.h
  *
  * This header file contains the implementation for a generic, fixed
- * length integer trie as it is utilized by the compiled souffle executor.
+ * length integer trie.
  *
  * Tries trie is utilized to store n-ary tuples of integers. Each level
  * is implemented via a sparse array (also covered by this header file),

@@ -166,7 +166,7 @@ std::vector<std::string> Tools::split(std::string str, std::string split_str) {
 
     std::string temp;
     std::string hold;
-    for (int i = 0; i < str.size(); i++) {
+    for (size_t i = 0; i < str.size(); i++) {
         if (repeat) {
             if (str.at(i) == split_str.at(0)) {
                 while (str.at(++i) == split_str.at(0))
@@ -178,7 +178,7 @@ std::vector<std::string> Tools::split(std::string str, std::string split_str) {
         } else {
             temp += str.at(i);
             hold += str.at(i);
-            for (int j = 0; j < hold.size(); j++) {
+            for (size_t j = 0; j < hold.size(); j++) {
                 if (hold[j] != split_str[j]) {
                     hold = "";
                 }

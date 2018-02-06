@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "RamRelationStats.h"
+#include "Interpreter.h"
 #include "Util.h"
 
 #include <cmath>
@@ -571,15 +571,15 @@ struct SimpleComputationalCostModel
  * model which is depending on additional statistical information.
  */
 class ComputeCostAtom : public Atom {
-    RamRelationStats stats;
+    RelationStats stats;
 
 public:
-    ComputeCostAtom(int id, const std::vector<Argument>& args, const RamRelationStats& stats)
+    ComputeCostAtom(int id, const std::vector<Argument>& args, const RelationStats& stats)
             : Atom(id, args), stats(stats) {
         assert(args.size() == stats.getArity());
     }
 
-    const RamRelationStats& getRelationStats() const {
+    const RelationStats& getRelationStats() const {
         return stats;
     }
 
@@ -654,7 +654,7 @@ struct ComputeCostModel : public cost_model<ComputeCostAtom, ComputeCostState> {
     ComputeCostState applyTo(const ComputeCostState& state, const ComputeCostAtom& atom) const override {
         ComputeCostState res = state;
 
-        const RamRelationStats& stats = atom.getRelationStats();
+        const RelationStats& stats = atom.getRelationStats();
         const std::vector<Argument>& args = atom.getArguments();
 
         bool constraint = false;

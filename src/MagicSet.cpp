@@ -911,8 +911,8 @@ void separateDBs(AstProgram* program) {
                 std::stringstream argName;
                 argName.str("");
                 argName << "arg" << j;
-                headAtom->addArgument(std::unique_ptr<AstArgument>(new AstVariable(argName.str())));
-                bodyAtom->addArgument(std::unique_ptr<AstArgument>(new AstVariable(argName.str())));
+                headAtom->addArgument(std::make_unique<AstVariable>(argName.str()));
+                bodyAtom->addArgument(std::make_unique<AstVariable>(argName.str()));
             }
 
             newIdbClause->setHead(std::unique_ptr<AstAtom>(headAtom));
@@ -956,8 +956,7 @@ void replaceUnderscores(AstProgram* program) {
                     if (dynamic_cast<const AstVariable*>(currArg)) {
                         AstVariable* var = (AstVariable*)currArg;
                         if (hasPrefix(var->getName(), "+underscore")) {
-                            newLit->setArgument(
-                                    argNum, std::unique_ptr<AstArgument>(new AstUnnamedVariable()));
+                            newLit->setArgument(argNum, std::make_unique<AstUnnamedVariable>());
                         }
                     }
                 }
@@ -1031,7 +1030,7 @@ bool MagicSetTransformer::transform(AstTranslationUnit& translationUnit) {
         // i.e. mN_outputname_ff...f().
         AstClause* outputFact = new AstClause();
         outputFact->setSrcLoc(nextSrcLoc(originalOutputRelation->getSrcLoc()));
-        outputFact->setHead(std::unique_ptr<AstAtom>(new AstAtom(magicOutputName)));
+        outputFact->setHead(std::make_unique<AstAtom>(magicOutputName));
         program->appendClause(std::unique_ptr<AstClause>(outputFact));
 
         // perform the magic transformation based on the adornment for this output query
@@ -1399,8 +1398,8 @@ bool MagicSetTransformer::transform(AstTranslationUnit& translationUnit) {
             std::stringstream argName;
             argName.str("");
             argName << "arg" << j;
-            headatom->addArgument(std::unique_ptr<AstArgument>(new AstVariable(argName.str())));
-            bodyatom->addArgument(std::unique_ptr<AstArgument>(new AstVariable(argName.str())));
+            headatom->addArgument(std::make_unique<AstVariable>(argName.str()));
+            bodyatom->addArgument(std::make_unique<AstVariable>(argName.str()));
         }
 
         // add the clause to the program

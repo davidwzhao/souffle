@@ -56,12 +56,16 @@ protected:
 
         auto rel = prog.getRelation(relName);
         if (rel == nullptr) {
-            return std::vector<RamDomain>();
+            return nums;
         }
 
         for (size_t i = 0; i < args.size(); i++) {
             if (*rel->getAttrType(i) == 's') {
-                nums.push_back(prog.getSymbolTable().lookupExisting(args[i].c_str()));
+                // remove quotation marks
+                if (args[i].size() >= 2 && args[i][0] == '"' && args[i][args[i].size() - 1] == '"') {
+                    auto originalStr = args[i].substr(1, args[i].size() - 2);
+                    nums.push_back(prog.getSymbolTable().lookupExisting(originalStr.c_str()));
+                }
             } else {
                 nums.push_back(std::stoi(args[i]));
             }
@@ -84,7 +88,7 @@ protected:
                 args.push_back("_");
             } else {
                 if (*rel->getAttrType(i) == 's') {
-                    args.push_back(prog.getSymbolTable().resolve(nums[i]));
+                    args.push_back("\"" + std::string(prog.getSymbolTable().resolve(nums[i])) + "\"");
                 } else {
                     args.push_back(std::to_string(nums[i]));
                 }

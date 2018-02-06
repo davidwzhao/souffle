@@ -47,7 +47,6 @@ void Reader::save(std::string f_name) {
     }
 
     DIR* dir;
-    struct dirent* ent;
     bool exists = false;
 
     if ((dir = opendir((workingdir + std::string("/old_runs")).c_str())) != NULL) {

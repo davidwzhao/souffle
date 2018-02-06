@@ -179,19 +179,6 @@ public:
 };
 
 /**
- * Transformation pass to add provenance information via records
- */
-class NaiveProvenanceTransformer : public AstTransformer {
-private:
-    bool transform(AstTranslationUnit& translationUnit) override;
-
-public:
-    std::string getName() const override {
-        return "NaiveProvenanceTransformer";
-    }
-};
-
-/**
  * Transformation pass to add provenance information via guided SLD
  */
 class ProvenanceTransformer : public AstTransformer {
@@ -200,12 +187,12 @@ private:
 
 public:
     std::string getName() const override {
-        return "NaiveProvenanceTransformer";
+        return "ProvenanceTransformer";
     }
 };
 
 /**
- * Transformer that inlines marked relations.
+ * Transformation pass to inline marked relations
  */
 class InlineRelationsTransformer : public AstTransformer {
 private:
@@ -214,6 +201,37 @@ private:
 public:
     std::string getName() const override {
         return "InlineRelationsTransformer";
+    }
+};
+
+/**
+ * Transformation pass to move literals out of a clause and into
+ * new relations if they are independent of head arguments.
+ * E.g. a(x) :- b(x), c(y), d(y). is transformed into:
+ *      - a(x) :- b(x), newrel().
+ *      - newrel() :- c(y), d(y).
+ */
+class ExtractDisconnectedLiteralsTransformer : public AstTransformer {
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
+
+public:
+    std::string getName() const override {
+        return "ExtractDisconnectedLiteralsTransformer";
+    }
+};
+
+/**
+* Transformation pass to reduce unnecessary computation for
+* relations that only appear in the form A(_,...,_).
+*/
+class ReduceExistentialsTransformer : public AstTransformer {
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
+
+public:
+    std::string getName() const override {
+        return "ReduceExistentialsTransformer";
     }
 };
 

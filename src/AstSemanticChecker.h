@@ -28,10 +28,6 @@ class AstAggregator;
 class AstArgument;
 class AstClause;
 class AstRelation;
-class AstComponent;
-class AstComponentScope;
-class AstComponentType;
-class AstComponentInit;
 class AstSrcLocation;
 class TypeBinding;
 class AstUnionType;
@@ -39,7 +35,6 @@ class AstRecordType;
 class AstType;
 class TypeEnvironment;
 class TypeAnalysis;
-class ComponentLookup;
 class PrecedenceGraph;
 class RecursiveClauses;
 
@@ -48,8 +43,8 @@ private:
     bool transform(AstTranslationUnit& translationUnit) override;
 
     static void checkProgram(ErrorReport& report, const AstProgram& program, const TypeEnvironment& typeEnv,
-            const TypeAnalysis& typeAnalysis, const ComponentLookup& componentLookup,
-            const PrecedenceGraph& precedenceGraph, const RecursiveClauses& recursiveClauses);
+            const TypeAnalysis& typeAnalysis, const PrecedenceGraph& precedenceGraph,
+            const RecursiveClauses& recursiveClauses);
 
     static void checkAtom(ErrorReport& report, const AstProgram& program, const AstAtom& atom);
     static void checkLiteral(ErrorReport& report, const AstProgram& program, const AstLiteral& literal);
@@ -67,20 +62,6 @@ private:
     static void checkRules(ErrorReport& report, const TypeEnvironment& typeEnv, const AstProgram& program,
             const RecursiveClauses& recursiveClauses);
 
-    static const AstComponent* checkComponentNameReference(ErrorReport& report,
-            const AstComponent* enclosingComponent, const ComponentLookup& componentLookup,
-            const std::string& name, const AstSrcLocation& loc, const TypeBinding& binding);
-    static void checkComponentReference(ErrorReport& report, const AstComponent* enclosingComponent,
-            const ComponentLookup& componentLookup, const AstComponentType& type, const AstSrcLocation& loc,
-            const TypeBinding& binding);
-    static void checkComponentInit(ErrorReport& report, const AstComponent* enclosingComponent,
-            const ComponentLookup& componentLookup, const AstComponentInit& init, const TypeBinding& binding);
-    static void checkComponent(ErrorReport& report, const AstComponent* enclosingComponent,
-            const ComponentLookup& componentLookup, const AstComponent& component,
-            const TypeBinding& binding);
-    static void checkComponents(
-            ErrorReport& report, const AstProgram& program, const ComponentLookup& componentLookup);
-
     static void checkUnionType(ErrorReport& report, const AstProgram& program, const AstUnionType& type);
     static void checkRecordType(ErrorReport& report, const AstProgram& program, const AstRecordType& type);
     static void checkType(ErrorReport& report, const AstProgram& program, const AstType& type);
@@ -88,6 +69,7 @@ private:
 
     static void checkNamespaces(ErrorReport& report, const AstProgram& program);
     static void checkIODirectives(ErrorReport& report, const AstProgram& program);
+    static void checkWitnessProblem(ErrorReport& report, const AstProgram& program);
     static void checkInlining(
             ErrorReport& report, const AstProgram& program, const PrecedenceGraph& precedenceGraph);
 

@@ -8,13 +8,7 @@
 ACLOCAL_AMFLAGS = -I m4
 
 # directories
-if JAVAI
-java_dirs=interfaces
-else
-java_dirs=
-endif
-
-SUBDIRS = src tests $(java_dirs)
+SUBDIRS = src tests
 
 # add doxygen support to the makefile
 include $(top_srcdir)/aminclude.am

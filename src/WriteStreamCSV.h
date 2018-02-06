@@ -188,12 +188,10 @@ public:
             const IODirectives& ioDirectives, const bool provenance) override {
 #ifdef USE_LIBZ
         if (ioDirectives.has("compress")) {
-            return std::unique_ptr<WriteGZipFileCSV>(
-                    new WriteGZipFileCSV(symbolMask, symbolTable, ioDirectives, provenance));
+            return std::make_unique<WriteGZipFileCSV>(symbolMask, symbolTable, ioDirectives, provenance);
         }
 #endif
-        return std::unique_ptr<WriteFileCSV>(
-                new WriteFileCSV(symbolMask, symbolTable, ioDirectives, provenance));
+        return std::make_unique<WriteFileCSV>(symbolMask, symbolTable, ioDirectives, provenance);
     }
     const std::string& getName() const override {
         static const std::string name = "file";
@@ -206,8 +204,7 @@ class WriteCoutCSVFactory : public WriteStreamFactory {
 public:
     std::unique_ptr<WriteStream> getWriter(const SymbolMask& symbolMask, const SymbolTable& symbolTable,
             const IODirectives& ioDirectives, const bool provenance) override {
-        return std::unique_ptr<WriteCoutCSV>(
-                new WriteCoutCSV(symbolMask, symbolTable, ioDirectives, provenance));
+        return std::make_unique<WriteCoutCSV>(symbolMask, symbolTable, ioDirectives, provenance);
     }
     const std::string& getName() const override {
         static const std::string name = "stdout";

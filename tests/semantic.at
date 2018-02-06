@@ -4,6 +4,47 @@
 # - https://opensource.org/licenses/UPL
 # - <souffle root>/licenses/SOUFFLE-UPL.txt
 
+dnl Execute a positive sqlite test case for a given flag configuration
+dnl $1 -- test case
+dnl $2 -- category
+dnl $3 -- facts directory relative to the test directory
+dnl $4 -- directory with expected output
+dnl       (relative to the test dir, but starting with '/'), or empty string
+m4_define([TEST_EVAL_SQLITE3],[
+  m4_define([TESTNAME],[$1])
+  m4_define([CATEGORY],[$2])
+  m4_define([TESTDIR],["$TESTS"/CATEGORY/TESTNAME])
+  m4_define([PROGRAM],[TESTDIR/TESTNAME.dl])
+  m4_define([FACTS],[TESTDIR/$3])
+  m4_define([EXPECTEDDIR], [TESTDIR$4])
+  # invoke souffle
+  cp TESTDIR/*sqlite.input . || true
+  AT_CHECK(["$SOUFFLE" FLAGS -D. -F FACTS PROGRAM 1>TESTNAME.out 2>TESTNAME.err], [0])
+  SORTED_SAME_FILES([*.csv],[EXPECTEDDIR])
+  # compare all other output files without sorting
+  for i in *.output
+  do
+    # extract the relation view as csv and compare to the expected values
+    sqlite3 -batch $i -init EXPECTEDDIR/$i.script "" > "$i.unsorted.generated"
+    sort "$i.unsorted.generated" > "$i.sorted.generated"
+    SAME_FILE(["$i.sorted.generated"],["EXPECTEDDIR/$i.sorted.expected"])
+  done
+  # validate stdout and stderr
+  SAME_FILE([TESTNAME.out],[EXPECTEDDIR/TESTNAME.out])
+  SAME_FILE([TESTNAME.err],[EXPECTEDDIR/TESTNAME.err])
+])
+
+dnl Positive sqlite3 testcase for Souffle
+dnl $1 -- test name
+dnl $2 -- category
+m4_define([POSITIVE_TEST_SQLITE3],[
+  TEST_GROUP([$1],[
+    TEST_EVAL_SQLITE3([$1],[$2],facts)
+  ])
+])
+
+##########################################################################
+
 NEGATIVE_TEST([agg_checks2],[semantic])
 NEGATIVE_TEST([agg_checks],[semantic])
 POSITIVE_TEST([aggregate1],[semantic])
@@ -23,12 +64,15 @@ NEGATIVE_TEST([comp_override],[semantic])
 NEGATIVE_TEST([comp_params_inheritance],[semantic])
 NEGATIVE_TEST([comp_relation],[semantic])
 NEGATIVE_TEST([comp_types],[semantic])
+POSITIVE_TEST([comp_opt],[semantic])
 NEGATIVE_TEST([counter2],[semantic])
 POSITIVE_TEST([counter],[semantic])
 NEGATIVE_TEST([disjoint_names],[semantic])
 # TODO (see issue #231) NEGATIVE_TEST([divide_by_zero], [semantic])
 POSITIVE_TEST([duplicates],[semantic])
 POSITIVE_TEST([eqrel_tests],[semantic])
+POSITIVE_TEST([eqrel_tests2],[semantic])
+POSITIVE_TEST([eqrel_tests3],[semantic])
 POSITIVE_TEST([equivalent],[semantic])
 NEGATIVE_TEST([execution_plan],[semantic])
 NEGATIVE_TEST([fact_arity],[semantic])
@@ -101,3 +145,4 @@ POSITIVE_TEST([underscore2],[semantic])
 NEGATIVE_TEST([underscore],[semantic])
 NEGATIVE_TEST([union_types],[semantic])
 NEGATIVE_TEST([var_single],[semantic])
+NEGATIVE_TEST([witness_check],[semantic])

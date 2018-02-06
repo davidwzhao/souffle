@@ -16,14 +16,12 @@
 
 #include "AstSemanticChecker.h"
 #include "AstClause.h"
-#include "AstComponent.h"
 #include "AstProgram.h"
 #include "AstRelation.h"
 #include "AstTranslationUnit.h"
 #include "AstTypeAnalysis.h"
 #include "AstUtils.h"
 #include "AstVisitor.h"
-#include "ComponentModel.h"
 #include "Global.h"
 #include "GraphUtils.h"
 #include "PrecedenceGraph.h"
@@ -40,25 +38,23 @@ bool AstSemanticChecker::transform(AstTranslationUnit& translationUnit) {
     const TypeEnvironment& typeEnv =
             translationUnit.getAnalysis<TypeEnvironmentAnalysis>()->getTypeEnvironment();
     TypeAnalysis* typeAnalysis = translationUnit.getAnalysis<TypeAnalysis>();
-    ComponentLookup* componentLookup = translationUnit.getAnalysis<ComponentLookup>();
     PrecedenceGraph* precedenceGraph = translationUnit.getAnalysis<PrecedenceGraph>();
     RecursiveClauses* recursiveClauses = translationUnit.getAnalysis<RecursiveClauses>();
     checkProgram(translationUnit.getErrorReport(), *translationUnit.getProgram(), typeEnv, *typeAnalysis,
-            *componentLookup, *precedenceGraph, *recursiveClauses);
+            *precedenceGraph, *recursiveClauses);
     return false;
 }
 
 void AstSemanticChecker::checkProgram(ErrorReport& report, const AstProgram& program,
         const TypeEnvironment& typeEnv, const TypeAnalysis& typeAnalysis,
-        const ComponentLookup& componentLookup, const PrecedenceGraph& precedenceGraph,
-        const RecursiveClauses& recursiveClauses) {
+        const PrecedenceGraph& precedenceGraph, const RecursiveClauses& recursiveClauses) {
     // -- conduct checks --
     // TODO: re-write to use visitors
     checkTypes(report, program);
     checkRules(report, typeEnv, program, recursiveClauses);
-    checkComponents(report, program, componentLookup);
     checkNamespaces(report, program);
     checkIODirectives(report, program);
+    checkWitnessProblem(report, program);
     checkInlining(report, program, precedenceGraph);
 
     // get the list of components to be checked
@@ -638,153 +634,6 @@ void AstSemanticChecker::checkRules(ErrorReport& report, const TypeEnvironment& 
     }
 }
 
-// ----- components --------
-
-const AstComponent* AstSemanticChecker::checkComponentNameReference(ErrorReport& report,
-        const AstComponent* enclosingComponent, const ComponentLookup& componentLookup,
-        const std::string& name, const AstSrcLocation& loc, const TypeBinding& binding) {
-    const AstTypeIdentifier& forwarded = binding.find(name);
-    if (!forwarded.empty()) {
-        // for forwarded types we do not check anything, because we do not know,
-        // what the actual type will be
-        return nullptr;
-    }
-
-    const AstComponent* c = componentLookup.getComponent(enclosingComponent, name, binding);
-    if (!c) {
-        report.addError("Referencing undefined component " + name, loc);
-        return nullptr;
-    }
-
-    return c;
-}
-
-void AstSemanticChecker::checkComponentReference(ErrorReport& report, const AstComponent* enclosingComponent,
-        const ComponentLookup& componentLookup, const AstComponentType& type, const AstSrcLocation& loc,
-        const TypeBinding& binding) {
-    // check whether targeted component exists
-    const AstComponent* c = checkComponentNameReference(
-            report, enclosingComponent, componentLookup, type.getName(), loc, binding);
-    if (!c) {
-        return;
-    }
-
-    // check number of type parameters
-    if (c->getComponentType().getTypeParameters().size() != type.getTypeParameters().size()) {
-        report.addError("Invalid number of type parameters for component " + type.getName(), loc);
-    }
-}
-
-void AstSemanticChecker::checkComponentInit(ErrorReport& report, const AstComponent* enclosingComponent,
-        const ComponentLookup& componentLookup, const AstComponentInit& init, const TypeBinding& binding) {
-    checkComponentReference(
-            report, enclosingComponent, componentLookup, init.getComponentType(), init.getSrcLoc(), binding);
-
-    // Note: actual parameters can be atomic types like number, or anything declared with .type
-    // The original semantic check permitted any identifier (existing or non-existing) to be actual parameter
-    // In order to maintain the compatibility, we do not check the actual parameters
-
-    // check the actual parameters:
-    // const auto& actualParams = init.getComponentType().getTypeParameters();
-    // for (const auto& param : actualParams) {
-    //    checkComponentNameReference(report, scope, param, init.getSrcLoc(), binding);
-    //}
-}
-
-void AstSemanticChecker::checkComponent(ErrorReport& report, const AstComponent* enclosingComponent,
-        const ComponentLookup& componentLookup, const AstComponent& component, const TypeBinding& binding) {
-    // -- inheritance --
-
-    // Update type binding:
-    // Since we are not compiling, i.e. creating concrete instance of the
-    // components with type parameters, we are only interested in whether
-    // component references refer to existing components or some type parameter.
-    // Type parameter for us here is unknown type that will be bound at the template
-    // instantiation time.
-    auto parentTypeParameters = component.getComponentType().getTypeParameters();
-    std::vector<AstTypeIdentifier> actualParams(parentTypeParameters.size(), "<type parameter>");
-    TypeBinding activeBinding = binding.extend(parentTypeParameters, actualParams);
-
-    // check parents of component
-    for (const auto& cur : component.getBaseComponents()) {
-        checkComponentReference(
-                report, enclosingComponent, componentLookup, cur, component.getSrcLoc(), activeBinding);
-
-        // Note: type parameters can also be atomic types like number, or anything defined through .type
-        // The original semantic check permitted any identifier (existing or non-existing) to be actual
-        // parameter
-        // In order to maintain the compatibility, we do not check the actual parameters
-
-        // for (const std::string& param : cur.getTypeParameters()) {
-        //    checkComponentNameReference(report, scope, param, component.getSrcLoc(), activeBinding);
-        //}
-    }
-
-    // get all parents
-    std::set<const AstComponent*> parents;
-    std::function<void(const AstComponent&)> collectParents = [&](const AstComponent& cur) {
-        for (const auto& base : cur.getBaseComponents()) {
-            auto c = componentLookup.getComponent(enclosingComponent, base.getName(), binding);
-            if (!c) {
-                continue;
-            }
-            if (parents.insert(c).second) {
-                collectParents(*c);
-            }
-        }
-    };
-    collectParents(component);
-
-    // check overrides
-    for (const AstRelation* relation : component.getRelations()) {
-        if (component.getOverridden().count(relation->getName().getNames()[0])) {
-            report.addError("Override of non-inherited relation " + relation->getName().getNames()[0] +
-                                    " in component " + component.getComponentType().getName(),
-                    component.getSrcLoc());
-        }
-    }
-    for (const AstComponent* parent : parents) {
-        for (const AstRelation* relation : parent->getRelations()) {
-            if (component.getOverridden().count(relation->getName().getNames()[0]) &&
-                    !relation->isOverridable()) {
-                report.addError("Override of non-overridable relation " + relation->getName().getNames()[0] +
-                                        " in component " + component.getComponentType().getName(),
-                        component.getSrcLoc());
-            }
-        }
-    }
-
-    // check for a cycle
-    if (parents.find(&component) != parents.end()) {
-        report.addError(
-                "Invalid cycle in inheritance for component " + component.getComponentType().getName(),
-                component.getSrcLoc());
-    }
-
-    // -- nested components --
-
-    // check nested components
-    for (const auto& cur : component.getComponents()) {
-        checkComponent(report, &component, componentLookup, *cur, activeBinding);
-    }
-
-    // check nested instantiations
-    for (const auto& cur : component.getInstantiations()) {
-        checkComponentInit(report, &component, componentLookup, *cur, activeBinding);
-    }
-}
-
-void AstSemanticChecker::checkComponents(
-        ErrorReport& report, const AstProgram& program, const ComponentLookup& componentLookup) {
-    for (AstComponent* cur : program.getComponents()) {
-        checkComponent(report, nullptr, componentLookup, *cur, TypeBinding());
-    }
-
-    for (AstComponentInit* cur : program.getComponentInstantiations()) {
-        checkComponentInit(report, nullptr, componentLookup, *cur, TypeBinding());
-    }
-}
-
 // ----- types --------
 
 void AstSemanticChecker::checkUnionType(
@@ -847,6 +696,159 @@ void AstSemanticChecker::checkIODirectives(ErrorReport& report, const AstProgram
             report.addError("Undefined relation " + toString(directive->getName()), directive->getSrcLoc());
         }
     }
+}
+
+static const std::vector<AstSrcLocation> usesInvalidWitness(const std::vector<AstLiteral*>& literals,
+        const std::set<std::unique_ptr<AstArgument>>& groundedArguments) {
+    // Node-mapper that replaces aggregators with new (unique) variables
+    struct M : public AstNodeMapper {
+        // Variables introduced to replace aggregators
+        mutable std::set<std::string> aggregatorVariables;
+
+        const std::set<std::string>& getAggregatorVariables() {
+            return aggregatorVariables;
+        }
+
+        std::unique_ptr<AstNode> operator()(std::unique_ptr<AstNode> node) const override {
+            static int numReplaced = 0;
+            if (AstAggregator* aggr = dynamic_cast<AstAggregator*>(node.get())) {
+                // Replace the aggregator with a variable
+                std::stringstream newVariableName;
+                newVariableName << "+aggr_var_" << numReplaced++;
+
+                // Keep track of which variables are bound to aggregators
+                aggregatorVariables.insert(newVariableName.str());
+
+                return std::make_unique<AstVariable>(newVariableName.str());
+            }
+            node->apply(*this);
+            return node;
+        }
+    };
+
+    std::vector<AstSrcLocation> result;
+
+    // Create two versions of the original clause
+
+    // Clause 1 - will remain equivalent to the original clause in terms of variable groundedness
+    auto originalClause = std::make_unique<AstClause>();
+    originalClause->setHead(std::make_unique<AstAtom>("*"));
+
+    // Clause 2 - will have aggregators replaced with intrinsically grounded variables
+    auto aggregatorlessClause = std::make_unique<AstClause>();
+    aggregatorlessClause->setHead(std::make_unique<AstAtom>("*"));
+
+    // Construct both clauses in the same manner to match the original clause
+    // Must keep track of the subnode in Clause 1 that each subnode in Clause 2 matches to
+    std::map<const AstArgument*, const AstArgument*> identicalSubnodeMap;
+    for (const AstLiteral* lit : literals) {
+        auto firstClone = std::unique_ptr<AstLiteral>(lit->clone());
+        auto secondClone = std::unique_ptr<AstLiteral>(lit->clone());
+
+        // Construct the mapping between equivalent literal subnodes
+        std::vector<const AstArgument*> firstCloneArguments;
+        visitDepthFirst(*firstClone, [&](const AstArgument& arg) { firstCloneArguments.push_back(&arg); });
+
+        std::vector<const AstArgument*> secondCloneArguments;
+        visitDepthFirst(*secondClone, [&](const AstArgument& arg) { secondCloneArguments.push_back(&arg); });
+
+        for (int i = 0; i < firstCloneArguments.size(); i++) {
+            identicalSubnodeMap[secondCloneArguments[i]] = firstCloneArguments[i];
+        }
+
+        // Actually add the literal clones to each clause
+        originalClause->addToBody(std::move(firstClone));
+        aggregatorlessClause->addToBody(std::move(secondClone));
+    }
+
+    // Replace the aggregators in Clause 2 with variables
+    M update;
+    aggregatorlessClause->apply(update);
+
+    // Create a dummy atom to force certain arguments to be grounded in the aggregatorlessClause
+    auto groundingAtomAggregatorless = std::make_unique<AstAtom>("grounding_atom");
+    auto groundingAtomOriginal = std::make_unique<AstAtom>("grounding_atom");
+
+    // Force the new aggregator variables to be grounded in the aggregatorless clause
+    const std::set<std::string>& aggregatorVariables = update.getAggregatorVariables();
+    for (const std::string& str : aggregatorVariables) {
+        groundingAtomAggregatorless->addArgument(std::make_unique<AstVariable>(str));
+    }
+
+    // Force the given grounded arguments to be grounded in both clauses
+    for (const std::unique_ptr<AstArgument>& arg : groundedArguments) {
+        groundingAtomAggregatorless->addArgument(std::unique_ptr<AstArgument>(arg->clone()));
+        groundingAtomOriginal->addArgument(std::unique_ptr<AstArgument>(arg->clone()));
+    }
+
+    aggregatorlessClause->addToBody(std::move(groundingAtomAggregatorless));
+    originalClause->addToBody(std::move(groundingAtomOriginal));
+
+    // Compare the grounded analysis of both generated clauses
+    // All added arguments in Clause 2 were forced to be grounded, so if an ungrounded argument
+    // appears in Clause 2, it must also appear in Clause 1. Consequently, have two cases:
+    //   - The argument is also ungrounded in Clause 1 - handled by another check
+    //   - The argument is grounded in Clause 1 => the argument was grounded in the
+    //     first clause somewhere along the line by an aggregator-body - not allowed!
+    std::set<std::unique_ptr<AstArgument>> newlyGroundedArguments;
+    std::map<const AstArgument*, bool> originalGrounded = getGroundedTerms(*originalClause);
+    std::map<const AstArgument*, bool> aggregatorlessGrounded = getGroundedTerms(*aggregatorlessClause);
+    for (auto pair : aggregatorlessGrounded) {
+        if (!pair.second && originalGrounded[identicalSubnodeMap[pair.first]]) {
+            result.push_back(pair.first->getSrcLoc());
+        }
+
+        // Otherwise, it can now be considered grounded
+        newlyGroundedArguments.insert(std::unique_ptr<AstArgument>(pair.first->clone()));
+    }
+
+    // All previously grounded are still grounded
+    for (const std::unique_ptr<AstArgument>& arg : groundedArguments) {
+        newlyGroundedArguments.insert(std::unique_ptr<AstArgument>(arg->clone()));
+    }
+
+    // Everything on this level is fine, check subaggregators of each literal
+    for (const AstLiteral* lit : literals) {
+        visitDepthFirst(*lit, [&](const AstAggregator& aggr) {
+            // Check recursively if an invalid witness is used
+            std::vector<AstLiteral*> aggrBodyLiterals = aggr.getBodyLiterals();
+            std::vector<AstSrcLocation> subresult =
+                    usesInvalidWitness(aggrBodyLiterals, newlyGroundedArguments);
+            for (AstSrcLocation argloc : subresult) {
+                result.push_back(argloc);
+            }
+        });
+    }
+
+    return result;
+}
+
+void AstSemanticChecker::checkWitnessProblem(ErrorReport& report, const AstProgram& program) {
+    // Visit each clause to check if an invalid aggregator witness is used
+    visitDepthFirst(program, [&](const AstClause& clause) {
+        // Body literals of the clause to check
+        std::vector<AstLiteral*> bodyLiterals = clause.getBodyLiterals();
+
+        // Add in all head variables as new ungrounded body literals
+        auto headVariables = std::make_unique<AstAtom>("*");
+        visitDepthFirst(*clause.getHead(), [&](const AstVariable& var) {
+            headVariables->addArgument(std::unique_ptr<AstVariable>(var.clone()));
+        });
+        AstNegation* headNegation = new AstNegation(std::move(headVariables));
+        bodyLiterals.push_back(headNegation);
+
+        // Perform the check
+        std::set<std::unique_ptr<AstArgument>> groundedArguments;
+        std::vector<AstSrcLocation> invalidArguments = usesInvalidWitness(bodyLiterals, groundedArguments);
+        for (AstSrcLocation invalidArgument : invalidArguments) {
+            report.addError(
+                    "Witness problem: argument grounded by an aggregator's inner scope is used ungrounded in "
+                    "outer scope",
+                    invalidArgument);
+        }
+
+        delete headNegation;
+    });
 }
 
 /**
@@ -1085,7 +1087,7 @@ void AstSemanticChecker::checkInlining(
     });
 }
 
-// Check that type, relation, component names are disjoint sets.
+// Check that type and relation names are disjoint sets.
 void AstSemanticChecker::checkNamespaces(ErrorReport& report, const AstProgram& program) {
     std::map<std::string, AstSrcLocation> names;
 
@@ -1105,25 +1107,6 @@ void AstSemanticChecker::checkNamespaces(ErrorReport& report, const AstProgram& 
             report.addError("Name clash on relation " + name, rel->getSrcLoc());
         } else {
             names[name] = rel->getSrcLoc();
-        }
-    }
-
-    // Note: Nested component and instance names are not obtained.
-    for (const auto& comp : program.getComponents()) {
-        const std::string name = toString(comp->getComponentType().getName());
-        if (names.count(name)) {
-            report.addError("Name clash on component " + name, comp->getSrcLoc());
-        } else {
-            names[name] = comp->getSrcLoc();
-        }
-    }
-
-    for (const auto& inst : program.getComponentInstantiations()) {
-        const std::string name = toString(inst->getInstanceName());
-        if (names.count(name)) {
-            report.addError("Name clash on instantiation " + name, inst->getSrcLoc());
-        } else {
-            names[name] = inst->getSrcLoc();
         }
     }
 }

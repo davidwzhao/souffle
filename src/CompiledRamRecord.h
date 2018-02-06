@@ -126,7 +126,9 @@ public:
 
                 // create entry for unpacking
                 auto& list = i2r[index / BLOCK_SIZE];
-                if (!list) list = std::unique_ptr<block_type>(new block_type());
+                if (!list) {
+                    list = std::make_unique<block_type>();
+                }
 
                 // insert tuple
                 (*list)[index % BLOCK_SIZE] = tuple;

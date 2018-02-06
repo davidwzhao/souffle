@@ -100,14 +100,13 @@ void nameInlinedUnderscores(AstProgram& program) {
                         return node;
                     }
                 }
-            } else if (AstUnnamedVariable* var = dynamic_cast<AstUnnamedVariable*>(node.get())) {
+            } else if (dynamic_cast<AstUnnamedVariable*>(node.get())) {
                 // Give a unique name to the underscored variable
                 // TODO (azreika): need a more consistent way of handling internally generated variables in
                 // general
                 std::stringstream newVarName;
                 newVarName << "<underscore_" << underscoreCount++ << ">";
-                AstVariable* newVar = new AstVariable(newVarName.str());
-                return std::unique_ptr<AstNode>(newVar);
+                return std::make_unique<AstVariable>(newVarName.str());
             }
 
             node->apply(*this);
@@ -160,7 +159,7 @@ bool reduceSubstitution(std::vector<std::pair<AstArgument*, AstArgument*>>& sub)
         done = true;
 
         // Try reducing each pair by one step
-        for (int i = 0; i < sub.size(); i++) {
+        for (size_t i = 0; i < sub.size(); i++) {
             auto currPair = sub[i];
             AstArgument* lhs = currPair.first;
             AstArgument* rhs = currPair.second;
@@ -188,7 +187,7 @@ bool reduceSubstitution(std::vector<std::pair<AstArgument*, AstArgument*>>& sub)
                 }
 
                 // Equate all corresponding arguments
-                for (int i = 0; i < lhsArgs.size(); i++) {
+                for (size_t i = 0; i < lhsArgs.size(); i++) {
                     sub.push_back(std::make_pair(lhsArgs[i], rhsArgs[i]));
                 }
 
@@ -217,7 +216,7 @@ NullableVector<std::pair<AstArgument*, AstArgument*>> unifyAtoms(AstAtom* first,
     std::vector<AstArgument*> secondArgs = second->getArguments();
 
     // Create the initial unification equalities
-    for (int i = 0; i < firstArgs.size(); i++) {
+    for (size_t i = 0; i < firstArgs.size(); i++) {
         substitution.push_back(std::make_pair(firstArgs[i], secondArgs[i]));
     }
 
@@ -326,7 +325,7 @@ std::vector<std::vector<AstLiteral*>> combineNegatedLiterals(
     std::vector<AstLiteral*> litGroup = litGroups[0];
     if (litGroups.size() == 1) {
         // !(a1 ^ a2 ^ a3 ^ ...) --into-> !a1 v !a2 v !a3 v ...
-        for (int i = 0; i < litGroup.size(); i++) {
+        for (size_t i = 0; i < litGroup.size(); i++) {
             std::vector<AstLiteral*> newVec;
             newVec.push_back(negateLiteral(litGroup[i]));
             negation.push_back(newVec);
@@ -393,7 +392,7 @@ std::vector<std::vector<AstLiteral*>> formNegatedLiterals(AstProgram& program, A
             combineNegatedLiterals(addedBodyLiterals);
 
     // Add in the necessary constraints to all the body literals
-    for (int i = 0; i < negatedAddedBodyLiterals.size(); i++) {
+    for (size_t i = 0; i < negatedAddedBodyLiterals.size(); i++) {
         for (std::vector<AstConstraint*> constraintGroup : addedConstraints) {
             for (AstConstraint* constraint : constraintGroup) {
                 negatedAddedBodyLiterals[i].push_back(constraint->clone());
@@ -499,7 +498,7 @@ NullableVector<AstArgument*> getInlinedArgument(AstProgram& program, const AstAr
         // (At this point we only handle one step of inlining at a time)
         if (!changed) {
             std::vector<AstLiteral*> bodyLiterals = aggr->getBodyLiterals();
-            for (int i = 0; i < bodyLiterals.size(); i++) {
+            for (size_t i = 0; i < bodyLiterals.size(); i++) {
                 AstLiteral* currLit = bodyLiterals[i];
 
                 NullableVector<std::vector<AstLiteral*>> literalVersions =
@@ -521,7 +520,7 @@ NullableVector<AstArgument*> getInlinedArgument(AstProgram& program, const AstAr
                         }
 
                         // Add in everything except the current literal being replaced
-                        for (int j = 0; j < bodyLiterals.size(); j++) {
+                        for (size_t j = 0; j < bodyLiterals.size(); j++) {
                             if (i != j) {
                                 newAggr->addBodyLiteral(
                                         std::unique_ptr<AstLiteral>(bodyLiterals[j]->clone()));
@@ -645,14 +644,14 @@ NullableVector<AstArgument*> getInlinedArgument(AstProgram& program, const AstAr
         }
     } else if (const AstRecordInit* record = dynamic_cast<const AstRecordInit*>(arg)) {
         std::vector<AstArgument*> recordArguments = record->getArguments();
-        for (int i = 0; i < recordArguments.size(); i++) {
+        for (size_t i = 0; i < recordArguments.size(); i++) {
             AstArgument* currentRecArg = recordArguments[i];
             NullableVector<AstArgument*> argumentVersions = getInlinedArgument(program, currentRecArg);
             if (argumentVersions.isValid()) {
                 changed = true;
                 for (AstArgument* newArgumentVersion : argumentVersions.getVector()) {
                     AstRecordInit* newRecordArg = new AstRecordInit();
-                    for (int j = 0; j < recordArguments.size(); j++) {
+                    for (size_t j = 0; j < recordArguments.size(); j++) {
                         if (i == j) {
                             newRecordArg->add(std::unique_ptr<AstArgument>(newArgumentVersion));
                         } else {
@@ -689,7 +688,7 @@ NullableVector<AstAtom*> getInlinedAtom(AstProgram& program, AstAtom& atom) {
 
     // Try to inline each of the atom's arguments
     std::vector<AstArgument*> arguments = atom.getArguments();
-    for (int i = 0; i < arguments.size(); i++) {
+    for (size_t i = 0; i < arguments.size(); i++) {
         AstArgument* arg = arguments[i];
 
         NullableVector<AstArgument*> argumentVersions = getInlinedArgument(program, arg);
@@ -880,7 +879,7 @@ std::vector<AstClause*> getInlinedClause(AstProgram& program, const AstClause& c
     // If the head atoms did not need inlining, try inlining atoms nested in the body.
     if (!changed) {
         std::vector<AstLiteral*> bodyLiterals = clause.getBodyLiterals();
-        for (int i = 0; i < bodyLiterals.size(); i++) {
+        for (size_t i = 0; i < bodyLiterals.size(); i++) {
             AstLiteral* currLit = bodyLiterals[i];
 
             // Three possible cases when trying to inline a literal:

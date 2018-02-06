@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include "ExplainProvenanceRecords.h"
 #include "ExplainProvenanceSLD.h"
 
 #include <csignal>
@@ -45,24 +44,39 @@ private:
     int depthLimit;
 
     // parse relation, split into relation name and values
-    std::pair<std::string, std::vector<std::string>> parseRel(std::string rel) {
-        // remove spaces
-        rel.erase(std::remove(rel.begin(), rel.end(), ' '), rel.end());
-
-        // remove last closing parenthesis
-        if (rel.back() == ')') {
-            rel.pop_back();
-        }
-
-        auto splitRel = split(rel, '(');
+    std::pair<std::string, std::vector<std::string>> parseTuple(std::string str) {
         std::string relName;
-        if (splitRel.size() > 0) {
-            relName = splitRel[0];
-        }
         std::vector<std::string> args;
 
-        if (splitRel.size() > 1) {
-            args = split(splitRel[1], ',');
+        // regex for matching tuples
+        // values matches numbers or strings enclosed in quotation marks
+        std::regex relRegex(
+                "([a-zA-Z0-9_]*)[[:blank:]]*\\(([[:blank:]]*([0-9]+|\"[^\"]*\")([[:blank:]]*,[[:blank:]]*([0-"
+                "9]+|\"[^\"]*\"))*)?\\)",
+                std::regex_constants::extended);
+        std::smatch relMatch;
+
+        // first check that format matches correctly
+        // and extract relation name
+        if (!std::regex_match(str, relMatch, relRegex) || relMatch.size() < 3) {
+            return std::make_pair(relName, args);
+        }
+
+        // set relation name
+        relName = relMatch[1];
+
+        // extract each argument
+        std::string argsList = relMatch[2];
+        std::smatch argsMatcher;
+        std::regex argRegex("[0-9]+|\"[^\"]*\"", std::regex_constants::extended);
+
+        while (std::regex_search(argsList, argsMatcher, argRegex)) {
+            // match the start of the arguments
+            std::string currentArg = argsMatcher[0];
+            args.push_back(currentArg);
+
+            // use the rest of the arguments
+            argsList = argsMatcher.suffix().str();
         }
 
         return std::make_pair(relName, args);
@@ -188,10 +202,10 @@ public:
                 printStr("Depth is now " + std::to_string(depthLimit) + "\n");
             } else if (command[0] == "explain") {
                 std::pair<std::string, std::vector<std::string>> query;
-                if (command.size() > 1) {
-                    query = parseRel(command[1]);
+                if (command.size() == 2) {
+                    query = parseTuple(command[1]);
                 } else {
-                    printStr("Usage: explain relation_name(<element1>, <element2>, ...)\n");
+                    printStr("Usage: explain relation_name(\"<string element1>\", <number element2>, ...)\n");
                     continue;
                 }
                 std::unique_ptr<TreeNode> t = prov.explain(query.first, query.second, depthLimit);
@@ -200,7 +214,7 @@ public:
                 std::pair<std::string, std::vector<std::string>> query;
                 int label = -1;
                 if (command.size() > 1) {
-                    query = parseRel(command[1]);
+                    query = parseTuple(command[1]);
                     label = std::stoi(query.second[0]);
                 } else {
                     printStr("Usage: subproof relation_name(<label>)\n");
@@ -255,19 +269,10 @@ public:
 inline void explain(SouffleProgram& prog, bool sld = true, bool ncurses = false) {
     std::cout << "Explain is invoked.\n";
 
-    ExplainProvenance* prov;
-    if (sld) {
-        prov = new ExplainProvenanceSLD(prog);
-    } else {
-        prov = new ExplainProvenanceRecords(prog);
-    }
+    ExplainProvenanceSLD prov(prog);
 
-    Explain exp(*prov, ncurses);
+    Explain exp(prov, ncurses);
     exp.explain();
-
-    if (prov) {
-        delete prov;
-    }
 }
 
 }  // end of namespace souffle

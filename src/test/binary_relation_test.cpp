@@ -143,9 +143,9 @@ TEST(BinRelTest, TransitivityTest) {
 TEST(BinRelTest, PairwiseIncremental) {
     BinRel br;
 
-    const int N = 100;
+    const size_t N = 100;
     // test inserting ascending pairs still isolates them
-    for (int i = 1; i < N; ++i) {
+    for (size_t i = 1; i < N; ++i) {
         br.insert(i, i);
         EXPECT_TRUE(br.contains(i, i));
         br.insert(i + (N + 1), i);
@@ -165,9 +165,9 @@ TEST(BinRelTest, PairwiseIncremental) {
 TEST(BinRelTest, PairwiseDecremental) {
     BinRel br;
 
-    const int N = 100;
+    const size_t N = 100;
     // test inserting descending pairs still isolates them
-    for (int i = N; i > 1; --i) {
+    for (size_t i = N; i > 1; --i) {
         br.insert(i, i);
         EXPECT_TRUE(br.contains(i, i));
         br.insert(i + (N + 1), i);
@@ -188,10 +188,10 @@ TEST(BinRelTest, PairwiseDecremental) {
 TEST(BinRelTest, Shuffled) {
     BinRel br;
 
-    int N = 100;
+    size_t N = 100;
     // test inserting data "out of order" keeps isolation
     std::vector<int> data;
-    for (int i = 0; i < N; i++) {
+    for (size_t i = 0; i < N; i++) {
         data.push_back(i);
     }
     std::random_shuffle(data.begin(), data.end());
@@ -200,7 +200,7 @@ TEST(BinRelTest, Shuffled) {
         br.insert(x, x);
     }
 
-    for (int i = 0; i < N; ++i) {
+    for (size_t i = 0; i < N; ++i) {
         EXPECT_TRUE(br.contains(i, i));
     }
 
@@ -365,8 +365,8 @@ TEST(BinRelTest, IterBasic) {
 
     size_t count = 0;
     for (auto x : br) {
-        EXPECT_EQ(x[0], count);
-        EXPECT_EQ(x[1], count);
+        EXPECT_EQ((size_t)x[0], count);
+        EXPECT_EQ((size_t)x[1], count);
         ++count;
         binreltest::ignore(x);
     }

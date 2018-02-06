@@ -354,6 +354,11 @@ public:
     }
 
     template <typename Setup, typename... Idxs>
+    void extend(const Relation<Setup, arity, Idxs...>& other) {
+        data.extend(other.data);
+    }
+
+    template <typename Setup, typename... Idxs>
     void insertAll(const Relation<Setup, arity, Idxs...>& other) {
         operation_context context;
         for (const tuple_type& cur : other) {
@@ -815,6 +820,10 @@ public:
         return data.size();
     }
 
+    const table_t& getData() const {
+        return data;
+    }
+
     bool contains(const tuple_type& tuple, operation_context& ctxt) const {
         return data.contains(tuple, ctxt);
     }
@@ -825,6 +834,12 @@ public:
 
     void insertAll(const SingleIndexRelation& other) {
         data.insertAll(other.data);
+    }
+
+    /** Extend this relation with the knowledge created by inserting into other. */
+    template <typename Setup, typename... Idxs>
+    void extend(const Relation<Setup, arity, Idxs...>& other) {
+        data.extend(other.getData());
     }
 
     template <typename Setup, typename... Idxs>

@@ -1224,6 +1224,24 @@ public:
 
 /* end http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2007/n2406.html#shared_mutex */
 
+/**
+ * A utility function to set the maximum number of retries for a transaction
+ * if Intel RTM is enabled (default 15);
+ */
+inline int maxRetries() {
+    const char* retries = std::getenv("SOUFFLE_MAX_RETRIES");
+    return retries ? std::stoi(retries) : 15;
+}
+
+/**
+ * A utility function to determine whether transaction-profiling is enabled or
+ * disabled;
+ */
+inline bool isTransactionProfilingEnabled() {
+    const static bool res = std::getenv("SOUFFLE_PROFILE_TRANSACTIONS");
+    return res;
+}
+
 // -------------------------------------------------------------------------------
 //                           Hint / Cache Profiling
 // -------------------------------------------------------------------------------

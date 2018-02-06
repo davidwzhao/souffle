@@ -15,7 +15,7 @@
  ***********************************************************************/
 
 #include "IOSystem.h"
-#include "RamRelationStats.h"
+#include "Interpreter.h"
 #include "ReadStream.h"
 #include "test.h"
 
@@ -28,8 +28,7 @@ namespace test {
 
 TEST(Stats, Basic) {
     // create a table
-    RamRelationIdentifier id("a", 3);
-    RamRelation rel(id);
+    InterpreterRelation rel(3);
 
     // add some values
     rel.insert(1, 1, 1);
@@ -37,7 +36,7 @@ TEST(Stats, Basic) {
     rel.insert(1, 3, 2);
     rel.insert(1, 4, 2);
 
-    RamRelationStats stats = RamRelationStats::extractFrom(rel);
+    RelationStats stats = RelationStats::extractFrom(rel);
 
     EXPECT_EQ(1, stats.getEstimatedCardinality(0));
     EXPECT_EQ(4, stats.getEstimatedCardinality(1));
@@ -46,15 +45,14 @@ TEST(Stats, Basic) {
 
 TEST(Stats, Function) {
     // create a table
-    RamRelationIdentifier id("a", 2);
-    RamRelation rel(id);
+    InterpreterRelation rel(2);
 
     // add some values
     for (int i = 0; i < 10000; i++) {
         rel.insert(i, i % 5);
     }
 
-    RamRelationStats stats = RamRelationStats::extractFrom(rel, 100);
+    RelationStats stats = RelationStats::extractFrom(rel, 100);
 
     EXPECT_EQ(100, stats.getSampleSize());
     EXPECT_EQ(10000, stats.getCardinality());
@@ -65,8 +63,7 @@ TEST(Stats, Function) {
 
 TEST(Stats, Convergence) {
     // load a table
-    RamRelationIdentifier id("a", 2);
-    RamRelation rel(id);
+    InterpreterRelation rel(2);
 
     SymbolTable symTable;
 
@@ -90,19 +87,18 @@ TEST(Stats, Convergence) {
 
     std::cout << rel.size() << "\n";
 
-    RamRelationIdentifier id2("b", 3);
-    RamRelation rel2(id2);
+    InterpreterRelation rel2(3);
 
     for (const auto& cur : rel) {
         rel2.insert(cur[0], cur[1], 1);
     }
 
-    RamRelationStats full = RamRelationStats::extractFrom(rel2);
+    RelationStats full = RelationStats::extractFrom(rel2);
 
-    RamRelationStats s10 = RamRelationStats::extractFrom(rel2, 10);
-    RamRelationStats s100 = RamRelationStats::extractFrom(rel2, 100);
-    RamRelationStats s1000 = RamRelationStats::extractFrom(rel2, 1000);
-    RamRelationStats s10000 = RamRelationStats::extractFrom(rel2, 10000);
+    RelationStats s10 = RelationStats::extractFrom(rel2, 10);
+    RelationStats s100 = RelationStats::extractFrom(rel2, 100);
+    RelationStats s1000 = RelationStats::extractFrom(rel2, 1000);
+    RelationStats s10000 = RelationStats::extractFrom(rel2, 10000);
 
     for (int i = 0; i < 3; i++) {
         std::cout << "Card " << i << ":\n";

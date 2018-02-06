@@ -42,7 +42,7 @@ public:
 
         std::string gui_directory = make_directory;
 
-        for (int i = 0; i < profiler_dir.size() - 1; ++i) {
+        for (size_t i = 0; i < profiler_dir.size() - 1; ++i) {
             gui_directory += "/" + profiler_dir.at(i);
         }
 

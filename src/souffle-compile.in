@@ -101,7 +101,7 @@ cd "$OLDPWD"
 
 # Compile
 rm -f $dir/$exe
-$CXX $CXXFLAGS $CPPFLAGS -o$dir/$exe $1 $LIBS -I$HEADER_DIR $OMP_FLAG 2> $dir/$exe.$$.ccerr
+$CXX $CXXFLAGS $CPPFLAGS -o$dir/$exe $1 $LIBS -I$HEADER_DIR $OMP_FLAG $LDFLAGS 2> $dir/$exe.$$.ccerr
 if test -f $dir/$exe
 then
   if [ "$WARNINGS" = 1 ]

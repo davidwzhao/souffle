@@ -41,6 +41,14 @@ public:
         }
     }
 
+    bool operator==(const SymbolMask& other) const {
+        return mask == other.mask;
+    }
+
+    bool operator!=(const SymbolMask& other) const {
+        return mask != other.mask;
+    }
+
     void print(std::ostream& out) const {
         auto cur = mask.begin();
         if (cur == mask.end()) {

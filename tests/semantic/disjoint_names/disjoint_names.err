@@ -1,6 +1,3 @@
-Error: Name clash on relation typerel in file disjoint_names.dl at line 9
-.decl typerel(x : number)
-^-------------------------
 Error: Name clash on component typecomp in file disjoint_names.dl at line 15
 .comp typecomp { }
 ^------------------
@@ -19,10 +16,4 @@ Error: Name clash on instantiation compinst in file disjoint_names.dl at line 33
 Error: Name clash on instantiation compinst2 in file disjoint_names.dl at line 38
 .init compinst2 = compinst3
 ^---------------------------
-Error: Name clash on relation nestedInst.nesteditem in file disjoint_names.dl at line 44
-    .decl nesteditem(x:nesteditem)
-----^------------------------------
-Error: Name clash on relation myChild.alpha in file disjoint_names.dl at line 58
-    .decl alpha(x:number)
-----^---------------------
-9 errors generated, evaluation aborted
+6 errors generated, evaluation aborted

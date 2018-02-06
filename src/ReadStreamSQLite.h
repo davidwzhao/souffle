@@ -57,7 +57,7 @@ protected:
             return nullptr;
         }
 
-        std::unique_ptr<RamDomain[]> tuple(new RamDomain[symbolMask.getArity()]);
+        std::unique_ptr<RamDomain[]> tuple = std::make_unique<RamDomain[]>(symbolMask.getArity());
 
         uint32_t column;
         for (column = 0; column < symbolMask.getArity(); column++) {

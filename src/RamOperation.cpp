@@ -18,8 +18,6 @@
 
 #include "RamOperation.h"
 #include "RamCondition.h"
-#include "RamIndex.h"
-#include "RamRecords.h"
 #include "RamRelation.h"
 
 #include <iostream>
@@ -30,18 +28,18 @@
 namespace souffle {
 
 /** add condition */
-void RamOperation::addCondition(std::unique_ptr<RamCondition> c, RamOperation* root) {
+void RamOperation::addCondition(std::unique_ptr<RamCondition> c, const RamOperation& root) {
     assert(c->getLevel() == level);
 
     if (condition) {
-        condition = std::unique_ptr<RamCondition>(new RamAnd(std::move(condition), std::move(c)));
+        condition = std::make_unique<RamAnd>(std::move(condition), std::move(c));
     } else {
         condition.swap(c);
     }
 }
 
 /** add condition */
-void RamSearch::addCondition(std::unique_ptr<RamCondition> c, RamOperation* root) {
+void RamSearch::addCondition(std::unique_ptr<RamCondition> c, const RamOperation& root) {
     assert(c->getLevel() >= level);
 
     if (c->getLevel() > level) {
@@ -80,7 +78,7 @@ std::unique_ptr<RamValue> getIndexElement(RamCondition* c, size_t& element, size
 }  // namespace
 
 /** add condition */
-void RamScan::addCondition(std::unique_ptr<RamCondition> c, RamOperation* root) {
+void RamScan::addCondition(std::unique_ptr<RamCondition> c, const RamOperation& root) {
     // use condition to narrow scan if possible
     if (c->getLevel() == level) {
         size_t element;
@@ -89,9 +87,9 @@ void RamScan::addCondition(std::unique_ptr<RamCondition> c, RamOperation* root) 
             if (queryPattern[element] == nullptr) {
                 queryPattern[element] = std::move(value);
             } else {
-                std::unique_ptr<RamValue> field(new RamElementAccess(level, element));
-                RamSearch::addCondition(std::unique_ptr<RamCondition>(new RamBinaryRelation(
-                                                BinaryConstraintOp::EQ, std::move(field), std::move(value))),
+                std::unique_ptr<RamValue> field = std::make_unique<RamElementAccess>(level, element);
+                RamSearch::addCondition(std::make_unique<RamBinaryRelation>(
+                                                BinaryConstraintOp::EQ, std::move(field), std::move(value)),
                         root);
             }
             return;
@@ -106,18 +104,18 @@ void RamScan::print(std::ostream& os, int tabpos) const {
     os << times('\t', tabpos);
 
     if (isPureExistenceCheck()) {
-        os << "IF ∃ t" << level << " ∈ " << relation.getName() << " ";
+        os << "IF ∃ t" << level << " ∈ " << relation->getName() << " ";
         if (keys != 0) {
             os << "WITH ";
             bool first = true;
-            for (size_t i = 0; i < relation.getArity(); i++) {
+            for (size_t i = 0; i < relation->getArity(); i++) {
                 if (queryPattern[i] != nullptr) {
                     if (first) {
                         first = false;
                     } else {
                         os << "and ";
                     }
-                    os << "t" << level << "." << relation.getArg(i) << "=";
+                    os << "t" << level << "." << relation->getArg(i) << "=";
                     queryPattern[i]->print(os);
                     os << " ";
                 }
@@ -125,20 +123,20 @@ void RamScan::print(std::ostream& os, int tabpos) const {
         }
     } else {
         if (keys == 0) {
-            os << "SCAN " << relation.getName() << " AS t" << level << " ";
+            os << "SCAN " << relation->getName() << " AS t" << level << " ";
         } else {
             // Keys indicates index search?
-            os << "SEARCH " << relation.getName() << " AS t" << level;
+            os << "SEARCH " << relation->getName() << " AS t" << level;
             os << " ON INDEX ";
             bool first = true;
-            for (size_t i = 0; i < relation.getArity(); i++) {
+            for (size_t i = 0; i < relation->getArity(); i++) {
                 if (queryPattern[i] != nullptr) {
                     if (first) {
                         first = false;
                     } else {
                         os << "and ";
                     }
-                    os << "t" << level << "." << relation.getArg(i) << "=";
+                    os << "t" << level << "." << relation->getArg(i) << "=";
                     queryPattern[i]->print(os);
                     os << " ";
                 }
@@ -176,12 +174,12 @@ void RamLookup::print(std::ostream& os, int tabpos) const {
 }
 
 /** add condition */
-void RamAggregate::addCondition(std::unique_ptr<RamCondition> c, RamOperation* root) {
+void RamAggregate::addCondition(std::unique_ptr<RamCondition> c, const RamOperation& root) {
     // use condition to narrow scan if possible
     if (c->getLevel() == level) {
         size_t element;
         if (std::unique_ptr<RamValue> value = getIndexElement(c.get(), element, level)) {
-            if (element > 0 || relation.getName().find("__agg") == std::string::npos) {
+            if (element > 0 || relation->getName().find("__agg") == std::string::npos) {
                 keys |= (1 << element);
                 if (pattern[element] == nullptr) {
                     pattern[element] = std::move(value);
@@ -234,7 +232,7 @@ void RamAggregate::print(std::ostream& os, int tabpos) const {
         os << *value << " ";
     }
 
-    os << "AS t" << getLevel() << ".0 IN t" << getLevel() << " ∈ " << relation.getName();
+    os << "AS t" << getLevel() << ".0 IN t" << getLevel() << " ∈ " << relation->getName();
     os << "(" << join(pattern, ",", [&](std::ostream& out, const std::unique_ptr<RamValue>& value) {
         if (!value) {
             out << "_";
@@ -261,7 +259,7 @@ void RamProject::print(std::ostream& os, int tabpos) const {
     const std::string tabs(tabpos, '\t');
 
     os << tabs << "PROJECT (" << join(values, ", ", print_deref<std::unique_ptr<RamValue>>()) << ") INTO "
-       << relation.getName();
+       << relation->getName();
 
     // support table-less options
     if (auto condition = getCondition()) {
@@ -275,7 +273,7 @@ void RamProject::print(std::ostream& os, int tabpos) const {
 }
 
 /* add condition */
-void RamProject::addCondition(std::unique_ptr<RamCondition> c, RamOperation* root) {
+void RamProject::addCondition(std::unique_ptr<RamCondition> c, const RamOperation& root) {
     // we can have condition arguments from lower levels, since the values we project are also from lower
     // levels
     assert(c->getLevel() <= level);

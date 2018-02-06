@@ -31,9 +31,9 @@ private:
     std::vector<std::string> history;
     std::string output;
     char current_char;
-    long cursor_pos;
-    long hist_pos;
-    long tab_pos;
+    size_t cursor_pos;
+    size_t hist_pos;
+    size_t tab_pos;
     bool in_tab_complete;
     bool in_history;
     std::string original_hist_val;
@@ -41,7 +41,7 @@ private:
     std::string current_tab_val;
     std::string original_tab_val;
     std::vector<std::string> current_tab_completes;
-    long original_hist_cursor_pos;
+    size_t original_hist_cursor_pos;
 
 public:
     InputReader() : prompt("Input: "), in_tab_complete(false), in_history(false) {
@@ -64,6 +64,6 @@ public:
     void moveCursorRight();
     void moveCursorLeft();
     void backspace();
-    void clearPrompt(long text_len);
-    void showFullText(std::string text);
+    void clearPrompt(size_t text_len);
+    void showFullText(const std::string& text);
 };

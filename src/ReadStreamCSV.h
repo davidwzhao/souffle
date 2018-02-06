@@ -61,7 +61,7 @@ protected:
             return nullptr;
         }
         std::string line;
-        std::unique_ptr<RamDomain[]> tuple(new RamDomain[symbolMask.getArity()]);
+        std::unique_ptr<RamDomain[]> tuple = std::make_unique<RamDomain[]>(symbolMask.getArity());
         bool error = false;
 
         if (!getline(file, line)) {

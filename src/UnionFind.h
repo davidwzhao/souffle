@@ -58,7 +58,7 @@ typedef uint32_t parent_t;
 
 // number of bits each are (sizeof(rank_t) == sizeof(parent_t))
 constexpr uint8_t split_size = 32u;
-constexpr block_t rank_mask = (2ul << split_size) - 1;
+constexpr block_t rank_mask = (1ul << split_size) - 1;
 
 /**
  * Structure that emulates a Disjoint Set, i.e. a data structure that supports efficient union-find operations
@@ -101,6 +101,7 @@ public:
     inline bool staleList() const {
         return isStale;
     };
+
     inline bool staleMap() const {
         return mapStale;
     };
@@ -123,24 +124,24 @@ public:
      * @return The parent of x
      */
     parent_t findNode(parent_t x, bool isStrong = true) {
+        // If x is its own parent return immediately
+        if (x == b2p(get(x))) {
+            return x;
+        }
+
         isStale.store(true);
         mapStale.store(true);
-        // while x's parent is not itself
-        while (x != b2p(get(x))) {
-            block_t xState = get(x);
-            // yield x's parent's parent
-            parent_t newParent = b2p(get(b2p(xState)));
-            // construct block out of the original rank and the new parent
-            block_t newState = pr2b(newParent, b2r(xState));
 
-            if (isStrong)
-                this->get(x).compare_exchange_strong(xState, newState);
-            else
-                this->get(x).compare_exchange_weak(xState, newState);
+        block_t xState = get(x);
+        parent_t newParent = findNode(b2p(xState));
+        block_t newState = pr2b(newParent, b2r(xState));
 
-            x = newParent;
-        }
-        return x;
+        if (isStrong)
+            this->get(x).compare_exchange_strong(xState, newState);
+        else
+            this->get(x).compare_exchange_weak(xState, newState);
+
+        return newParent;
     }
 
     /**

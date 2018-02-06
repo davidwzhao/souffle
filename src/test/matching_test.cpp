@@ -14,7 +14,7 @@
  *
  ***********************************************************************/
 
-#include "../RamAutoIndex.h"
+#include "../AutoIndex.h"
 #include "test.h"
 
 #include <cmath>
@@ -28,7 +28,7 @@
 using namespace std;
 using namespace souffle;
 
-class TestAutoIndex : public RamAutoIndex {
+class TestAutoIndex : public AutoIndex {
 public:
     /** returns number of unique matchings */
     int getNumMatchings() {

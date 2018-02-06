@@ -94,6 +94,14 @@ public:
         return out;
     }
 
+    bool operator==(const IODirectives& other) const {
+        return directives == other.directives;
+    }
+
+    bool operator!=(const IODirectives& other) const {
+        return directives != other.directives;
+    }
+
 private:
     std::string escape(const std::string& inputString) const {
         std::string escaped = escape(inputString, "\"", "\\\"");

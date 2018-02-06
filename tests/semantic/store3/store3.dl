@@ -8,7 +8,7 @@
 
 .decl A(x:number)
 // Read in from sqlite3 (assumes relative path to test dir is correct
-.input A(IO=sqlite,dbname="../../semantic/store3/A.sqlite.input")
+.input A(IO=sqlite,dbname="A.sqlite.input")
 // Add a tuple to make sure input and output are different
 A(2).
 // Write to CSV

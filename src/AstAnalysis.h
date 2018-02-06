@@ -10,7 +10,7 @@
  *
  * @file AstAnalysis.h
  *
- * Defines the interface for AST analysis passes.
+ * Defines an interface for AST analysis
  *
  ***********************************************************************/
 #pragma once
@@ -21,15 +21,20 @@ namespace souffle {
 
 class AstTranslationUnit;
 
+/**
+ * Abstract class for a AST Analysis.
+ */
 class AstAnalysis {
 public:
     virtual ~AstAnalysis() = default;
 
+    /** run analysis for a RAM translation unit */
     virtual void run(const AstTranslationUnit& translationUnit) = 0;
 
+    /** print the analysis result in HTML format */
     virtual void print(std::ostream& os) const {}
 
-    /** Add support for printing nodes */
+    /** define output stream operator */
     friend std::ostream& operator<<(std::ostream& out, const AstAnalysis& other) {
         other.print(out);
         return out;

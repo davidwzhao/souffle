@@ -1,2 +1,2 @@
-explain animal(ollie_the_doggo)
+explain animal("ollie_the_doggo")
 exit

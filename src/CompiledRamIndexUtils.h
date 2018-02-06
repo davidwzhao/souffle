@@ -1050,6 +1050,13 @@ public:
         data.insertAll(other.data);
     }
 
+    /** perform a delta extension, where we union the sets that share elements between this and other.
+     *      i.e. if a in this, and a in other, union(set(this->a), set(other->a))
+     */
+    void extend(const DisjointSetIndex& other) {
+        this->data.extend(other.data);
+    }
+
     /* deletes all data contained in the disjoint-set data structure */
     void clear() {
         data.clear();
