@@ -2662,9 +2662,9 @@ std::string RamCompiler::generateCode(const SymbolTable& symTable, const RamProg
     }
 
     // print memory usage
-    os << "struct rusage ru;\n";
-    os << "getrusage(RUSAGE_SELF, &ru);\n";
-    os << "std::cerr << ru.ru_maxrss;\n";
+    // os << "struct rusage ru;\n";
+    // os << "getrusage(RUSAGE_SELF, &ru);\n";
+    // os << "std::cerr << ru.ru_maxrss;\n";
 
     os << "return 0;\n";
     os << "} catch(std::exception &e) { souffle::SignalHandler::instance()->error(e.what());}\n";

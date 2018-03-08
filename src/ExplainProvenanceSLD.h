@@ -298,7 +298,7 @@ public:
             RamDomain levelNum;
             tuple >> levelNum;
 
-            std::cout << explain(relName, currentTuple, ruleNum, levelNum, 100)->getSize() << " ";
+            std::cout << explain(relName, currentTuple, ruleNum, levelNum, 20)->getSize() << " ";
             numTuples++;
             proc++;
             
