@@ -13,6 +13,7 @@
  * Defines ternary functor operators for AST and RAM
  *
  ***********************************************************************/
+
 #pragma once
 
 #include <cassert>

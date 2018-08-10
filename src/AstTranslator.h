@@ -16,40 +16,31 @@
 
 #pragma once
 
-#include "AstTranslationUnit.h"
-#include "RamProgram.h"
-#include "RamRelation.h"
-#include "RamTranslationUnit.h"
-
+#include "AstRelationIdentifier.h"
 #include <map>
-#include <vector>
+#include <memory>
+#include <set>
+#include <string>
 
 namespace souffle {
 
 // forward declarations
-class AstRelation;
-class AstAtom;
 class AstClause;
 class AstProgram;
-
+class AstRelation;
+class AstTranslationUnit;
+class RamProgram;
 class RamStatement;
-
+class RamTranslationUnit;
 class RecursiveClauses;
+class TypeEnvironment;
 
 /**
  * A utility class capable of conducting the conversion between AST
  * and RAM structures.
  */
 class AstTranslator {
-    /** If true, created constructs will be annotated with logging information */
-
 public:
-    /**
-     * A constructor for this translators.
-     *
-     * @param logging if generated clauses should be annotated with logging operations
-     */
-
     /**
      * Converts the given relation identifier into a relation name.
      */
@@ -57,7 +48,8 @@ public:
 
     /** generate RAM code for a clause */
     std::unique_ptr<RamStatement> translateClause(const AstClause& clause, const AstProgram* program,
-            const TypeEnvironment* typeEnv, int version = 0, bool ret = false);
+            const TypeEnvironment* typeEnv, const AstClause& originalClause, int version = 0,
+            bool ret = false, bool hashset = false);
 
     /**
      * Generates RAM code for the non-recursive clauses of the given relation.
@@ -81,13 +73,11 @@ public:
     std::unique_ptr<RamProgram> translateProgram(const AstTranslationUnit& translationUnit);
 
     /** translates AST to translation unit  */
-    std::unique_ptr<RamTranslationUnit> translateUnit(AstTranslationUnit& tu) {
-        std::unique_ptr<RamProgram> ramProg = translateProgram(tu);
-        SymbolTable& symTab = tu.getSymbolTable();
-        ErrorReport& errReport = tu.getErrorReport();
-        DebugReport& debugReport = tu.getDebugReport();
-        return std::make_unique<RamTranslationUnit>(std::move(ramProg), symTab, errReport, debugReport);
-    }
+    std::unique_ptr<RamTranslationUnit> translateUnit(AstTranslationUnit& tu);
+
+private:
+    /** Map modified relation identifiers to original relation identifiers */
+    std::map<std::string, std::string> modifiedIdMap;
 };
 
 }  // end of namespace souffle

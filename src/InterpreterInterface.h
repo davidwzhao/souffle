@@ -21,15 +21,16 @@
 #include "SouffleInterface.h"
 
 #include <array>
+#include <utility>
 
 namespace souffle {
 
 /**
  * Helper function to convert a tuple to a RamDomain pointer
  */
-// TODO (#421): Check whether this helper function causes a memory leak
+// TODO (#541): Check whether this helper function causes a memory leak
 inline RamDomain* convertTupleToNums(const tuple& t) {
-    RamDomain* newTuple = new RamDomain[t.size()];
+    auto* newTuple = new RamDomain[t.size()];
 
     for (size_t i = 0; i < t.size(); i++) {
         newTuple[i] = t[i];
@@ -65,7 +66,7 @@ private:
     bool relOutput;
 
     /** Unique id for wrapper */
-    // TODO (#421): replace unique id by dynamic type checking for C++
+    // TODO (#541): replace unique id by dynamic type checking for C++
     uint32_t id;
 
 protected:
@@ -81,7 +82,7 @@ protected:
     public:
         iterator_base(uint32_t arg_id, const InterpreterRelInterface* r, InterpreterRelation::iterator i)
                 : Relation::iterator_base(arg_id), ramRelationInterface(r), it(i), tup(r) {}
-        virtual ~iterator_base() {}
+        ~iterator_base() override = default;
 
         /** Increment iterator */
         void operator++() override {
@@ -126,9 +127,9 @@ protected:
 public:
     InterpreterRelInterface(InterpreterRelation& r, SymbolTable& s, std::string n, std::vector<std::string> t,
             std::vector<std::string> an, bool rInput, bool rOutput, uint32_t i)
-            : relation(r), symTable(s), name(n), types(t), attrNames(an), relInput(rInput),
-              relOutput(rOutput), id(i) {}
-    virtual ~InterpreterRelInterface() {}
+            : relation(r), symTable(s), name(std::move(n)), types(std::move(t)), attrNames(std::move(an)),
+              relInput(rInput), relOutput(rOutput), id(i) {}
+    ~InterpreterRelInterface() override = default;
 
     /** Insert tuple */
     void insert(const tuple& t) override {
@@ -202,13 +203,13 @@ class InterpreterProgInterface : public SouffleProgram {
 private:
     const RamProgram& prog;
     Interpreter& exec;
-    InterpreterEnvironment& env;
     SymbolTable& symTable;
     std::vector<InterpreterRelInterface*> interfaces;
 
 public:
-    InterpreterProgInterface(const RamTranslationUnit& tu, Interpreter& e, InterpreterEnvironment& r)
-            : prog(*tu.getProgram()), exec(e), env(r), symTable(tu.getSymbolTable()) {
+    InterpreterProgInterface(Interpreter& interp)
+            : prog(interp.getTranslationUnit().getP()), exec(interp),
+              symTable(interp.getTranslationUnit().getSymbolTable()) {
         uint32_t id = 0;
 
         // Retrieve AST Relations and store them in a map
@@ -216,10 +217,10 @@ public:
         visitDepthFirst(*(prog.getMain()), [&](const RamRelation& rel) { map[rel.getName()] = &rel; });
 
         // Build wrapper relations for Souffle's interface
-        for (auto& rel_pair : r.getRelationMap()) {
+        for (auto& rel_pair : exec.getRelationMap()) {
             auto& name = rel_pair.first;
             auto& interpreterRel = *rel_pair.second;
-            ASSERT(map[name]);
+            assert(map[name]);
             const RamRelation& rel = *map[name];
 
             // construct types and names vectors
@@ -239,17 +240,17 @@ public:
             id++;
         }
     }
-    virtual ~InterpreterProgInterface() {
+    ~InterpreterProgInterface() override {
         for (auto* interface : interfaces) {
             delete interface;
         }
     }
 
     /** Run program instance: not implemented */
-    void run() override {}
+    void run(size_t) override {}
 
     /** Load data, run program instance, store data: not implemented */
-    void runAll(std::string, std::string) override {}
+    void runAll(std::string, std::string, size_t) override {}
 
     /** Load input data: not implemented */
     void loadAll(std::string) override {}
@@ -266,7 +267,7 @@ public:
     /** Run subroutine */
     void executeSubroutine(std::string name, const std::vector<RamDomain>& args, std::vector<RamDomain>& ret,
             std::vector<bool>& err) override {
-        exec.executeSubroutine(env, prog.getSubroutine(name), args, ret, err);
+        exec.executeSubroutine(prog.getSubroutine(name), args, ret, err);
     }
 
     /** Get symbol table */

@@ -13,6 +13,7 @@
  * Defines semantic checker pass for RAM
  *
  ***********************************************************************/
+
 #pragma once
 
 #include "RamTransformer.h"

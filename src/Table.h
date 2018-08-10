@@ -25,10 +25,10 @@ template <typename T, unsigned blockSize = 4096>
 class Table {
     struct Block {
         Block* next;
-        std::size_t used;
+        std::size_t used = 0;
         T data[blockSize];
 
-        Block() : next(nullptr), used(0) {}
+        Block() : next(nullptr) {}
 
         bool isFull() const {
             return used == blockSize;
@@ -45,7 +45,7 @@ class Table {
     Block* head;
     Block* tail;
 
-    std::size_t count;
+    std::size_t count = 0;
 
 public:
     class iterator : public std::iterator<std::forward_iterator_tag, T> {
@@ -87,7 +87,7 @@ public:
         }
     };
 
-    Table() : head(nullptr), tail(nullptr), count(0) {}
+    Table() : head(nullptr), tail(nullptr) {}
 
     ~Table() {
         clear();

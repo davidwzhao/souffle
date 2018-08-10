@@ -33,6 +33,7 @@ public:
             writeNext(current);
         }
     }
+
     virtual ~WriteStream() = default;
 
 protected:

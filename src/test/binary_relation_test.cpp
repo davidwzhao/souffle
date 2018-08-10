@@ -44,7 +44,7 @@ TEST(BinRelTest, Scoping) {
     souffle::BinaryRelation<souffle::ram::Tuple<RamDomain, 2>> br;
 }
 
-typedef BinaryRelation<ram::Tuple<RamDomain, 2>> BinRel;
+using BinRel = BinaryRelation<ram::Tuple<RamDomain, 2>>;
 
 TEST(BinRelTest, Basic) {
     BinRel br;

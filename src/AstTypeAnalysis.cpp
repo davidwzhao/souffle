@@ -15,11 +15,27 @@
  ***********************************************************************/
 
 #include "AstTypeAnalysis.h"
+#include "AstArgument.h"
+#include "AstAttribute.h"
+#include "AstLiteral.h"
+#include "AstNode.h"
+#include "AstProgram.h"
+#include "AstRelation.h"
+#include "AstTranslationUnit.h"
+#include "AstType.h"
 #include "AstUtils.h"
 #include "AstVisitor.h"
 #include "BinaryConstraintOps.h"
 #include "Constraints.h"
+#include "Global.h"
 #include "Util.h"
+#include <cstddef>
+#include <iostream>
+#include <memory>
+#include <set>
+#include <string>
+#include <typeinfo>
+#include <utility>
 
 namespace souffle {
 
@@ -58,7 +74,7 @@ struct AstConstraintAnalysisVar : public Variable<const AstArgument*, PropertySp
  */
 template <typename AnalysisVar>
 class AstConstraintAnalysis : public AstVisitor<void> {
-    typedef typename AnalysisVar::property_space::value_type value_type;
+    using value_type = typename AnalysisVar::property_space::value_type;
 
     /** The list of constraints making underlying this analysis */
     Problem<AnalysisVar> constraints;
@@ -68,8 +84,8 @@ class AstConstraintAnalysis : public AstVisitor<void> {
 
 protected:
     // a few type definitions
-    typedef std::shared_ptr<Constraint<AnalysisVar>> constraint_type;
-    typedef std::map<const AstArgument*, value_type> solution_type;
+    using constraint_type = std::shared_ptr<Constraint<AnalysisVar>>;
+    using solution_type = std::map<const AstArgument*, value_type>;
 
     /**
      * A utility function mapping an AstArgument to its associated analysis variable.
@@ -169,10 +185,10 @@ struct false_factory {
 struct bool_disjunct_lattic : public property_space<bool, bool_or, false_factory> {};
 
 /** A base type for analysis based on the boolean disjunct lattice */
-typedef AstConstraintAnalysisVar<bool_disjunct_lattic> BoolDisjunctVar;
+using BoolDisjunctVar = AstConstraintAnalysisVar<bool_disjunct_lattic>;
 
 /** A base type for constraints on the boolean disjunct lattice */
-typedef std::shared_ptr<Constraint<BoolDisjunctVar>> BoolDisjunctConstraint;
+using BoolDisjunctConstraint = std::shared_ptr<Constraint<BoolDisjunctVar>>;
 
 /**
  * A constraint factory for a constraint ensuring that the value assigned to the
@@ -181,7 +197,7 @@ typedef std::shared_ptr<Constraint<BoolDisjunctVar>> BoolDisjunctConstraint;
 BoolDisjunctConstraint isTrue(const BoolDisjunctVar& var) {
     struct C : public Constraint<BoolDisjunctVar> {
         BoolDisjunctVar var;
-        C(const BoolDisjunctVar& var) : var(var) {}
+        C(BoolDisjunctVar var) : var(std::move(var)) {}
         bool update(Assignment<BoolDisjunctVar>& ass) const override {
             auto res = !ass[var];
             ass[var] = true;
@@ -217,7 +233,8 @@ BoolDisjunctConstraint imply(const std::vector<BoolDisjunctVar>& vars, const Boo
         BoolDisjunctVar res;
         std::vector<BoolDisjunctVar> vars;
 
-        C(const BoolDisjunctVar& res, const std::vector<BoolDisjunctVar>& vars) : res(res), vars(vars) {}
+        C(BoolDisjunctVar res, std::vector<BoolDisjunctVar> vars)
+                : res(std::move(res)), vars(std::move(vars)) {}
 
         bool update(Assignment<BoolDisjunctVar>& ass) const override {
             bool r = ass[res];
@@ -254,7 +271,7 @@ std::map<const AstArgument*, bool> getConstTerms(const AstClause& clause) {
         }
 
         // #2 - binary relations may propagate const
-        void visitConstraint(const AstConstraint& cur) override {
+        void visitBinaryConstraint(const AstBinaryConstraint& cur) override {
             // only target equality
             if (cur.getOperator() != BinaryConstraintOp::EQ) {
                 return;
@@ -349,7 +366,7 @@ std::map<const AstArgument*, bool> getGroundedTerms(const AstClause& clause) {
         }
 
         // #4 - binary equality relations propagates groundness
-        void visitConstraint(const AstConstraint& cur) override {
+        void visitBinaryConstraint(const AstBinaryConstraint& cur) override {
             // only target equality
             if (cur.getOperator() != BinaryConstraintOp::EQ) {
                 return;
@@ -388,6 +405,31 @@ std::map<const AstArgument*, bool> getGroundedTerms(const AstClause& clause) {
         // #7 - aggregators are grounding values
         void visitAggregator(const AstAggregator& c) override {
             addConstraint(isTrue(getVar(c)));
+        }
+
+        // #8 - functors with grounded values are grounded values
+        void visitUnaryFunctor(const AstUnaryFunctor& cur) override {
+            auto fun = getVar(cur);
+            auto arg = getVar(cur.getOperand());
+
+            addConstraint(imply(arg, fun));
+        }
+
+        void visitBinaryFunctor(const AstBinaryFunctor& cur) override {
+            auto fun = getVar(cur);
+            auto lhs = getVar(cur.getLHS());
+            auto rhs = getVar(cur.getRHS());
+
+            addConstraint(imply({lhs, rhs}, fun));
+        }
+
+        void visitTernaryFunctor(const AstTernaryFunctor& cur) override {
+            auto fun = getVar(cur);
+            auto a0 = getVar(cur.getArg(0));
+            auto a1 = getVar(cur.getArg(1));
+            auto a2 = getVar(cur.getArg(2));
+
+            addConstraint(imply({a0, a1, a2}, fun));
         }
     };
 
@@ -439,10 +481,10 @@ struct all_type_factory {
 struct type_lattice : public property_space<TypeSet, sub_type, all_type_factory> {};
 
 /** The definition of the type of variable to be utilized in the type analysis */
-typedef AstConstraintAnalysisVar<type_lattice> TypeVar;
+using TypeVar = AstConstraintAnalysisVar<type_lattice>;
 
 /** The definition of the type of constraint to be utilized in the type analysis */
-typedef std::shared_ptr<Constraint<TypeVar>> TypeConstraint;
+using TypeConstraint = std::shared_ptr<Constraint<TypeVar>>;
 
 /**
  * A constraint factory ensuring that all the types associated to the variable
@@ -461,7 +503,7 @@ TypeConstraint isSubtypeOf(const TypeVar& a, const Type& b) {
         TypeVar a;
         const Type& b;
 
-        C(const TypeVar& a, const Type& b) : a(a), b(b) {}
+        C(TypeVar a, const Type& b) : a(std::move(a)), b(b) {}
 
         bool update(Assignment<TypeVar>& ass) const override {
             // get current value of variable a
@@ -504,7 +546,7 @@ TypeConstraint isSupertypeOf(const TypeVar& a, const Type& b) {
         const Type& b;
         mutable bool repeat;
 
-        C(const TypeVar& a, const Type& b) : a(a), b(b), repeat(true) {}
+        C(TypeVar a, const Type& b) : a(std::move(a)), b(b), repeat(true) {}
 
         bool update(Assignment<TypeVar>& ass) const override {
             // don't continually update super type constraints
@@ -601,7 +643,7 @@ TypeConstraint isSubtypeOfComponent(const TypeVar& a, const TypeVar& b, int inde
         TypeVar b;
         unsigned index;
 
-        C(const TypeVar& a, const TypeVar& b, int index) : a(a), b(b), index(index) {}
+        C(TypeVar a, TypeVar b, int index) : a(std::move(a)), b(std::move(b)), index(index) {}
 
         bool update(Assignment<TypeVar>& ass) const override {
             // get list of types for b
@@ -622,7 +664,7 @@ TypeConstraint isSubtypeOfComponent(const TypeVar& a, const TypeVar& b, int inde
                 if (!isRecordType(t)) {
                     continue;
                 }
-                const RecordType& rec = static_cast<const RecordType&>(t);
+                const auto& rec = static_cast<const RecordType&>(t);
 
                 // of proper size
                 if (rec.getFields().size() <= index) {
@@ -700,7 +742,7 @@ void TypeEnvironmentAnalysis::updateTypeEnvironment(const AstProgram& program) {
             env.createRecordType(cur->getName());
         } else {
             std::cout << "Unsupported type construct: " << typeid(cur).name() << "\n";
-            ASSERT(false && "Unsupported Type Construct!");
+            assert(false && "Unsupported Type Construct!");
         }
     }
 
@@ -713,7 +755,7 @@ void TypeEnvironmentAnalysis::updateTypeEnvironment(const AstProgram& program) {
             // nothing to do here
         } else if (auto* t = dynamic_cast<const AstUnionType*>(cur)) {
             // get type as union type
-            UnionType* ut = dynamic_cast<UnionType*>(type);
+            auto* ut = dynamic_cast<UnionType*>(type);
             if (!ut) {
                 continue;  // support faulty input
             }
@@ -726,7 +768,7 @@ void TypeEnvironmentAnalysis::updateTypeEnvironment(const AstProgram& program) {
             }
         } else if (auto* t = dynamic_cast<const AstRecordType*>(cur)) {
             // get type as record type
-            RecordType* rt = dynamic_cast<RecordType*>(type);
+            auto* rt = dynamic_cast<RecordType*>(type);
             if (!rt) {
                 continue;  // support faulty input
             }
@@ -739,19 +781,96 @@ void TypeEnvironmentAnalysis::updateTypeEnvironment(const AstProgram& program) {
             }
         } else {
             std::cout << "Unsupported type construct: " << typeid(cur).name() << "\n";
-            ASSERT(false && "Unsupported Type Construct!");
+            assert(false && "Unsupported Type Construct!");
         }
     }
 }
 
+/* Return a new clause with type-annotated variables */
+AstClause* createAnnotatedClause(
+        const AstClause* clause, const std::map<const AstArgument*, TypeSet> argumentTypes) {
+    // Annotates each variable with its type based on a given type analysis result
+    struct TypeAnnotator : public AstNodeMapper {
+        const std::map<const AstArgument*, TypeSet>& types;
+
+        TypeAnnotator(const std::map<const AstArgument*, TypeSet>& types) : types(types) {}
+
+        std::unique_ptr<AstNode> operator()(std::unique_ptr<AstNode> node) const override {
+            if (auto* var = dynamic_cast<AstVariable*>(node.get())) {
+                std::stringstream newVarName;
+                newVarName << var->getName() << "&isin;" << types.find(var)->second;
+                return std::make_unique<AstVariable>(newVarName.str());
+            } else if (auto* var = dynamic_cast<AstUnnamedVariable*>(node.get())) {
+                std::stringstream newVarName;
+                newVarName << "_"
+                           << "&isin;" << types.find(var)->second;
+                return std::make_unique<AstVariable>(newVarName.str());
+            }
+            node->apply(*this);
+            return node;
+        }
+    };
+
+    /* Note:
+     * Because the type of each argument is stored in the form [address -> type-set],
+     * the type-analysis result does not immediately apply to the clone due to differing
+     * addresses.
+     * Two ways around this:
+     *  (1) Perform the type-analysis again for the cloned clause
+     *  (2) Keep track of the addresses of equivalent arguments in the cloned clause
+     * Method (2) was chosen to avoid having to recompute the analysis each time.
+     */
+    AstClause* annotatedClause = clause->clone();
+
+    // Maps x -> y, where x is the address of an argument in the original clause, and y
+    // is the address of the equivalent argument in the clone.
+    std::map<const AstArgument*, const AstArgument*> memoryMap;
+
+    std::vector<const AstArgument*> originalAddresses;
+    visitDepthFirst(*clause, [&](const AstArgument& arg) { originalAddresses.push_back(&arg); });
+
+    std::vector<const AstArgument*> cloneAddresses;
+    visitDepthFirst(*annotatedClause, [&](const AstArgument& arg) { cloneAddresses.push_back(&arg); });
+
+    assert(cloneAddresses.size() == originalAddresses.size());
+
+    for (size_t i = 0; i < originalAddresses.size(); i++) {
+        memoryMap[originalAddresses[i]] = cloneAddresses[i];
+    }
+
+    // Map the types to the clause clone
+    std::map<const AstArgument*, TypeSet> cloneArgumentTypes;
+    for (auto& pair : argumentTypes) {
+        cloneArgumentTypes[memoryMap[pair.first]] = pair.second;
+    }
+
+    // Create the type-annotated clause
+    TypeAnnotator annotator(cloneArgumentTypes);
+    annotatedClause->apply(annotator);
+    return annotatedClause;
+}
+
 void TypeAnalysis::run(const AstTranslationUnit& translationUnit) {
-    TypeEnvironmentAnalysis* typeEnvAnalysis = translationUnit.getAnalysis<TypeEnvironmentAnalysis>();
+    auto* typeEnvAnalysis = translationUnit.getAnalysis<TypeEnvironmentAnalysis>();
     for (const AstRelation* rel : translationUnit.getProgram()->getRelations()) {
         for (const AstClause* clause : rel->getClauses()) {
+            // Perform the type analysis
             std::map<const AstArgument*, TypeSet> clauseArgumentTypes = analyseTypes(
                     typeEnvAnalysis->getTypeEnvironment(), *clause, translationUnit.getProgram());
             argumentTypes.insert(clauseArgumentTypes.begin(), clauseArgumentTypes.end());
+
+            if (!Global::config().get("debug-report").empty()) {
+                // Store an annotated clause for printing purposes
+                AstClause* annotatedClause = createAnnotatedClause(clause, clauseArgumentTypes);
+                annotatedClauses.push_back(std::unique_ptr<AstClause>(annotatedClause));
+            }
         }
+    }
+}
+
+void TypeAnalysis::print(std::ostream& os) const {
+    for (const auto& curr : annotatedClauses) {
+        os << *curr << std::endl;
     }
 }
 
@@ -811,7 +930,7 @@ std::map<const AstArgument*, TypeSet> TypeAnalysis::analyseTypes(
         }
 
         // binary constraint
-        void visitConstraint(const AstConstraint& rel) override {
+        void visitBinaryConstraint(const AstBinaryConstraint& rel) override {
             auto lhs = getVar(rel.getLHS());
             auto rhs = getVar(rel.getRHS());
             addConstraint(isSubtypeOf(lhs, rhs));

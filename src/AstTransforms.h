@@ -13,12 +13,25 @@
  * Defines AST transformation passes.
  *
  ***********************************************************************/
+
 #pragma once
 
+#include "AstArgument.h"
 #include "AstTransformer.h"
 #include "AstTranslationUnit.h"
+#include "DebugReport.h"
+#include "Util.h"
+#include <functional>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace souffle {
+
+class AstClause;
+class AstProgram;
+class AstRelation;
 
 /**
  * Transformation pass to eliminate grounded aliases.
@@ -192,6 +205,20 @@ public:
 };
 
 /**
+ * Transformation pass to remove constant boolean constraints
+ * Should be called after any transformation that may generate boolean constraints
+ */
+class RemoveBooleanConstraintsTransformer : public AstTransformer {
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
+
+public:
+    std::string getName() const override {
+        return "RemoveBooleanConstraintsTransformer";
+    }
+};
+
+/**
  * Transformation pass to inline marked relations
  */
 class InlineRelationsTransformer : public AstTransformer {
@@ -222,9 +249,9 @@ public:
 };
 
 /**
-* Transformation pass to reduce unnecessary computation for
-* relations that only appear in the form A(_,...,_).
-*/
+ * Transformation pass to reduce unnecessary computation for
+ * relations that only appear in the form A(_,...,_).
+ */
 class ReduceExistentialsTransformer : public AstTransformer {
 private:
     bool transform(AstTranslationUnit& translationUnit) override;
@@ -232,6 +259,21 @@ private:
 public:
     std::string getName() const override {
         return "ReduceExistentialsTransformer";
+    }
+};
+
+/**
+ * Transformation pass to replace singleton variables
+ * with unnamed variables.
+ * E.g.: a() :- b(x). -> a() :- b(_).
+ */
+class ReplaceSingletonVariablesTransformer : public AstTransformer {
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
+
+public:
+    std::string getName() const override {
+        return "ReplaceSingletonVariablesTransformer";
     }
 };
 
@@ -259,6 +301,150 @@ private:
 public:
     std::string getName() const override {
         return "MagicSetTransformer";
+    }
+};
+
+/**
+ * Transformer that holds an arbitrary number of sub-transformations
+ */
+class PipelineTransformer : public MetaTransformer {
+private:
+    std::vector<std::unique_ptr<AstTransformer>> pipeline;
+    bool transform(AstTranslationUnit& translationUnit) override;
+
+public:
+    template <typename... Args>
+    PipelineTransformer(Args... args) {
+        std::unique_ptr<AstTransformer> tmp[] = {std::move(args)...};
+        for (auto& cur : tmp) {
+            pipeline.push_back(std::move(cur));
+        }
+    }
+
+    void setDebugReport() override {
+        for (auto& i : pipeline) {
+            if (auto* mt = dynamic_cast<MetaTransformer*>(i.get())) {
+                mt->setDebugReport();
+            } else {
+                i = std::make_unique<DebugReporter>(std::move(i));
+            }
+        }
+    }
+
+    void setVerbosity(bool verbose) override {
+        this->verbose = verbose;
+        for (auto& cur : pipeline) {
+            if (auto* mt = dynamic_cast<MetaTransformer*>(cur.get())) {
+                mt->setVerbosity(verbose);
+            }
+        }
+    }
+
+    std::string getName() const override {
+        return "PipelineTransformer";
+    }
+};
+
+/**
+ * Transformer that executes a sub-transformer iff a condition holds
+ */
+class ConditionalTransformer : public MetaTransformer {
+private:
+    std::function<bool()> condition;
+    std::unique_ptr<AstTransformer> transformer;
+    bool transform(AstTranslationUnit& translationUnit) override;
+
+public:
+    ConditionalTransformer(std::function<bool()> cond, std::unique_ptr<AstTransformer> transformer)
+            : condition(std::move(cond)), transformer(std::move(transformer)) {}
+
+    ConditionalTransformer(bool cond, std::unique_ptr<AstTransformer> transformer)
+            : condition([=]() { return cond; }), transformer(std::move(transformer)) {}
+
+    void setDebugReport() override {
+        if (auto* mt = dynamic_cast<MetaTransformer*>(transformer.get())) {
+            mt->setDebugReport();
+        } else {
+            transformer = std::make_unique<DebugReporter>(std::move(transformer));
+        }
+    }
+
+    void setVerbosity(bool verbose) override {
+        this->verbose = verbose;
+        if (auto* mt = dynamic_cast<MetaTransformer*>(transformer.get())) {
+            mt->setVerbosity(verbose);
+        }
+    }
+
+    std::string getName() const override {
+        return "ConditionalTransformer";
+    }
+};
+
+/**
+ * Transformer that repeatedly executes a sub-transformer while a condition is met
+ */
+class WhileTransformer : public MetaTransformer {
+private:
+    std::function<bool()> condition;
+    std::unique_ptr<AstTransformer> transformer;
+    bool transform(AstTranslationUnit& translationUnit) override;
+
+public:
+    WhileTransformer(std::function<bool()> cond, std::unique_ptr<AstTransformer> transformer)
+            : condition(std::move(cond)), transformer(std::move(transformer)) {}
+
+    WhileTransformer(bool cond, std::unique_ptr<AstTransformer> transformer)
+            : condition([=]() { return cond; }), transformer(std::move(transformer)) {}
+
+    void setDebugReport() override {
+        if (auto* mt = dynamic_cast<MetaTransformer*>(transformer.get())) {
+            mt->setDebugReport();
+        } else {
+            transformer = std::make_unique<DebugReporter>(std::move(transformer));
+        }
+    }
+
+    void setVerbosity(bool verbose) override {
+        this->verbose = verbose;
+        if (auto* mt = dynamic_cast<MetaTransformer*>(transformer.get())) {
+            mt->setVerbosity(verbose);
+        }
+    }
+
+    std::string getName() const override {
+        return "WhileTransformer";
+    }
+};
+
+/**
+ * Transformer that repeatedly executes a sub-transformer until no changes are made
+ */
+class FixpointTransformer : public MetaTransformer {
+private:
+    std::unique_ptr<AstTransformer> transformer;
+    bool transform(AstTranslationUnit& translationUnit) override;
+
+public:
+    FixpointTransformer(std::unique_ptr<AstTransformer> transformer) : transformer(std::move(transformer)) {}
+
+    void setDebugReport() override {
+        if (auto* mt = dynamic_cast<MetaTransformer*>(transformer.get())) {
+            mt->setDebugReport();
+        } else {
+            transformer = std::make_unique<DebugReporter>(std::move(transformer));
+        }
+    }
+
+    void setVerbosity(bool verbose) override {
+        this->verbose = verbose;
+        if (auto* mt = dynamic_cast<MetaTransformer*>(transformer.get())) {
+            mt->setVerbosity(verbose);
+        }
+    }
+
+    std::string getName() const override {
+        return "FixpointTransformer";
     }
 };
 

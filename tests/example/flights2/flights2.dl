@@ -26,7 +26,7 @@ flight(["Singapore", "London", 14, 14]).
 flight(["Dubai", "London", 5, 6]).
 flight(["London", "New York", 17, 15]).
 flight(["London", "New York", 5, 15]).
-flight(["London", "Oslo", 15, 3])..
+flight(["London", "Oslo", 15, 3]).
 flight(["London", "Paris", 10, 3]).
 flight(["London", "Reykjavik", 8, 5]).
 flight(["Oslo", "Reykjavik", 9, 4]).

@@ -17,14 +17,21 @@
 #include "AstComponentChecker.h"
 #include "AstComponent.h"
 #include "AstProgram.h"
+#include "AstRelation.h"
+#include "AstRelationIdentifier.h"
 #include "AstTranslationUnit.h"
+#include "AstType.h"
 #include "ComponentModel.h"
-
+#include "ErrorReport.h"
+#include "SrcLocation.h"
+#include "Util.h"
 #include <functional>
+#include <map>
+#include <set>
+#include <utility>
+#include <vector>
 
 namespace souffle {
-
-class AstTranslationUnit;
 
 bool AstComponentChecker::transform(AstTranslationUnit& translationUnit) {
     AstProgram& program = *translationUnit.getProgram();
@@ -37,7 +44,7 @@ bool AstComponentChecker::transform(AstTranslationUnit& translationUnit) {
 
 const AstComponent* AstComponentChecker::checkComponentNameReference(ErrorReport& report,
         const AstComponent* enclosingComponent, const ComponentLookup& componentLookup,
-        const std::string& name, const AstSrcLocation& loc, const TypeBinding& binding) {
+        const std::string& name, const SrcLocation& loc, const TypeBinding& binding) {
     const AstTypeIdentifier& forwarded = binding.find(name);
     if (!forwarded.empty()) {
         // for forwarded types we do not check anything, because we do not know
@@ -55,7 +62,7 @@ const AstComponent* AstComponentChecker::checkComponentNameReference(ErrorReport
 }
 
 void AstComponentChecker::checkComponentReference(ErrorReport& report, const AstComponent* enclosingComponent,
-        const ComponentLookup& componentLookup, const AstComponentType& type, const AstSrcLocation& loc,
+        const ComponentLookup& componentLookup, const AstComponentType& type, const SrcLocation& loc,
         const TypeBinding& binding) {
     // check whether targeted component exists
     const AstComponent* c = checkComponentNameReference(
@@ -65,7 +72,7 @@ void AstComponentChecker::checkComponentReference(ErrorReport& report, const Ast
     }
 
     // check number of type parameters
-    if (c->getComponentType().getTypeParameters().size() != type.getTypeParameters().size()) {
+    if (c->getComponentType()->getTypeParameters().size() != type.getTypeParameters().size()) {
         report.addError("Invalid number of type parameters for component " + type.getName(), loc);
     }
 }
@@ -73,7 +80,7 @@ void AstComponentChecker::checkComponentReference(ErrorReport& report, const Ast
 void AstComponentChecker::checkComponentInit(ErrorReport& report, const AstComponent* enclosingComponent,
         const ComponentLookup& componentLookup, const AstComponentInit& init, const TypeBinding& binding) {
     checkComponentReference(
-            report, enclosingComponent, componentLookup, init.getComponentType(), init.getSrcLoc(), binding);
+            report, enclosingComponent, componentLookup, *init.getComponentType(), init.getSrcLoc(), binding);
 
     // Note: actual parameters can be atomic types like number, or anything declared with .type
     // The original semantic check permitted any identifier (existing or non-existing) to be actual parameter
@@ -96,14 +103,14 @@ void AstComponentChecker::checkComponent(ErrorReport& report, const AstComponent
     // component references refer to existing components or some type parameter.
     // Type parameter for us here is unknown type that will be bound at the template
     // instantiation time.
-    auto parentTypeParameters = component.getComponentType().getTypeParameters();
+    auto parentTypeParameters = component.getComponentType()->getTypeParameters();
     std::vector<AstTypeIdentifier> actualParams(parentTypeParameters.size(), "<type parameter>");
     TypeBinding activeBinding = binding.extend(parentTypeParameters, actualParams);
 
     // check parents of component
     for (const auto& cur : component.getBaseComponents()) {
         checkComponentReference(
-                report, enclosingComponent, componentLookup, cur, component.getSrcLoc(), activeBinding);
+                report, enclosingComponent, componentLookup, *cur, component.getSrcLoc(), activeBinding);
 
         // Note: type parameters can also be atomic types like number, or anything defined through .type
         // The original semantic check permitted any identifier (existing or non-existing) to be actual
@@ -119,7 +126,7 @@ void AstComponentChecker::checkComponent(ErrorReport& report, const AstComponent
     std::set<const AstComponent*> parents;
     std::function<void(const AstComponent&)> collectParents = [&](const AstComponent& cur) {
         for (const auto& base : cur.getBaseComponents()) {
-            auto c = componentLookup.getComponent(enclosingComponent, base.getName(), binding);
+            auto c = componentLookup.getComponent(enclosingComponent, base->getName(), binding);
             if (!c) {
                 continue;
             }
@@ -134,7 +141,7 @@ void AstComponentChecker::checkComponent(ErrorReport& report, const AstComponent
     for (const AstRelation* relation : component.getRelations()) {
         if (component.getOverridden().count(relation->getName().getNames()[0])) {
             report.addError("Override of non-inherited relation " + relation->getName().getNames()[0] +
-                                    " in component " + component.getComponentType().getName(),
+                                    " in component " + component.getComponentType()->getName(),
                     component.getSrcLoc());
         }
     }
@@ -143,7 +150,7 @@ void AstComponentChecker::checkComponent(ErrorReport& report, const AstComponent
             if (component.getOverridden().count(relation->getName().getNames()[0]) &&
                     !relation->isOverridable()) {
                 report.addError("Override of non-overridable relation " + relation->getName().getNames()[0] +
-                                        " in component " + component.getComponentType().getName(),
+                                        " in component " + component.getComponentType()->getName(),
                         component.getSrcLoc());
             }
         }
@@ -152,7 +159,7 @@ void AstComponentChecker::checkComponent(ErrorReport& report, const AstComponent
     // check for a cycle
     if (parents.find(&component) != parents.end()) {
         report.addError(
-                "Invalid cycle in inheritance for component " + component.getComponentType().getName(),
+                "Invalid cycle in inheritance for component " + component.getComponentType()->getName(),
                 component.getSrcLoc());
     }
 
@@ -182,7 +189,7 @@ void AstComponentChecker::checkComponents(
 
 // Check that component names are disjoint from type and relation names.
 void AstComponentChecker::checkComponentNamespaces(ErrorReport& report, const AstProgram& program) {
-    std::map<std::string, AstSrcLocation> names;
+    std::map<std::string, SrcLocation> names;
 
     // Type and relation name error reporting performed by the AstSemanticChecker instead
 
@@ -203,7 +210,7 @@ void AstComponentChecker::checkComponentNamespaces(ErrorReport& report, const As
 
     // Note: Nested component and instance names are not obtained.
     for (const auto& comp : program.getComponents()) {
-        const std::string name = toString(comp->getComponentType().getName());
+        const std::string name = toString(comp->getComponentType()->getName());
         if (names.count(name)) {
             report.addError("Name clash on component " + name, comp->getSrcLoc());
         } else {
@@ -220,4 +227,4 @@ void AstComponentChecker::checkComponentNamespaces(ErrorReport& report, const As
         }
     }
 }
-}
+}  // namespace souffle

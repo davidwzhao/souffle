@@ -14,7 +14,8 @@
  *
  ***********************************************************************/
 
-#include "../AutoIndex.h"
+#include "../IndexSetAnalysis.h"
+#include "../RamRelation.h"
 #include "test.h"
 
 #include <cmath>
@@ -28,15 +29,17 @@
 using namespace std;
 using namespace souffle;
 
-class TestAutoIndex : public AutoIndex {
+RamRelation rel;
+class TestAutoIndex : public IndexSet {
 public:
+    TestAutoIndex() : IndexSet(rel) {}
     /** returns number of unique matchings */
     int getNumMatchings() {
         return matching.getNumMatchings();
     }
 };
 
-typedef set<SearchColumns> Nodes;
+using Nodes = set<SearchColumns>;
 
 TEST(Matching, StaticTest_1) {
     TestAutoIndex order;

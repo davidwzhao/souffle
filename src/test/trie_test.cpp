@@ -15,8 +15,8 @@
  ***********************************************************************/
 
 #include "Trie.h"
-#include "string.h"
 #include "test.h"
+#include <cstring>
 
 using namespace souffle;
 
@@ -672,7 +672,7 @@ RamDomain rand(RamDomain max) {
 }  // namespace
 
 TEST(Trie, IteratorStress_1D) {
-    typedef typename ram::Tuple<RamDomain, 1> tuple;
+    using tuple = typename ram::Tuple<RamDomain, 1>;
 
     const int N = 10000;
 
@@ -698,7 +698,7 @@ TEST(Trie, IteratorStress_1D) {
 }
 
 TEST(Trie, IteratorStress_2D) {
-    typedef typename ram::Tuple<RamDomain, 2> tuple;
+    using tuple = typename ram::Tuple<RamDomain, 2>;
 
     const int N = 10000;
 
@@ -726,7 +726,7 @@ TEST(Trie, IteratorStress_2D) {
 }
 
 TEST(Trie, IteratorStress_3D) {
-    typedef typename ram::Tuple<RamDomain, 3> tuple;
+    using tuple = typename ram::Tuple<RamDomain, 3>;
 
     const int N = 10000;
 
@@ -755,7 +755,7 @@ TEST(Trie, IteratorStress_3D) {
 }
 
 TEST(Trie, IteratorStress_4D) {
-    typedef typename ram::Tuple<RamDomain, 4> tuple;
+    using tuple = typename ram::Tuple<RamDomain, 4>;
 
     const int N = 10000;
 
@@ -785,7 +785,7 @@ TEST(Trie, IteratorStress_4D) {
 }
 
 TEST(Trie, RangeQuery) {
-    typedef typename ram::Tuple<RamDomain, 3> tuple;
+    using tuple = typename ram::Tuple<RamDomain, 3>;
 
     Trie<3> set;
 
@@ -813,7 +813,7 @@ TEST(Trie, RangeQuery) {
 }
 
 TEST(Trie, RangeQuery_0D) {
-    typedef typename ram::Tuple<RamDomain, 0> tuple;
+    using tuple = typename ram::Tuple<RamDomain, 0>;
 
     Trie<0> set;
 
@@ -825,7 +825,7 @@ TEST(Trie, RangeQuery_0D) {
 }
 
 TEST(Trie, RangeQuery_1D) {
-    typedef typename ram::Tuple<RamDomain, 1> tuple;
+    using tuple = typename ram::Tuple<RamDomain, 1>;
 
     Trie<1> set;
 
@@ -846,7 +846,7 @@ TEST(Trie, RangeQuery_1D) {
 }
 
 TEST(Trie, RangeQuery_2D) {
-    typedef typename ram::Tuple<RamDomain, 2> tuple;
+    using tuple = typename ram::Tuple<RamDomain, 2>;
 
     Trie<2> set;
 
@@ -876,7 +876,7 @@ TEST(Trie, RangeQuery_2D) {
 }
 
 TEST(Trie, RangeQuery_3D) {
-    typedef typename ram::Tuple<RamDomain, 3> tuple;
+    using tuple = typename ram::Tuple<RamDomain, 3>;
 
     Trie<3> set;
 
@@ -918,7 +918,7 @@ TEST(Trie, RangeQuery_3D) {
 }
 
 TEST(Trie, RangeQueryStress) {
-    typedef typename ram::Tuple<RamDomain, 3> tuple;
+    using tuple = typename ram::Tuple<RamDomain, 3>;
 
     Trie<3> set;
 
@@ -1120,7 +1120,7 @@ TEST(Trie, Merge_3D) {
 }
 
 TEST(Trie, Merge_Stress) {
-    typedef typename Trie<2>::entry_type entry_t;
+    using entry_t = typename Trie<2>::entry_type;
 
     const int N = 1000;
     const int M = 100;
@@ -1246,7 +1246,7 @@ TEST(Trie, Parallel) {
     const int N = 10000;
 
     // get a unordered list of test data
-    typedef typename Trie<2>::entry_type entry_t;
+    using entry_t = typename Trie<2>::entry_type;
     std::vector<entry_t> list;
     Trie<2> filter;
 
@@ -1273,7 +1273,7 @@ TEST(Trie, Parallel) {
         // now insert all those values into a new set - in parallel
         Trie<2> res;
 #pragma omp parallel for
-        for (std::vector<entry_t>::iterator it = full.begin(); it < full.end(); ++it) {
+        for (auto it = full.begin(); it < full.end(); ++it) {
             res.insert(*it);
         }
 

@@ -15,6 +15,7 @@
  ***********************************************************************/
 
 #include "AstPragma.h"
+#include "AstProgram.h"
 #include "AstTranslationUnit.h"
 #include "AstVisitor.h"
 #include "Global.h"

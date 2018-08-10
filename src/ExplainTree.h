@@ -18,6 +18,7 @@
 
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace souffle {
@@ -75,15 +76,15 @@ public:
  */
 class TreeNode {
 protected:
-    std::string txt;  // text of tree node
-    uint32_t width;   // width of node (including sub-trees)
-    uint32_t height;  // height of node (including sub-trees)
-    int xpos;         // x-position of text
-    int ypos;         // y-position of text
+    std::string txt;      // text of tree node
+    uint32_t width = 0;   // width of node (including sub-trees)
+    uint32_t height = 0;  // height of node (including sub-trees)
+    int xpos = 0;         // x-position of text
+    int ypos = 0;         // y-position of text
 
 public:
-    TreeNode(const std::string& t = "") : txt(t), width(0), height(0), xpos(0), ypos(0) {}
-    virtual ~TreeNode() {}
+    TreeNode(std::string t = "") : txt(std::move(t)) {}
+    virtual ~TreeNode() = default;
 
     // get width
     uint32_t getWidth() const {
@@ -100,6 +101,8 @@ public:
 
     // render node in screen buffer
     virtual void render(ScreenBuffer& s) = 0;
+
+    virtual void printJSON(std::ostream& os, int pos) = 0;
 };
 
 /***
@@ -111,8 +114,8 @@ private:
     std::string label;
 
 public:
-    InnerNode(const std::string& nodeText = "", const std::string& label = "")
-            : TreeNode(nodeText), label(label) {}
+    InnerNode(const std::string& nodeText = "", std::string label = "")
+            : TreeNode(nodeText), label(std::move(label)) {}
 
     // add child to node
     void add_child(std::unique_ptr<TreeNode> child) {
@@ -120,9 +123,9 @@ public:
     }
 
     // place node and its sub-trees
-    void place(uint32_t x, uint32_t y) {
+    void place(uint32_t x, uint32_t y) override {
         // there must exist at least one kid
-        assert(children.size() > 0 && "no children");
+        assert(!children.empty() && "no children");
 
         // set x/y pos
         xpos = x;
@@ -146,7 +149,7 @@ public:
     };
 
     // render node text and separator line
-    void render(ScreenBuffer& s) {
+    void render(ScreenBuffer& s) override {
         s.write(xpos + (width - txt.length()) / 2, ypos, txt);
         for (const std::unique_ptr<TreeNode>& k : children) {
             k->render(s);
@@ -154,6 +157,24 @@ public:
         std::string separator(width - label.length(), '-');
         separator += label;
         s.write(xpos, ypos + 1, separator);
+    }
+
+    // print JSON
+    void printJSON(std::ostream& os, int pos) override {
+        std::string tab(pos, '\t');
+        os << tab << R"({ "premises": ")" << stringify(txt) << "\",\n";
+        os << tab << R"(  "rule-number": ")" << label << "\",\n";
+        os << tab << "  \"children\": [\n";
+        bool first = true;
+        for (const std::unique_ptr<TreeNode>& k : children) {
+            if (first)
+                first = false;
+            else
+                os << ",\n";
+            k->printJSON(os, pos + 1);
+        }
+        os << tab << "]\n";
+        os << tab << "}";
     }
 };
 
@@ -165,7 +186,7 @@ public:
     LeafNode(const std::string& t = "") : TreeNode(t) {}
 
     // place leaf node
-    void place(uint32_t x, uint32_t y) {
+    void place(uint32_t x, uint32_t y) override {
         xpos = x;
         ypos = y;
         width = txt.length();
@@ -173,8 +194,14 @@ public:
     }
 
     // render text of leaf node
-    void render(ScreenBuffer& s) {
+    void render(ScreenBuffer& s) override {
         s.write(xpos, ypos, txt);
+    }
+
+    // print JSON
+    void printJSON(std::ostream& os, int pos) override {
+        std::string tab(pos, '\t');
+        os << tab << R"({ "axiom": ")" << stringify(txt) << "\"}";
     }
 };
 

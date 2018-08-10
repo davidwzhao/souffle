@@ -6,7 +6,7 @@
 
 // Test functioning of components with a reachability problem
 
-// ---- some type definitions -----
+// ---- some type definitions ----
 
 .type node
 
@@ -30,19 +30,19 @@
 
     .decl reachable (a:node,b:node)
     reachable(X,Y) :- edge(X,Y).
-	reachable(X,Z) :- reachable(X,Y),reachable(Y,Z).
+    reachable(X,Z) :- reachable(X,Y),reachable(Y,Z).
 
-//    .decl empty ()              // 0-ary relation is a comming up feature
-//	empty() :- !node(_).					
+    .decl empty ()
+    empty() :- !node(_).
 
     .decl roots (n:node)
-	roots(X) :- node(X), !edge(_,X).
+    roots(X) :- node(X), !edge(_,X).
 
     .decl leafs (n:node)
-	leafs(X) :- node(X), !edge(X,_).
+    leafs(X) :- node(X), !edge(X,_).
 
     .decl clique (a:node,b:node)
-	clique(X,Y) :- reachable(X,Y), reachable(Y,X).
+    clique(X,Y) :- reachable(X,Y), reachable(Y,X).
 }
 
 // ---------------------------------
@@ -61,17 +61,17 @@
 .comp Traffic {
 
     // 3 nested instances of the directed graph
-	.init train = DiGraph
-	.init ship = DiGraph
-	.init cap = DiGraph
+    .init train = DiGraph
+    .init ship = DiGraph
+    .init cap = DiGraph
 
     // reachability is defined over all edges
     .decl reachable(a:node,b:node)
-	reachable(X,Y) :- train.reachable(X,Y).
-	reachable(X,Y) :- ship.reachable(X,Y).
-	reachable(X,Y) :- cap.reachable(X,Y).
+    reachable(X,Y) :- train.reachable(X,Y).
+    reachable(X,Y) :- ship.reachable(X,Y).
+    reachable(X,Y) :- cap.reachable(X,Y).
 
-	reachable(X,Z) :- reachable(X,Y), reachable(Y,Z).
+    reachable(X,Z) :- reachable(X,Y), reachable(Y,Z).
 
 }
 
@@ -91,9 +91,9 @@ Equal.edge("5","V").
 
 
 // some output
-.decl result ( x : symbol )
+.decl result (x:symbol)
 .output result ()
-result("Star Wars IV-VI happend!") :- SocialNet.reachable("han","leia").
+result("Star Wars IV-VI happened!") :- SocialNet.reachable("han","leia").
 result("Luke isn't a good buddy!") :- !SocialNet.reachable("leia","han").
 
 result("V is five") :- Equal.reachable("V","five").
@@ -106,5 +106,3 @@ London.ship.edge("Waterloo","London Bridge").
 London.cap.edge("London Bridge", "Big Ben").
 
 result("Connected") :- London.reachable("Airport","Big Ben").
-
-

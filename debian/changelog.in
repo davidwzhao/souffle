@@ -1,4 +1,16 @@
 souffle (@VERSION@-1) UNRELEASED; urgency=low
+  * Added more feedback in verbose mode (azreika/mmcgr)
+  * Fixed and enhanced 64 bit domain support (mmcgr/cfallin)
+  * Improved debug report (azreika)
+  * Enhanced profiler (atom frequency, bug fixes) (mmcgr)
+  * Hashmap support (HerbertJordan,65linesofcode)
+  * Enhanced provenance tools (taipan-snake)
+  * Performance enhancements (azreika)
+  * Bug fixes (mmcgr, azreika)
+
+ -- Kostyantyn Vorobyov <k.a.vorobyov@gmail.com>  Thu, 24 May 2018 12:40:23 +1100
+
+souffle (1.2.0); urgency=low
 
   * Interactive provenance browser (taipan-snake)
   * Compilation to subprograms for separate execution (lyndonhenry)

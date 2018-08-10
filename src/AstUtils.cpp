@@ -15,10 +15,12 @@
  ***********************************************************************/
 
 #include "AstUtils.h"
+#include "AstArgument.h"
+#include "AstClause.h"
+#include "AstLiteral.h"
+#include "AstProgram.h"
+#include "AstRelation.h"
 #include "AstVisitor.h"
-#include "Constraints.h"
-#include "TypeSystem.h"
-#include "Util.h"
 
 namespace souffle {
 

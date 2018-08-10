@@ -1,8 +1,32 @@
+/*
+ * Souffle - A Datalog Compiler
+ * Copyright (c) 2018 The Souffle Developers. All Rights reserved
+ * Licensed under the Universal Permissive License v 1.0 as shown at:
+ * - https://opensource.org/licenses/UPL
+ * - <souffle root>/licenses/SOUFFLE-UPL.txt
+ */
+
+/************************************************************************
+ *
+ * @file Global.cpp
+ *
+ * Defines a configuration environment
+ *
+ ***********************************************************************/
+
 #include "Global.h"
+#include <cassert>
+#include <cctype>
+#include <cstdio>
+#include <memory>
+#include <sstream>
+#include <stdexcept>
+#include <utility>
+#include <getopt.h>
 
 namespace souffle {
 
-void MainConfig::processArgs(int argc, char** argv, const std::string header, const std::string footer,
+void MainConfig::processArgs(int argc, char** argv, const std::string& header, const std::string& footer,
         const std::vector<MainOption> mainOptions) {
     // construct the help text using the main options
     {
@@ -16,7 +40,7 @@ void MainConfig::processArgs(int argc, char** argv, const std::string header, co
         int maxLongNameLength = 0, maxArgumentIdLength = 0;
         for (const MainOption& opt : mainOptions) {
             // if it is the main option, do nothing
-            if (opt.longName == "") {
+            if (opt.longName.empty()) {
                 continue;
             }
             // otherwise, proceed with the calculation
@@ -31,7 +55,7 @@ void MainConfig::processArgs(int argc, char** argv, const std::string header, co
         int length;
         for (const MainOption& opt : mainOptions) {
             // if it is the main option, do nothing
-            if (opt.longName == "") {
+            if (opt.longName.empty()) {
                 continue;
             }
 
@@ -99,7 +123,7 @@ void MainConfig::processArgs(int argc, char** argv, const std::string header, co
                 set(opt.longName, opt.byDefault);
             }
             // skip the next bit if it is the option for the datalog file
-            if (opt.longName == "") {
+            if (opt.longName.empty()) {
                 continue;
             }
             // convert the main option to a plain old getopt option and put it in the array
@@ -122,7 +146,8 @@ void MainConfig::processArgs(int argc, char** argv, const std::string header, co
         while ((c = getopt_long(argc, argv, shortNames.c_str(), longNames, nullptr)) != EOF) {
             // case for the unknown option
             if (c == '?') {
-                ERROR("unexpected command line argument", []() { std::cerr << Global::config().help(); });
+                std::cerr << Global::config().help();
+                throw std::runtime_error("Error: Unknown command line option.");
             }
             // obtain an iterator to the option in the table referenced by the current short name
             auto iter = optionTable.find(c);
@@ -142,7 +167,8 @@ void MainConfig::processArgs(int argc, char** argv, const std::string header, co
                 if (has(iter->second->longName) &&
                         (iter->second->byDefault.empty() ||
                                 !has(iter->second->longName, iter->second->byDefault))) {
-                    ERROR("only one argument allowed for option '" + iter->second->longName + "'");
+                    throw std::runtime_error(
+                            "Error: Only one argument allowed for option '" + iter->second->longName + "'");
                 }
                 set(iter->second->longName, arg);
             }
@@ -154,10 +180,11 @@ void MainConfig::processArgs(int argc, char** argv, const std::string header, co
         std::string filename = "";
         // ensure that the optind is less than the total number of arguments
         if (argc > 1 && optind >= argc) {
-            ERROR("unexpected command line argument", []() { std::cerr << Global::config().help(); });
+            std::cerr << Global::config().help();
+            throw std::runtime_error("Error: Unknown command line option.");
         }
         // if only one datalog program is allowed
-        if (mainOptions[0].longName == "" && mainOptions[0].takesMany) {
+        if (mainOptions[0].longName.empty() && mainOptions[0].takesMany) {
             // set the option in the global config for the main datalog file to that specified by the command
             // line arguments
             set("", std::string(argv[optind]));
@@ -167,7 +194,7 @@ void MainConfig::processArgs(int argc, char** argv, const std::string header, co
             // for each of the command line arguments not associated with an option
             for (; optind < argc; optind++) {
                 // append this filename to the concatenated string of filenames
-                if (filenames == "") {
+                if (filenames.empty()) {
                     filenames = argv[optind];
                 } else {
                     filenames = filenames + " " + std::string(argv[optind]);

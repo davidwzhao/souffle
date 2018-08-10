@@ -102,7 +102,7 @@ TEST(AstUtils, Grounded) {
     clause->addToBody(std::unique_ptr<AstLiteral>(a));
 
     // X = Y
-    AstLiteral* e1 = new AstConstraint("=", std::unique_ptr<AstArgument>(new AstVariable("X")),
+    AstLiteral* e1 = new AstBinaryConstraint("=", std::unique_ptr<AstArgument>(new AstVariable("X")),
             std::unique_ptr<AstArgument>(new AstVariable("Y")));
     clause->addToBody(std::unique_ptr<AstLiteral>(e1));
 

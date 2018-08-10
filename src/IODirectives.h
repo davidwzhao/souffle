@@ -22,7 +22,7 @@ namespace souffle {
 
 class IODirectives {
 public:
-    IODirectives() {}
+    IODirectives() = default;
 
     IODirectives(const std::map<std::string, std::string>& directiveMap) {
         for (const auto& pair : directiveMap) {
@@ -89,7 +89,7 @@ public:
         out << '}';
     }
 
-    friend std::ostream& operator<<(std::ostream& out, const IODirectives ioDirectives) {
+    friend std::ostream& operator<<(std::ostream& out, const IODirectives& ioDirectives) {
         ioDirectives.print(out);
         return out;
     }
@@ -112,7 +112,7 @@ private:
     }
 
     std::string escape(
-            const std::string& inputString, const std::string& needle, const std::string replacement) const {
+            const std::string& inputString, const std::string& needle, const std::string& replacement) const {
         std::string result = inputString;
         size_t pos = 0;
         while ((pos = result.find(needle, pos)) != std::string::npos) {

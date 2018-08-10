@@ -14,6 +14,7 @@
  * of a datalog program, error reports and cached analysis results.
  *
  ***********************************************************************/
+
 #pragma once
 
 #include "DebugReport.h"
@@ -69,6 +70,10 @@ public:
 
     const RamProgram* getProgram() {
         return program.get();
+    }
+
+    const RamProgram& getP() const {
+        return *program.get();
     }
 
     RamProgram* getProgram() const {

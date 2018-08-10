@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "Macro.h"
+#include "RamTypes.h"
 
 #include <algorithm>
 #include <atomic>
@@ -31,18 +31,31 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
-#include <assert.h>
-#include <ctype.h>
-#include <errno.h>
+#include <cassert>
+#include <cctype>
+#include <cerrno>
+#include <climits>
+#include <cstdarg>
+#include <cstdlib>
+#include <cstring>
 #include <libgen.h>
-#include <limits.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+/**
+ * Converts a string to a number
+ */
+
+#if RAM_DOMAIN_SIZE == 64
+#define stord(a) std::stoll(a)
+#elif RAM_DOMAIN_SIZE == 32
+#define stord(a) std::stoi(a)
+#else
+#error RAM Domain is neither 32bit nor 64bit
+#endif
 
 #if __cplusplus == 201103L
 // make_unique implementation for C++11
@@ -50,17 +63,17 @@
 namespace std {
 template <class T>
 struct _Unique_if {
-    typedef unique_ptr<T> _Single_object;
+    using _Single_object = unique_ptr<T>;
 };
 
 template <class T>
 struct _Unique_if<T[]> {
-    typedef unique_ptr<T[]> _Unknown_bound;
+    using _Unknown_bound = unique_ptr<T[]>;
 };
 
 template <class T, size_t N>
 struct _Unique_if<T[N]> {
-    typedef void _Known_bound;
+    using _Known_bound = void;
 };
 
 template <class T, class... Args>
@@ -70,7 +83,7 @@ typename _Unique_if<T>::_Single_object make_unique(Args&&... args) {
 
 template <class T>
 typename _Unique_if<T>::_Unknown_bound make_unique(size_t n) {
-    typedef typename remove_extent<T>::type U;
+    using U = typename remove_extent<T>::type;
     return unique_ptr<T>(new U[n]());
 }
 
@@ -226,7 +239,7 @@ struct range {
     Iter a, b;
 
     // a constructor accepting a lower and upper boundary
-    range(const Iter& a, const Iter& b) : a(a), b(b) {}
+    range(Iter a, Iter b) : a(std::move(a)), b(std::move(b)) {}
 
     // default copy / move and assignment support
     range(const range&) = default;
@@ -497,8 +510,8 @@ class joined_sequence {
 
 public:
     /** A constructor setting up all fields of this class */
-    joined_sequence(const Iter& a, const Iter& b, const std::string& sep, const Printer& p)
-            : begin(a), end(b), sep(sep), p(p) {}
+    joined_sequence(const Iter& a, const Iter& b, std::string sep, Printer p)
+            : begin(a), end(b), sep(std::move(sep)), p(std::move(p)) {}
 
     /** The actual print method */
     friend std::ostream& operator<<(std::ostream& out, const joined_sequence& s) {
@@ -791,25 +804,25 @@ struct lambda_traits_helper;
 
 template <typename R>
 struct lambda_traits_helper<R()> {
-    typedef R result_type;
+    using result_type = R;
 };
 
 template <typename R, typename A0>
 struct lambda_traits_helper<R(A0)> {
-    typedef R result_type;
-    typedef A0 arg0_type;
+    using result_type = R;
+    using arg0_type = A0;
 };
 
 template <typename R, typename A0, typename A1>
 struct lambda_traits_helper<R(A0, A1)> {
-    typedef R result_type;
-    typedef A0 arg0_type;
-    typedef A1 arg1_type;
+    using result_type = R;
+    using arg0_type = A0;
+    using arg1_type = A1;
 };
 
 template <typename R, typename... Args>
 struct lambda_traits_helper<R(Args...)> {
-    typedef R result_type;
+    using result_type = R;
 };
 
 template <typename R, typename C, typename... Args>
@@ -838,7 +851,7 @@ struct lambda_traits : public detail::lambda_traits_helper<decltype(&Lambda::ope
  */
 template <typename Class, typename R, typename... Args>
 struct member_fun {
-    typedef R (Class::*fun_type)(Args...);
+    using fun_type = R (Class::*)(Args...);
     Class& obj;
     fun_type fun;
     R operator()(Args... args) const {
@@ -905,7 +918,8 @@ bool none_of(const Container& c, UnaryPredicate p) {
 // -------------------------------------------------------------------------------
 
 // a type def for a time point
-typedef std::chrono::high_resolution_clock::time_point time_point;
+using time_point = std::chrono::high_resolution_clock::time_point;
+using std::chrono::microseconds;
 
 // a shortcut for taking the current time
 inline time_point now() {
@@ -913,8 +927,8 @@ inline time_point now() {
 }
 
 // a shortcut for obtaining the time difference in milliseconds
-inline long duration_in_ms(const time_point& start, const time_point& end) {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+inline long duration_in_us(const time_point& start, const time_point& end) {
+    return std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 }
 
 // a shortcut for obtaining the time difference in nanoseconds
@@ -930,7 +944,7 @@ inline long duration_in_ns(const time_point& start, const time_point& end) {
  *  Check whether a file exists in the file system
  */
 inline bool existFile(const std::string& name) {
-    struct stat buffer;
+    struct stat buffer = {};
     if (stat(name.c_str(), &buffer) == 0) {
         if ((buffer.st_mode & S_IFREG) != 0) {
             return true;
@@ -943,7 +957,7 @@ inline bool existFile(const std::string& name) {
  *  Check whether a directory exists in the file system
  */
 inline bool existDir(const std::string& name) {
-    struct stat buffer;
+    struct stat buffer = {};
     if (stat(name.c_str(), &buffer) == 0) {
         if ((buffer.st_mode & S_IFDIR) != 0) {
             return true;
@@ -1153,13 +1167,13 @@ class shared_mutex {
     std::mutex mut_;
     std::condition_variable gate1_;
     std::condition_variable gate2_;
-    unsigned state_;
+    unsigned state_ = 0;
 
     static const unsigned write_entered_ = 1U << (sizeof(unsigned) * CHAR_BIT - 1);
     static const unsigned n_readers_ = ~write_entered_;
 
 public:
-    shared_mutex() : state_(0) {}
+    shared_mutex() = default;
 
     // Exclusive ownership
     void lock() {
@@ -1278,17 +1292,17 @@ public:
     }
 
     std::size_t getHits() const {
-        ASSERT(active);
+        assert(active);
         return hits;
     }
 
     std::size_t getMisses() const {
-        ASSERT(active);
+        assert(active);
         return misses;
     }
 
     std::size_t getAccesses() const {
-        ASSERT(active);
+        assert(active);
         return getHits() + getMisses();
     }
 

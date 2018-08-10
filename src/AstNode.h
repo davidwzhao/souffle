@@ -5,6 +5,7 @@
  * - https://opensource.org/licenses/UPL
  * - <souffle root>/licenses/SOUFFLE-UPL.txt
  */
+
 /************************************************************************
  *
  * @file AstNode.h
@@ -15,17 +16,17 @@
 
 #pragma once
 
-#include "AstSrcLocation.h"
 #include "AstTypes.h"
+#include "SrcLocation.h"
 #include "Util.h"
 
 #include <limits>
 #include <memory>
 #include <typeinfo>
 
+#include <cstddef>
+#include <cstring>
 #include <libgen.h>
-#include <stddef.h>
-#include <string.h>
 #include <unistd.h>
 
 namespace souffle {
@@ -38,18 +39,18 @@ class AstNodeMapper;
  */
 class AstNode {
     /** Source location of a syntactic element */
-    AstSrcLocation location;
+    SrcLocation location;
 
 public:
     virtual ~AstNode() = default;
 
     /** Return source location of the AstNode */
-    AstSrcLocation getSrcLoc() const {
+    SrcLocation getSrcLoc() const {
         return location;
     }
 
     /** Set source location for the AstNode */
-    void setSrcLoc(const AstSrcLocation& l) {
+    void setSrcLoc(const SrcLocation& l) {
         location = l;
     }
 
@@ -114,7 +115,7 @@ public:
     std::unique_ptr<T> operator()(std::unique_ptr<T> node) const {
         std::unique_ptr<AstNode> resPtr =
                 (*this)(std::unique_ptr<AstNode>(static_cast<AstNode*>(node.release())));
-        assert(dynamic_cast<T*>(resPtr.get()) && "Invalid target node!");
+        assert(nullptr != dynamic_cast<T*>(resPtr.get()) && "Invalid target node!");
         return std::unique_ptr<T>(dynamic_cast<T*>(resPtr.release()));
     }
 };

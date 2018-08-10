@@ -1,6 +1,0 @@
-  C1.1  rel(thisIsAnotherreallyLongAttributeNameWhichCanBecomeUnreadbleVeryQuicklyButIsNeededForTesting,m) :-     rel(thisIsAnotherreallyLongAttributeNameWhichCanBecomeUnreadbleVeryQuicklyButIsNeededForTesting,_),    rel(m,_),    thisIsAnotherreallyLongAttributeNameWhichCanBecomeUnreadbleVeryQuicklyButIsNeededForTesting < m.
-
-  NO   RUNTIME
-
-   0 0.00001727 | *******************************************************************
-

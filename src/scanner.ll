@@ -16,6 +16,13 @@
 %option reentrant
 %option extra-type="struct scanner_data *"
 %{
+
+#if defined(__clang__)
+# pragma clang diagnostic ignored "-Wunneeded-internal-declaration"
+#elif defined(__GNUG__)
+# pragma GCC diagnostic ignored "-Wsign-compare"
+#endif
+
     #include <stdio.h>
     #include <libgen.h>
     #include <ctype.h>
@@ -30,8 +37,8 @@
     #include "AstProgram.h"
     #include "StringPool.h"
 
-    #include "AstSrcLocation.h"
-    #define YYLTYPE AstSrcLocation
+    #include "SrcLocation.h"
+    #define YYLTYPE SrcLocation
 
     #include "ParserDriver.h"
     #include "RamTypes.h"
@@ -48,9 +55,9 @@
 
     /* Execute when matching */
 #define YY_USER_ACTION  { \
-    yylloc.start = AstSrcLocation::Point({ yylineno, yycolumn }); \
+    yylloc.start = SrcLocation::Point({ yylineno, yycolumn }); \
     yycolumn += yyleng;             \
-    yylloc.end   = AstSrcLocation::Point({ yylineno, yycolumn }); \
+    yylloc.end   = SrcLocation::Point({ yylineno, yycolumn }); \
     yylloc.filename = yyfilename;   \
 }
 
@@ -80,20 +87,6 @@
 "land"                                { return yy::parser::make_L_AND(yylloc); }
 "lor"                                 { return yy::parser::make_L_OR(yylloc); }
 "lnot"                                { return yy::parser::make_L_NOT(yylloc); }
-"sin"                                 { return yy::parser::make_RESERVED(yytext, yylloc); } // TODO (see issue #298)
-"cos"                                 { return yy::parser::make_RESERVED(yytext, yylloc); } // TODO (see issue #298)
-"tan"                                 { return yy::parser::make_RESERVED(yytext, yylloc); } // TODO (see issue #298)
-"asin"                                { return yy::parser::make_RESERVED(yytext, yylloc); } // TODO (see issue #298)
-"acos"                                { return yy::parser::make_RESERVED(yytext, yylloc); } // TODO (see issue #298)
-"atan"                                { return yy::parser::make_RESERVED(yytext, yylloc); } // TODO (see issue #298)
-"sinh"                                { return yy::parser::make_RESERVED(yytext, yylloc); } // TODO (see issue #298)
-"cosh"                                { return yy::parser::make_RESERVED(yytext, yylloc); } // TODO (see issue #298)
-"tanh"                                { return yy::parser::make_RESERVED(yytext, yylloc); } // TODO (see issue #298)
-"asinh"                               { return yy::parser::make_RESERVED(yytext, yylloc); } // TODO (see issue #298)
-"acosh"                               { return yy::parser::make_RESERVED(yytext, yylloc); } // TODO (see issue #298)
-"atanh"                               { return yy::parser::make_RESERVED(yytext, yylloc); } // TODO (see issue #298)
-"log"                                 { return yy::parser::make_RESERVED(yytext, yylloc); } // TODO (see issue #298)
-"exp"                                 { return yy::parser::make_RESERVED(yytext, yylloc); } // TODO (see issue #298)
 "match"                               { return yy::parser::make_TMATCH(yylloc); }
 "cat"                                 { return yy::parser::make_CAT(yylloc); }
 "ord"                                 { return yy::parser::make_ORD(yylloc); }
@@ -102,10 +95,11 @@
 "contains"                            { return yy::parser::make_TCONTAINS(yylloc); }
 "output"                              { return yy::parser::make_OUTPUT_QUALIFIER(yylloc); }
 "input"                               { return yy::parser::make_INPUT_QUALIFIER(yylloc); }
-"data"                                { return yy::parser::make_DATA_QUALIFIER(yylloc); }
 "overridable"                         { return yy::parser::make_OVERRIDABLE_QUALIFIER(yylloc); }
 "printsize"                           { return yy::parser::make_PRINTSIZE_QUALIFIER(yylloc); }
 "eqrel"                               { return yy::parser::make_EQREL_QUALIFIER(yylloc); }
+"rbtset"                              { return yy::parser::make_RBTSET_QUALIFIER(yylloc); }
+"hashset"                             { return yy::parser::make_HASHSET_QUALIFIER(yylloc); }
 "inline"                              { return yy::parser::make_INLINE_QUALIFIER(yylloc); }
 "brie"                                { return yy::parser::make_BRIE_QUALIFIER(yylloc); }
 "btree"                               { return yy::parser::make_BTREE_QUALIFIER(yylloc); }
@@ -115,6 +109,10 @@
 "_"                                   { return yy::parser::make_UNDERSCORE(yylloc); }
 "count"                               { return yy::parser::make_COUNT(yylloc); }
 "sum"                                 { return yy::parser::make_SUM(yylloc); }
+"true"                                { return yy::parser::make_TRUE(yylloc); }
+"false"                               { return yy::parser::make_FALSE(yylloc); }
+"to_string"                           { return yy::parser::make_TOSTRING(yylloc); }
+"to_number"                           { return yy::parser::make_TONUMBER(yylloc); }
 ".strict"                             { return yy::parser::make_STRICT(yylloc); }
 ".plan"                               { return yy::parser::make_PLAN(yylloc); }
 "|"                                   { return yy::parser::make_PIPE(yylloc); }

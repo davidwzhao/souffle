@@ -18,13 +18,19 @@
 
 #include "PrecedenceGraph.h"
 #include "AstClause.h"
+#include "AstLiteral.h"
+#include "AstProgram.h"
 #include "AstRelation.h"
+#include "AstRelationIdentifier.h"
+#include "AstTranslationUnit.h"
 #include "AstUtils.h"
 #include "AstVisitor.h"
 #include "Global.h"
-
+#include "Util.h"
 #include <algorithm>
+#include <iterator>
 #include <set>
+#include <string>
 
 namespace souffle {
 
@@ -38,14 +44,8 @@ void PrecedenceGraph::run(const AstTranslationUnit& translationUnit) {
             AstClause* c = r->getClause(i);
             const std::set<const AstRelation*>& dependencies =
                     getBodyRelations(c, translationUnit.getProgram());
-            for (std::set<const AstRelation*>::const_iterator irs = dependencies.begin();
-                    irs != dependencies.end(); ++irs) {
-                const AstRelation* source = (*irs);
+            for (auto source : dependencies) {
                 backingGraph.insert(source, r);
-                // TODO (#467): one possible way to handle subprogram compilation for record types is
-                // by introducing artificial dependencies to the precedence graph
-                // if (Global::config().has("stratify") && (source->hasRecordInHead()))
-                // backingGraph.insert(r, source);
             }
         }
     }
@@ -189,15 +189,15 @@ void SCCGraph::run(const AstTranslationUnit& translationUnit) {
 
     /* Compute SCC */
     std::vector<AstRelation*> relations = translationUnit.getProgram()->getRelations();
-    unsigned counter = 0;
-    unsigned numSCCs = 0;
+    size_t counter = 0;
+    size_t numSCCs = 0;
     std::stack<const AstRelation*> S, P;
-    std::map<const AstRelation*, int> preOrder;  // Pre-order number of a node (for Gabow's Algo)
+    std::map<const AstRelation*, size_t> preOrder;  // Pre-order number of a node (for Gabow's Algo)
     for (const AstRelation* relation : relations) {
-        relationToScc[relation] = preOrder[relation] = -1;
+        relationToScc[relation] = preOrder[relation] = (size_t)-1;
     }
     for (const AstRelation* relation : relations) {
-        if (preOrder[relation] == -1) {
+        if (preOrder[relation] == (size_t)-1) {
             scR(relation, preOrder, counter, S, P, numSCCs);
         }
     }
@@ -207,10 +207,10 @@ void SCCGraph::run(const AstTranslationUnit& translationUnit) {
     predecessors.resize(numSCCs);
     for (const AstRelation* u : relations) {
         for (const AstRelation* v : precedenceGraph->graph().predecessors(u)) {
-            int scc_u = relationToScc[u];
-            int scc_v = relationToScc[v];
-            ASSERT(scc_u >= 0 && scc_u < int(numSCCs) && "Wrong range");
-            ASSERT(scc_v >= 0 && scc_v < int(numSCCs) && "Wrong range");
+            auto scc_u = relationToScc[u];
+            auto scc_v = relationToScc[v];
+            assert(scc_u < numSCCs && "Wrong range");
+            assert(scc_v < numSCCs && "Wrong range");
             if (scc_u != scc_v) {
                 predecessors[scc_u].insert(scc_v);
                 successors[scc_v].insert(scc_u);
@@ -228,15 +228,15 @@ void SCCGraph::run(const AstTranslationUnit& translationUnit) {
 /* Compute strongly connected components using Gabow's algorithm (cf. Algorithms in
  * Java by Robert Sedgewick / Part 5 / Graph *  algorithms). The algorithm has linear
  * runtime. */
-void SCCGraph::scR(const AstRelation* w, std::map<const AstRelation*, int>& preOrder, unsigned& counter,
-        std::stack<const AstRelation*>& S, std::stack<const AstRelation*>& P, unsigned& numSCCs) {
+void SCCGraph::scR(const AstRelation* w, std::map<const AstRelation*, size_t>& preOrder, size_t& counter,
+        std::stack<const AstRelation*>& S, std::stack<const AstRelation*>& P, size_t& numSCCs) {
     preOrder[w] = counter++;
     S.push(w);
     P.push(w);
     for (const AstRelation* t : precedenceGraph->graph().predecessors(w)) {
-        if (preOrder[t] == -1) {
+        if (preOrder[t] == (size_t)-1) {
             scR(t, preOrder, counter, S, P, numSCCs);
-        } else if (relationToScc[t] == -1) {
+        } else if (relationToScc[t] == (size_t)-1) {
             while (preOrder[P.top()] > preOrder[t]) {
                 P.pop();
             }
@@ -258,128 +258,25 @@ void SCCGraph::scR(const AstRelation* w, std::map<const AstRelation*, int>& preO
 }
 
 void SCCGraph::print(std::ostream& os) const {
-    print(os, "dot");
-}
-
-void SCCGraph::printDot(std::ostream& os) const {
     const std::string& name = Global::config().get("name");
     /* Print SCC graph */
     os << "digraph {" << std::endl;
     /* Print nodes of SCC graph */
-    for (unsigned scc = 0; scc < size(); scc++) {
+    for (size_t scc = 0; scc < getNumberOfSCCs(); scc++) {
         os << "\t" << name << "_" << scc << "[label = \"";
-        os << join(relations(scc), ",\\n",
+        os << join(getInternalRelations(scc), ",\\n",
                 [](std::ostream& out, const AstRelation* rel) { out << rel->getName(); });
         os << "\" ];" << std::endl;
     }
-    for (unsigned scc = 0; scc < size(); scc++) {
-        for (unsigned succ : successorSCCs(scc)) {
+    for (size_t scc = 0; scc < getNumberOfSCCs(); scc++) {
+        for (auto succ : getSuccessorSCCs(scc)) {
             os << "\t" << name << "_" << scc << " -> " << name << "_" << succ << ";" << std::endl;
         }
     }
     os << "}";
 }
 
-void SCCGraph::printJson(std::ostream& os) const {
-    // prefix the vertices by the 'name' of the program
-    std::string name;
-    if (Global::config().has("dl-program"))
-        name = Global::config().get("dl-program");
-    else if (Global::config().has("generate"))
-        name = Global::config().get("generate");
-    else
-        name = Global::config().get("");
-    name = simpleName(baseName(name));
-
-    /*
-     * {
-     */
-    os << "{" << std::endl;
-
-    /*
-     *  vertices: {
-     *   scc_1: { on: [rel_1, rel_2, ..., rel_m1], out: ..., in: ... },
-     *   scc_2: { on: [rel_1, rel_2, ..., rel_m2], out: ..., in: ... },
-     *   ...
-     *   scc_n: { on: [rel_1, rel_2, ..., rel_mn], out: ..., in: ... }
-     *  }
-     */
-    os << "\t\"vertices\": {\n";
-    for (unsigned scc = 0; scc < size(); scc++) {
-        os << "\t\t\"" << name << "_" << scc << "\": {\n";
-
-        std::map<std::string, std::set<const AstRelation*>> relSets;
-
-        // "on" is all relations for this scc
-        relSets["on"] = relations(scc);
-        // "in" is all inbound relations + all input relations
-        relSets["in"] = getIns(scc);
-        // "out" is all outbound relations + all output relations
-        relSets["out"] = getOuts(scc);
-
-        size_t relCount = relSets.size();
-        for (const auto& rels : relSets) {
-            os << "\t\t\t\"" << rels.first << "\": [";
-            if (!rels.second.empty()) {
-                os << "\n\t\t\t\t\"";
-                os << join(rels.second, "\",\n\t\t\t\t\"",
-                        [](std::ostream& out, const AstRelation* rel) { out << rel->getName(); });
-                os << "\"\n";
-                os << "\t\t\t]";
-            } else {
-                os << "]";
-            }
-            if (--relCount != 0) os << ",";
-            os << "\n";
-        }
-
-        os << "\t\t}";
-        if (scc != size() - 1) os << ",";
-        os << "\n";
-    }
-    os << "\t},\n";
-
-    /*
-     *  edges: {
-     *   scc_1: { scc_1-1, scc_1-2, ..., scc_1-k },
-     *   scc_2: { scc_2-1, scc_2-2, ..., rel_2-k' },
-     *   ...
-     *   scc_n: { scc_n-1, scc_n-2, ..., scc_n-k'' }
-     *  }
-     */
-    os << "\t\"edges\": {\n";
-    for (unsigned scc = 0; scc < size(); scc++) {
-        os << "\t\t\"" << name << "_" << scc << "\": [\n";
-        const auto& succs = successorSCCs(scc);
-        if (!succs.empty()) {
-            os << "\t\t\t\"" + name + "_";
-            os << join(succs, "\",\n\t\t\t\"" + name + "_",
-                    [](std::ostream& out, const unsigned succ) { out << succ; });
-            os << "\"\n";
-        }
-        os << "\t\t]";
-        if (scc != size() - 1) os << ",";
-        os << "\n";
-    }
-    os << "\t}\n";
-
-    /*
-     * }
-     */
-    os << "}" << std::endl;
-}
-
-void SCCGraph::print(std::ostream& os, const std::string& format) const {
-    if (format == "dot")
-        printDot(os);
-    else if (format == "json")
-        printJson(os);
-    else
-        ERROR("unrecognised file format.");
-}
-
-unsigned TopologicallySortedSCCGraph::topologicalOrderingCost(
-        const std::vector<unsigned>& permutationOfSCCs) const {
+int TopologicallySortedSCCGraph::topologicalOrderingCost(const std::vector<size_t>& permutationOfSCCs) const {
     // create variables to hold the cost of the current SCC and the permutation as a whole
     int costOfSCC = 0;
     int costOfPermutation = -1;
@@ -390,7 +287,7 @@ unsigned TopologicallySortedSCCGraph::topologicalOrderingCost(
         // if the index of the current scc is after the end of the ordered partition
         if (it_i >= it_k) {
             // check that the index of all predecessor sccs of are before the index of the current scc
-            for (unsigned scc : sccGraph->predecessorSCCs(*it_i)) {
+            for (auto scc : sccGraph->getPredecessorSCCs(*it_i)) {
                 if (std::find(permutationOfSCCs.begin(), it_i, scc) == it_i) {
                     // if not, the sort is not a valid topological sort
                     return -1;
@@ -401,7 +298,7 @@ unsigned TopologicallySortedSCCGraph::topologicalOrderingCost(
         // as the number of sccs with an index before the current scc
         for (auto it_j = permutationOfSCCs.begin(); it_j != it_i; ++it_j) {
             // having some successor scc with an index after the current scc
-            for (unsigned scc : sccGraph->successorSCCs(*it_j)) {
+            for (auto scc : sccGraph->getSuccessorSCCs(*it_j)) {
                 if (std::find(permutationOfSCCs.begin(), it_i, scc) == it_i) {
                     costOfSCC++;
                 }
@@ -416,17 +313,17 @@ unsigned TopologicallySortedSCCGraph::topologicalOrderingCost(
     return costOfPermutation;
 }
 
-void TopologicallySortedSCCGraph::computeTopologicalOrdering(unsigned scc, std::vector<bool>& visited) {
+void TopologicallySortedSCCGraph::computeTopologicalOrdering(size_t scc, std::vector<bool>& visited) {
     // create a flag to indicate that a successor was visited (by default it hasn't been)
     bool found = false, hasUnvisitedSuccessor = false, hasUnvisitedPredecessor = false;
     // for each successor of the input scc
-    const auto& successorsToVisit = sccGraph->successorSCCs(scc);
+    const auto& successorsToVisit = sccGraph->getSuccessorSCCs(scc);
     for (const auto scc_i : successorsToVisit) {
         if (visited[scc_i]) {
             continue;
         }
         hasUnvisitedPredecessor = false;
-        const auto& successorsPredecessors = sccGraph->predecessorSCCs(scc_i);
+        const auto& successorsPredecessors = sccGraph->getPredecessorSCCs(scc_i);
         for (const auto scc_j : successorsPredecessors) {
             if (!visited[scc_j]) {
                 hasUnvisitedPredecessor = true;
@@ -450,7 +347,7 @@ void TopologicallySortedSCCGraph::computeTopologicalOrdering(unsigned scc, std::
         return;
     }
     hasUnvisitedPredecessor = false;
-    const auto& predecessors = sccGraph->predecessorSCCs(scc);
+    const auto& predecessors = sccGraph->getPredecessorSCCs(scc);
     for (const auto scc_j : predecessors) {
         if (!visited[scc_j]) {
             hasUnvisitedPredecessor = true;
@@ -458,7 +355,7 @@ void TopologicallySortedSCCGraph::computeTopologicalOrdering(unsigned scc, std::
         }
     }
     hasUnvisitedSuccessor = false;
-    const auto& successors = sccGraph->successorSCCs(scc);
+    const auto& successors = sccGraph->getSuccessorSCCs(scc);
     for (const auto scc_j : successors) {
         if (!visited[scc_j]) {
             hasUnvisitedSuccessor = true;
@@ -478,18 +375,18 @@ void TopologicallySortedSCCGraph::run(const AstTranslationUnit& translationUnit)
     // clear the list of ordered sccs
     sccOrder.clear();
     std::vector<bool> visited;
-    visited.resize(sccGraph->size());
+    visited.resize(sccGraph->getNumberOfSCCs());
     std::fill(visited.begin(), visited.end(), false);
     // generate topological ordering using forwards algorithm (like Khan's algorithm)
     // for each of the sccs in the graph
-    for (unsigned scc = 0; scc < sccGraph->size(); ++scc) {
+    for (size_t scc = 0; scc < sccGraph->getNumberOfSCCs(); ++scc) {
         // if that scc has no predecessors
-        if (sccGraph->predecessorSCCs(scc).empty()) {
+        if (sccGraph->getPredecessorSCCs(scc).empty()) {
             // put it in the ordering
             sccOrder.push_back(scc);
             visited[scc] = true;
             // if the scc has successors
-            if (!sccGraph->successorSCCs(scc).empty()) {
+            if (!sccGraph->getSuccessorSCCs(scc).empty()) {
                 computeTopologicalOrdering(scc, visited);
             }
         }
@@ -497,15 +394,29 @@ void TopologicallySortedSCCGraph::run(const AstTranslationUnit& translationUnit)
 }
 
 void TopologicallySortedSCCGraph::print(std::ostream& os) const {
-    unsigned numSCCs = sccOrder.size();
-    for (unsigned i = 0; i < numSCCs; i++) {
-        os << "[";
-        os << join(sccGraph->relations(sccOrder[i]), ", ",
-                [](std::ostream& out, const AstRelation* rel) { out << rel->getName(); });
-        os << "]\n";
+    os << "--- partial order of strata as list of pairs ---" << std::endl;
+    for (size_t sccIndex = 0; sccIndex < sccOrder.size(); sccIndex++) {
+        const auto& successorSccs = sccGraph->getSuccessorSCCs(sccOrder.at(sccIndex));
+        // use a self-loop to indicate that an SCC has no successors or predecessors
+        if (successorSccs.empty() && sccGraph->getPredecessorSCCs(sccOrder.at(sccIndex)).empty()) {
+            os << sccIndex << " " << sccIndex << std::endl;
+            continue;
+        }
+        for (const auto successorScc : successorSccs) {
+            const auto successorSccIndex = *std::find(sccOrder.begin(), sccOrder.end(), successorScc);
+            os << sccIndex << " " << successorSccIndex << std::endl;
+        }
     }
-    os << "\n";
-    os << "cost: " << topologicalOrderingCost(sccOrder) << "\n";
+    os << "--- total order with relations of each strata ---" << std::endl;
+    for (size_t i = 0; i < sccOrder.size(); i++) {
+        os << i << ": [";
+        os << join(sccGraph->getInternalRelations(sccOrder[i]), ", ",
+                [](std::ostream& out, const AstRelation* rel) { out << rel->getName(); });
+        os << "]" << std::endl;
+    }
+    os << std::endl;
+    os << "--- statistics of topological order ---" << std::endl;
+    os << "cost: " << topologicalOrderingCost(sccOrder) << std::endl;
 }
 
 void RelationScheduleStep::print(std::ostream& os) const {
@@ -530,15 +441,15 @@ void RelationSchedule::run(const AstTranslationUnit& translationUnit) {
     topsortSCCGraph = translationUnit.getAnalysis<TopologicallySortedSCCGraph>();
     precedenceGraph = translationUnit.getAnalysis<PrecedenceGraph>();
 
-    unsigned numSCCs = translationUnit.getAnalysis<SCCGraph>()->size();
+    size_t numSCCs = translationUnit.getAnalysis<SCCGraph>()->getNumberOfSCCs();
     std::vector<std::set<const AstRelation*>> relationExpirySchedule =
             computeRelationExpirySchedule(translationUnit);
 
     relationSchedule.clear();
-    for (unsigned i = 0; i < numSCCs; i++) {
-        unsigned scc = topsortSCCGraph->order()[i];
+    for (size_t i = 0; i < numSCCs; i++) {
+        auto scc = topsortSCCGraph->order()[i];
         const std::set<const AstRelation*> computedRelations =
-                translationUnit.getAnalysis<SCCGraph>()->relations(scc);
+                translationUnit.getAnalysis<SCCGraph>()->getInternalRelations(scc);
         relationSchedule.emplace_back(computedRelations, relationExpirySchedule[i],
                 translationUnit.getAnalysis<SCCGraph>()->isRecursive(scc));
     }
@@ -549,7 +460,7 @@ std::vector<std::set<const AstRelation*>> RelationSchedule::computeRelationExpir
     std::vector<std::set<const AstRelation*>> relationExpirySchedule;
     /* Compute for each step in the reverse topological order
        of evaluating the SCC the set of alive relations. */
-    unsigned numSCCs = topsortSCCGraph->order().size();
+    size_t numSCCs = topsortSCCGraph->order().size();
 
     /* Alive set for each step */
     std::vector<std::set<const AstRelation*>> alive(numSCCs);
@@ -559,13 +470,13 @@ std::vector<std::set<const AstRelation*>> RelationSchedule::computeRelationExpir
 
     /* Compute all alive relations by iterating over all steps in reverse order
        determine the dependencies */
-    for (unsigned orderedSCC = 1; orderedSCC < numSCCs; orderedSCC++) {
+    for (size_t orderedSCC = 1; orderedSCC < numSCCs; orderedSCC++) {
         /* Add alive set of previous step */
         alive[orderedSCC].insert(alive[orderedSCC - 1].begin(), alive[orderedSCC - 1].end());
 
         /* Add predecessors of relations computed in this step */
-        unsigned scc = topsortSCCGraph->order()[numSCCs - orderedSCC];
-        for (const AstRelation* r : sccGraph->relations(scc)) {
+        auto scc = topsortSCCGraph->order()[numSCCs - orderedSCC];
+        for (const AstRelation* r : sccGraph->getInternalRelations(scc)) {
             for (const AstRelation* predecessor : precedenceGraph->graph().predecessors(r)) {
                 alive[orderedSCC].insert(predecessor);
             }
@@ -574,8 +485,9 @@ std::vector<std::set<const AstRelation*>> RelationSchedule::computeRelationExpir
         /* Compute expired relations in reverse topological order using the set difference of the alive sets
            between steps. */
         std::set_difference(alive[orderedSCC].begin(), alive[orderedSCC].end(), alive[orderedSCC - 1].begin(),
-                alive[orderedSCC - 1].end(), std::inserter(relationExpirySchedule[numSCCs - orderedSCC],
-                                                     relationExpirySchedule[numSCCs - orderedSCC].end()));
+                alive[orderedSCC - 1].end(),
+                std::inserter(relationExpirySchedule[numSCCs - orderedSCC],
+                        relationExpirySchedule[numSCCs - orderedSCC].end()));
     }
 
     return relationExpirySchedule;

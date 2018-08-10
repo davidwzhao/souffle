@@ -5,6 +5,7 @@
  * - https://opensource.org/licenses/UPL
  * - <souffle root>/licenses/SOUFFLE-UPL.txt
  */
+
 /************************************************************************
  *
  * @file RamNode.h
@@ -16,6 +17,7 @@
 
 #pragma once
 
+#include <cassert>
 #include <iostream>
 #include <memory>
 #include <typeinfo>
@@ -74,7 +76,18 @@ enum RamNodeType {
     RN_Parallel,
     RN_Exit,
     RN_LogTimer,
-    RN_DebugInfo
+    RN_DebugInfo,
+    RN_Stratum
+
+#ifdef USE_MPI
+    // mpi
+    ,
+    RN_Send,
+    RN_Recv,
+    RN_Notify,
+    RN_Wait,
+#endif
+
 };
 
 /**
@@ -151,7 +164,7 @@ public:
     std::unique_ptr<T> operator()(std::unique_ptr<T> node) const {
         std::unique_ptr<RamNode> resPtr =
                 (*this)(std::unique_ptr<RamNode>(static_cast<RamNode*>(node.release())));
-        assert(dynamic_cast<T*>(resPtr.get()) && "Invalid target node!");
+        assert(nullptr != dynamic_cast<T*>(resPtr.get()) && "Invalid target node!");
         return std::unique_ptr<T>(dynamic_cast<T*>(resPtr.release()));
     }
 };

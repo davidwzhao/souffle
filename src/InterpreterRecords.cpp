@@ -15,9 +15,7 @@
  ***********************************************************************/
 
 #include "InterpreterRecords.h"
-#include "Util.h"
-
-#include <iostream>
+#include <cassert>
 #include <limits>
 #include <map>
 #include <vector>

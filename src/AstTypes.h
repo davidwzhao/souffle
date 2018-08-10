@@ -16,18 +16,22 @@
 
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
+
+#include "RamTypes.h"
 
 namespace souffle {
 
-/** ast domain to mimic ram domain */
+/** ast domain that contains ram domain */
 #ifdef AST_DOMAIN_TYPE
-typedef AST_DOMAIN_TYPE AstDomain;
+using AstDomain = AST_DOMAIN_TYPE;
 #else
-typedef int64_t AstDomain;
+using AstDomain = int64_t;
 #endif
 
-/** lower and upper boundaries for the ast domain **/
-#define MIN_AST_DOMAIN (std::numeric_limits<AstDomain>::min())
-#define MAX_Ast_DOMAIN (std::numeric_limits<AstDomain>::max())
+/** Lower and upper boundaries for the AST domain. The range must be able to be
+ * stored in a RamDomain, so we simply compute the limits of that type. **/
+#define MIN_AST_DOMAIN (std::numeric_limits<RamDomain>::min())
+#define MAX_AST_DOMAIN (std::numeric_limits<RamDomain>::max())
+
 }  // namespace souffle

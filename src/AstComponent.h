@@ -20,6 +20,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace souffle {
@@ -34,7 +35,7 @@ class ErrorReport;
  * where name is the name of the component and < Type, Type, ... > is an optional
  * list of type parameters.
  */
-class AstComponentType {
+class AstComponentType : public AstNode {
     /**
      * The name of the addressed component.
      */
@@ -49,27 +50,9 @@ public:
     /**
      * Creates a new component type based on the given name and parameters.
      */
-    AstComponentType(const std::string& name = "",
-            const std::vector<AstTypeIdentifier>& params = std::vector<AstTypeIdentifier>())
-            : name(name), typeParams(params) {}
-
-    // -- copy constructors and assignment operators --
-
-    AstComponentType(const AstComponentType& other) = default;
-    AstComponentType(AstComponentType&& other) = default;
-
-    AstComponentType& operator=(const AstComponentType& other) = default;
-    AstComponentType& operator=(AstComponentType&& other) = default;
-
-    // -- equality and inequality operators --
-
-    bool operator==(const AstComponentType& other) const {
-        return this == &other || (name == other.name && typeParams == other.typeParams);
-    }
-
-    bool operator!=(const AstComponentType& other) const {
-        return !(*this == other);
-    }
+    AstComponentType(
+            std::string name = "", std::vector<AstTypeIdentifier> params = std::vector<AstTypeIdentifier>())
+            : name(std::move(name)), typeParams(std::move(params)) {}
 
     // -- getters and setters --
 
@@ -89,18 +72,35 @@ public:
         typeParams = params;
     }
 
-    // -- printers --
+    // -- others --
 
-    void print(std::ostream& out) const {
-        out << name;
+    std::vector<const AstNode*> getChildNodes() const override {
+        std::vector<const AstNode*> res;
+        return res;  // no child nodes
+    }
+
+    void apply(const AstNodeMapper& /*mapper*/) override {
+        // nothing to do
+    }
+
+    AstComponentType* clone() const override {
+        AstComponentType* res = new AstComponentType(name, typeParams);
+        res->setSrcLoc(getSrcLoc());
+        return res;
+    }
+
+    void print(std::ostream& os) const override {
+        os << name;
         if (!typeParams.empty()) {
-            out << "<" << join(typeParams, ",") << ">";
+            os << "<" << join(typeParams, ",") << ">";
         }
     }
 
-    friend std::ostream& operator<<(std::ostream& out, const AstComponentType& id) {
-        id.print(out);
-        return out;
+protected:
+    bool equal(const AstNode& node) const override {
+        assert(nullptr != dynamic_cast<const AstComponentType*>(&node));
+        const auto& other = static_cast<const AstComponentType&>(node);
+        return name == other.name && typeParams == other.typeParams;
     }
 };
 
@@ -117,7 +117,7 @@ class AstComponentInit : public AstNode {
     /**
      * The type of the component to be instantiated.
      */
-    AstComponentType componentType;
+    std::unique_ptr<AstComponentType> componentType;
 
 public:
     // -- getters and setters --
@@ -130,43 +130,45 @@ public:
         instanceName = name;
     }
 
-    const AstComponentType& getComponentType() const {
-        return componentType;
+    const AstComponentType* getComponentType() const {
+        return componentType.get();
     }
 
-    void setComponentType(const AstComponentType& type) {
-        componentType = type;
+    void setComponentType(std::unique_ptr<AstComponentType> type) {
+        componentType = std::move(type);
     }
 
     /** Requests an independent, deep copy of this node */
     AstComponentInit* clone() const override {
         auto res = new AstComponentInit();
-        res->componentType = componentType;
-        res->instanceName = instanceName;
+        res->setComponentType(std::unique_ptr<AstComponentType>(componentType->clone()));
+        res->setInstanceName(instanceName);
         return res;
     }
 
     /** Applies the node mapper to all child nodes and conducts the corresponding replacements */
-    void apply(const AstNodeMapper& /*mapper*/) override {
-        return;  // nothing to do
+    void apply(const AstNodeMapper& mapper) override {
+        componentType = mapper(std::move(componentType));
     }
 
     /** Obtains a list of all embedded child nodes */
     std::vector<const AstNode*> getChildNodes() const override {
         std::vector<const AstNode*> res;
-        return res;  // no child nodes
+        res.push_back(componentType.get());
+        return res;
     }
 
     /** Output to a given output stream */
     void print(std::ostream& os) const override {
-        os << ".init " << instanceName << " = " << componentType;
+        os << ".init " << instanceName << " = ";
+        componentType->print(os);
     }
 
 protected:
     /** An internal function to determine equality to another node */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstComponentInit*>(&node));
-        const AstComponentInit& other = static_cast<const AstComponentInit&>(node);
+        assert(nullptr != dynamic_cast<const AstComponentInit*>(&node));
+        const auto& other = static_cast<const AstComponentInit&>(node);
         return instanceName == other.instanceName && componentType == other.componentType;
     }
 };
@@ -178,12 +180,12 @@ class AstComponent : public AstNode {
     /**
      * The type of this component, including its name and type parameters.
      */
-    AstComponentType type;
+    std::unique_ptr<AstComponentType> type;
 
     /**
      * A list of base types to inherit relations and clauses from.
      */
-    std::vector<AstComponentType> baseComponents;
+    std::vector<std::unique_ptr<AstComponentType>> baseComponents;
 
     /**
      * A list of types declared in this component.
@@ -225,24 +227,20 @@ public:
 
     // -- getters and setters --
 
-    const AstComponentType& getComponentType() const {
-        return type;
+    const AstComponentType* getComponentType() const {
+        return type.get();
     }
 
-    void setComponentType(const AstComponentType& type) {
-        this->type = type;
+    void setComponentType(std::unique_ptr<AstComponentType> other) {
+        type = std::move(other);
     }
 
-    const std::vector<AstComponentType>& getBaseComponents() const {
-        return baseComponents;
+    const std::vector<AstComponentType*> getBaseComponents() const {
+        return toPtrVector(baseComponents);
     }
 
-    void setBaseComponents(const std::vector<AstComponentType>& basis) {
-        baseComponents = basis;
-    }
-
-    void addBaseComponent(const AstComponentType& component) {
-        baseComponents.push_back(component);
+    void addBaseComponent(std::unique_ptr<AstComponentType> component) {
+        baseComponents.push_back(std::move(component));
     }
 
     void addType(std::unique_ptr<AstType> t) {
@@ -251,6 +249,13 @@ public:
 
     std::vector<AstType*> getTypes() const {
         return toPtrVector(types);
+    }
+
+    void copyBaseComponents(const AstComponent* other) {
+        baseComponents.clear();
+        for (const auto& baseComponent : other->getBaseComponents()) {
+            baseComponents.push_back(std::unique_ptr<AstComponentType>(baseComponent->clone()));
+        }
     }
 
     void addRelation(std::unique_ptr<AstRelation> r) {
@@ -311,11 +316,12 @@ public:
 
     /** Requests an independent, deep copy of this node */
     AstComponent* clone() const override {
-        AstComponent* res = new AstComponent();
+        auto* res = new AstComponent();
+        res->setComponentType(std::unique_ptr<AstComponentType>(type->clone()));
 
-        res->setComponentType(getComponentType());
-        res->setBaseComponents(getBaseComponents());
-
+        for (const auto& cur : baseComponents) {
+            res->baseComponents.push_back(std::unique_ptr<AstComponentType>(cur->clone()));
+        }
         for (const auto& cur : components) {
             res->components.push_back(std::unique_ptr<AstComponent>(cur->clone()));
         }
@@ -344,7 +350,11 @@ public:
     /** Applies the node mapper to all child nodes and conducts the corresponding replacements */
     void apply(const AstNodeMapper& mapper) override {
         // apply mapper to all sub-nodes
+        type = mapper(std::move(type));
         for (auto& cur : components) {
+            cur = mapper(std::move(cur));
+        }
+        for (auto& cur : baseComponents) {
             cur = mapper(std::move(cur));
         }
         for (auto& cur : instantiations) {
@@ -362,15 +372,17 @@ public:
         for (auto& cur : ioDirectives) {
             cur = mapper(std::move(cur));
         }
-
-        return;
     }
 
     /** Obtains a list of all embedded child nodes */
     std::vector<const AstNode*> getChildNodes() const override {
         std::vector<const AstNode*> res;
 
+        res.push_back(type.get());
         for (const auto& cur : components) {
+            res.push_back(cur.get());
+        }
+        for (const auto& cur : baseComponents) {
             res.push_back(cur.get());
         }
         for (const auto& cur : instantiations) {
@@ -397,7 +409,7 @@ public:
         os << ".comp " << getComponentType() << " ";
 
         if (!baseComponents.empty()) {
-            os << ": " << join(baseComponents, ",") << " ";
+            os << ": " << join(baseComponents, ",", print_deref<std::unique_ptr<AstComponentType>>()) << " ";
         }
         os << "{\n";
 
@@ -429,8 +441,8 @@ public:
 protected:
     /** An internal function to determine equality to another node */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstComponent*>(&node));
-        const AstComponent& other = static_cast<const AstComponent&>(node);
+        assert(nullptr != dynamic_cast<const AstComponent*>(&node));
+        const auto& other = static_cast<const AstComponent&>(node);
 
         // compare all fields
         return type == other.type && baseComponents == other.baseComponents &&

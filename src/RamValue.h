@@ -28,7 +28,8 @@
 #include <sstream>
 #include <string>
 
-#include <stdlib.h>
+#include <cstdlib>
+#include <utility>
 
 namespace souffle {
 
@@ -117,8 +118,8 @@ public:
 protected:
     /** Check equality */
     bool equal(const RamNode& node) const override {
-        assert(dynamic_cast<const RamUnaryOperator*>(&node));
-        const RamUnaryOperator& other = static_cast<const RamUnaryOperator&>(node);
+        assert(nullptr != dynamic_cast<const RamUnaryOperator*>(&node));
+        const auto& other = static_cast<const RamUnaryOperator&>(node);
         return getOperator() == other.getOperator() && getArgument() == other.getArgument();
     }
 };
@@ -169,7 +170,7 @@ public:
         return lhsArgument.get();
     }
     const RamValue& getLHSArgument() const {
-        ASSERT(lhsArgument);
+        assert(lhsArgument);
         return *lhsArgument;
     }
 
@@ -179,7 +180,7 @@ public:
         return rhsArgument.get();
     }
     const RamValue& getRHSArgument() const {
-        ASSERT(rhsArgument);
+        assert(rhsArgument);
         return *rhsArgument;
     }
 
@@ -216,8 +217,8 @@ public:
 protected:
     /** Check equality */
     bool equal(const RamNode& node) const override {
-        assert(dynamic_cast<const RamBinaryOperator*>(&node));
-        const RamBinaryOperator& other = static_cast<const RamBinaryOperator&>(node);
+        assert(nullptr != dynamic_cast<const RamBinaryOperator*>(&node));
+        const auto& other = static_cast<const RamBinaryOperator&>(node);
         return getOperator() == other.getOperator() && getLHSArgument() == other.getLHSArgument() &&
                getRHSArgument() == other.getRHSArgument();
     }
@@ -259,7 +260,7 @@ public:
         return arguments[i].get();
     }
     const RamValue& getArgument(int i) const {
-        ASSERT(arguments[i]);
+        assert(arguments[i]);
         return *arguments[i];
     }
 
@@ -299,8 +300,8 @@ public:
 protected:
     /** Check equality */
     bool equal(const RamNode& node) const override {
-        assert(dynamic_cast<const RamTernaryOperator*>(&node));
-        const RamTernaryOperator& other = static_cast<const RamTernaryOperator&>(node);
+        assert(nullptr != dynamic_cast<const RamTernaryOperator*>(&node));
+        const auto& other = static_cast<const RamTernaryOperator&>(node);
         return getOperator() == other.getOperator() && getArgument(0) == other.getArgument(0) &&
                getArgument(1) == other.getArgument(1) && getArgument(2) == other.getArgument(2);
     }
@@ -323,12 +324,12 @@ private:
     std::string name;
 
 public:
-    RamElementAccess(size_t l, size_t e, const std::string& n = "")
-            : RamValue(RN_ElementAccess, false), level(l), element(e), name(n) {}
+    RamElementAccess(size_t l, size_t e, std::string n = "")
+            : RamValue(RN_ElementAccess, false), level(l), element(e), name(std::move(n)) {}
 
     /** Print */
     void print(std::ostream& os) const override {
-        if (name == "") {
+        if (name.empty()) {
             os << "env(t" << level << ", i" << element << ")";
         } else {
             os << "t" << level << "." << name;
@@ -367,8 +368,8 @@ public:
 protected:
     /** Check equality */
     bool equal(const RamNode& node) const override {
-        assert(dynamic_cast<const RamElementAccess*>(&node));
-        const RamElementAccess& other = static_cast<const RamElementAccess&>(node);
+        assert(nullptr != dynamic_cast<const RamElementAccess*>(&node));
+        const auto& other = static_cast<const RamElementAccess&>(node);
         return getLevel() == other.getLevel() && getElement() == other.getElement() &&
                getName() == other.getName();
     }
@@ -408,7 +409,7 @@ public:
 
     /** Create clone */
     RamNumber* clone() const override {
-        RamNumber* res = new RamNumber(constant);
+        auto* res = new RamNumber(constant);
         return res;
     }
 
@@ -418,8 +419,8 @@ public:
 protected:
     /** Check equality */
     bool equal(const RamNode& node) const override {
-        assert(dynamic_cast<const RamNumber*>(&node));
-        const RamNumber& other = static_cast<const RamNumber&>(node);
+        assert(nullptr != dynamic_cast<const RamNumber*>(&node));
+        const auto& other = static_cast<const RamNumber&>(node);
         return getConstant() == other.getConstant();
     }
 };
@@ -452,7 +453,7 @@ public:
 
     /** Create clone */
     RamAutoIncrement* clone() const override {
-        RamAutoIncrement* res = new RamAutoIncrement();
+        auto* res = new RamAutoIncrement();
         return res;
     }
 
@@ -462,7 +463,7 @@ public:
 protected:
     /** Check equality */
     bool equal(const RamNode& node) const override {
-        assert(dynamic_cast<const RamAutoIncrement*>(&node));
+        assert(nullptr != dynamic_cast<const RamAutoIncrement*>(&node));
         return true;
     }
 };
@@ -550,8 +551,8 @@ public:
 protected:
     /** Check equality */
     bool equal(const RamNode& node) const override {
-        assert(dynamic_cast<const RamPack*>(&node));
-        const RamPack& other = static_cast<const RamPack&>(node);
+        assert(nullptr != dynamic_cast<const RamPack*>(&node));
+        const auto& other = static_cast<const RamPack&>(node);
         return equal_targets(arguments, other.arguments);
     }
 };
@@ -593,7 +594,7 @@ public:
 
     /** Create clone */
     RamArgument* clone() const override {
-        RamArgument* res = new RamArgument(getArgNumber());
+        auto* res = new RamArgument(getArgNumber());
         return res;
     }
 
@@ -603,8 +604,8 @@ public:
 protected:
     /** Check equality */
     bool equal(const RamNode& node) const override {
-        assert(dynamic_cast<const RamArgument*>(&node));
-        const RamArgument& other = static_cast<const RamArgument&>(node);
+        assert(nullptr != dynamic_cast<const RamArgument*>(&node));
+        const auto& other = static_cast<const RamArgument&>(node);
         return getArgNumber() == other.getArgNumber();
     }
 };

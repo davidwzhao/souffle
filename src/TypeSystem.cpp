@@ -16,7 +16,6 @@
 
 #include "TypeSystem.h"
 #include "Util.h"
-
 #include <cassert>
 
 namespace souffle {
@@ -298,7 +297,7 @@ std::string getTypeQualifier(const Type& type) {
             } else if (isRecordType(type)) {
                 str = "r:" + toString(type.getName());
             } else {
-                ASSERT(false && "unknown type class");
+                assert(false && "unknown type class");
             }
             seen[&type] = str;
             return str;
@@ -353,7 +352,7 @@ bool isRecursiveType(const Type& type) {
     };
 
     // record types are recursive if they contain themselves
-    if (const RecordType* r = dynamic_cast<const RecordType*>(&type)) {
+    if (const auto* r = dynamic_cast<const RecordType*>(&type)) {
         auto reachesOrigin = visitor(type);
         return any_of(r->getFields(),
                 [&](const RecordType::Field& field) -> bool { return reachesOrigin(field.type); });

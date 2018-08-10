@@ -8,7 +8,7 @@
 
 /************************************************************************
  *
- * @file Argument.h
+ * @file AstArgument.h
  *
  * Define the classes Argument, Variable, and Constant to represent
  * variables and constants in literals. Variable and Constant are
@@ -19,23 +19,24 @@
 #pragma once
 
 #include "AstNode.h"
-#include "AstType.h"
+#include "AstTypes.h"
 #include "BinaryFunctorOps.h"
 #include "SymbolTable.h"
 #include "TernaryFunctorOps.h"
-#include "TypeSystem.h"
 #include "UnaryFunctorOps.h"
-
+#include "Util.h"
 #include <array>
-#include <list>
+#include <cassert>
+#include <cstddef>
 #include <memory>
+#include <ostream>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace souffle {
 
 /* Forward declarations */
-class AstClause;
-class AstVariable;
 class AstLiteral;
 
 /**
@@ -63,7 +64,7 @@ protected:
     std::string name;
 
 public:
-    AstVariable(const std::string& n) : AstArgument(), name(n) {}
+    AstVariable(std::string n) : AstArgument(), name(std::move(n)) {}
 
     /** Updates this variable name */
     void setName(const std::string& name) {
@@ -80,7 +81,7 @@ public:
         os << name;
     }
 
-    /** Creates a clone if this AST sub-structure */
+    /** Creates a clone of this AST sub-structure */
     AstVariable* clone() const override {
         AstVariable* res = new AstVariable(name);
         res->setSrcLoc(getSrcLoc());
@@ -95,8 +96,8 @@ public:
 protected:
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstVariable*>(&node));
-        const AstVariable& other = static_cast<const AstVariable&>(node);
+        assert(nullptr != dynamic_cast<const AstVariable*>(&node));
+        const auto& other = static_cast<const AstVariable&>(node);
         return name == other.name;
     }
 };
@@ -114,9 +115,9 @@ public:
         os << "_";
     }
 
-    /** Creates a clone if this AST sub-structure */
+    /** Creates a clone of this AST sub-structure */
     AstUnnamedVariable* clone() const override {
-        AstUnnamedVariable* res = new AstUnnamedVariable();
+        auto* res = new AstUnnamedVariable();
         res->setSrcLoc(getSrcLoc());
         return res;
     }
@@ -129,7 +130,7 @@ public:
 protected:
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstUnnamedVariable*>(&node));
+        assert(nullptr != dynamic_cast<const AstUnnamedVariable*>(&node));
         return true;
     }
 };
@@ -147,9 +148,9 @@ public:
         os << "$";
     }
 
-    /** Creates a clone if this AST sub-structure */
+    /** Creates a clone of this AST sub-structure */
     AstCounter* clone() const override {
-        AstCounter* res = new AstCounter();
+        auto* res = new AstCounter();
         res->setSrcLoc(getSrcLoc());
         return res;
     }
@@ -162,7 +163,7 @@ public:
 protected:
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstCounter*>(&node));
+        assert(nullptr != dynamic_cast<const AstCounter*>(&node));
         return true;
     }
 };
@@ -191,8 +192,8 @@ public:
 protected:
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstConstant*>(&node));
-        const AstConstant& other = static_cast<const AstConstant&>(node);
+        assert(nullptr != dynamic_cast<const AstConstant*>(&node));
+        const auto& other = static_cast<const AstConstant&>(node);
         return idx == other.idx;
     }
 };
@@ -201,16 +202,16 @@ protected:
  * Subclass of Argument that represents a datalog constant value
  */
 class AstStringConstant : public AstConstant {
-    SymbolTable* symTable;
-    AstStringConstant(SymbolTable* symTable, size_t index) : AstConstant(index), symTable(symTable) {}
+    SymbolTable& symTable;
+    AstStringConstant(SymbolTable& symTable, size_t index) : AstConstant(index), symTable(symTable) {}
 
 public:
-    AstStringConstant(SymbolTable& symTable, const char* c)
-            : AstConstant(symTable.lookup(c)), symTable(&symTable) {}
+    AstStringConstant(SymbolTable& symTable, const std::string& c)
+            : AstConstant(symTable.lookup(c)), symTable(symTable) {}
 
     /** @return String representation of this Constant */
-    const std::string getConstant() const {
-        return symTable->resolve(getIndex());
+    const std::string& getConstant() const {
+        return symTable.resolve(getIndex());
     }
 
     /**  Print argument to the given output stream */
@@ -218,9 +219,9 @@ public:
         os << "\"" << getConstant() << "\"";
     }
 
-    /** Creates a clone if this AST sub-structure */
+    /** Creates a clone of this AST sub-structure */
     AstStringConstant* clone() const override {
-        AstStringConstant* res = new AstStringConstant(symTable, getIndex());
+        auto* res = new AstStringConstant(symTable, getIndex());
         res->setSrcLoc(getSrcLoc());
         return res;
     }
@@ -238,9 +239,9 @@ public:
         os << idx;
     }
 
-    /** Creates a clone if this AST sub-structure */
+    /** Creates a clone of this AST sub-structure */
     AstNumberConstant* clone() const override {
-        AstNumberConstant* res = new AstNumberConstant(getIndex());
+        auto* res = new AstNumberConstant(getIndex());
         res->setSrcLoc(getSrcLoc());
         return res;
     }
@@ -258,9 +259,9 @@ public:
         os << '-';
     }
 
-    /** Creates a clone if this AST sub-structure */
+    /** Creates a clone of this AST sub-structure */
     AstNullConstant* clone() const override {
-        AstNullConstant* res = new AstNullConstant();
+        auto* res = new AstNullConstant();
         res->setSrcLoc(getSrcLoc());
         return res;
     }
@@ -343,8 +344,8 @@ public:
 protected:
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstUnaryFunctor*>(&node));
-        const AstUnaryFunctor& other = static_cast<const AstUnaryFunctor&>(node);
+        assert(nullptr != dynamic_cast<const AstUnaryFunctor*>(&node));
+        const auto& other = static_cast<const AstUnaryFunctor&>(node);
         return fun == other.fun && *operand == *other.operand;
     }
 };
@@ -439,8 +440,8 @@ public:
 protected:
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstBinaryFunctor*>(&node));
-        const AstBinaryFunctor& other = static_cast<const AstBinaryFunctor&>(node);
+        assert(nullptr != dynamic_cast<const AstBinaryFunctor*>(&node));
+        const auto& other = static_cast<const AstBinaryFunctor&>(node);
         return fun == other.fun && *lhs == *other.lhs && *rhs == *other.rhs;
     }
 };
@@ -529,8 +530,8 @@ public:
 protected:
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstTernaryFunctor*>(&node));
-        const AstTernaryFunctor& other = static_cast<const AstTernaryFunctor&>(node);
+        assert(nullptr != dynamic_cast<const AstTernaryFunctor*>(&node));
+        const auto& other = static_cast<const AstTernaryFunctor&>(node);
         return fun == other.fun && *arg[0] == *other.arg[0] && *arg[1] == *other.arg[1] &&
                *arg[2] == *other.arg[2];
     }
@@ -545,7 +546,7 @@ class AstRecordInit : public AstArgument {
     std::vector<std::unique_ptr<AstArgument>> args;
 
 public:
-    AstRecordInit() {}
+    AstRecordInit() = default;
 
     ~AstRecordInit() override = default;
 
@@ -561,7 +562,7 @@ public:
         os << "[" << join(args, ",", print_deref<std::unique_ptr<AstArgument>>()) << "]";
     }
 
-    /** Creates a clone if this AST sub-structure */
+    /** Creates a clone of this AST sub-structure */
     AstRecordInit* clone() const override {
         auto res = new AstRecordInit();
         for (auto& cur : args) {
@@ -590,8 +591,8 @@ public:
 protected:
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstRecordInit*>(&node));
-        const AstRecordInit& other = static_cast<const AstRecordInit&>(node);
+        assert(nullptr != dynamic_cast<const AstRecordInit*>(&node));
+        const auto& other = static_cast<const AstRecordInit&>(node);
         return equal_targets(args, other.args);
     }
 };
@@ -607,8 +608,8 @@ class AstTypeCast : public AstArgument {
     std::string type;
 
 public:
-    AstTypeCast(std::unique_ptr<AstArgument> value, const std::string& type)
-            : value(std::move(value)), type(type) {}
+    AstTypeCast(std::unique_ptr<AstArgument> value, std::string type)
+            : value(std::move(value)), type(std::move(type)) {}
 
     void print(std::ostream& os) const override {
         os << *value << " as " << type;
@@ -629,7 +630,7 @@ public:
         return res;
     }
 
-    /** Creates a clone if this AST sub-structure */
+    /** Creates a clone of this AST sub-structure */
     AstTypeCast* clone() const override {
         auto res = new AstTypeCast(std::unique_ptr<AstArgument>(value->clone()), type);
         res->setSrcLoc(getSrcLoc());
@@ -644,8 +645,8 @@ public:
 protected:
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstTypeCast*>(&node));
-        const AstTypeCast& other = static_cast<const AstTypeCast&>(node);
+        assert(nullptr != dynamic_cast<const AstTypeCast*>(&node));
+        const auto& other = static_cast<const AstTypeCast&>(node);
         return type == other.type && *value == *other.value;
     }
 };
@@ -713,7 +714,7 @@ public:
     /** Obtains a list of all embedded child nodes */
     std::vector<const AstNode*> getChildNodes() const override;
 
-    /** Creates a clone if this AST sub-structure */
+    /** Creates a clone of this AST sub-structure */
     AstAggregator* clone() const override;
 
     /** Mutates this node */
@@ -729,8 +730,8 @@ public:
 protected:
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstAggregator*>(&node));
-        const AstAggregator& other = static_cast<const AstAggregator&>(node);
+        assert(nullptr != dynamic_cast<const AstAggregator*>(&node));
+        const auto& other = static_cast<const AstAggregator&>(node);
         return fun == other.fun && equal_ptr(expr, other.expr) && equal_targets(body, other.body);
     }
 };
@@ -756,9 +757,9 @@ public:
         os << "arg_" << number;
     }
 
-    /** Creates a clone if this AST sub-structure */
+    /** Creates a clone of this AST sub-structure */
     AstSubroutineArgument* clone() const override {
-        AstSubroutineArgument* res = new AstSubroutineArgument(number);
+        auto* res = new AstSubroutineArgument(number);
         res->setSrcLoc(getSrcLoc());
         return res;
     }
@@ -771,8 +772,8 @@ public:
 protected:
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstSubroutineArgument*>(&node));
-        const AstSubroutineArgument& other = static_cast<const AstSubroutineArgument&>(node);
+        assert(nullptr != dynamic_cast<const AstSubroutineArgument*>(&node));
+        const auto& other = static_cast<const AstSubroutineArgument&>(node);
         return number == other.number;
     }
 };

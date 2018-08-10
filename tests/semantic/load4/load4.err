@@ -1,1 +1,2 @@
-Values missing in line 3; cannot parse fact file B.facts!
+Error loading data: Values missing in line 3; cannot parse fact file B.facts!
+

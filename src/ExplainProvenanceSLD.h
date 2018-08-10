@@ -20,6 +20,7 @@
 #include "Util.h"
 
 #include <map>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -32,7 +33,7 @@ private:
     std::map<std::pair<std::string, size_t>, std::string> rules;
     std::vector<std::vector<RamDomain>> subproofs;
 
-    std::pair<int, int> findTuple(std::string relName, std::vector<RamDomain> tup) {
+    std::pair<int, int> findTuple(const std::string& relName, std::vector<RamDomain> tup) {
         auto rel = prog.getRelation(relName);
 
         if (rel == nullptr) {
@@ -49,7 +50,7 @@ private:
                 if (*rel->getAttrType(i) == 's') {
                     std::string s;
                     tuple >> s;
-                    n = prog.getSymbolTable().lookupExisting(s.c_str());
+                    n = prog.getSymbolTable().lookupExisting(s);
                 } else {
                     tuple >> n;
                 }
@@ -192,8 +193,7 @@ public:
                 std::stringstream joinedTuple;
                 joinedTuple << join(numsToArgs(bodyRelAtomName, subproofTuple, &subproofTupleError), ", ");
                 auto joinedTupleStr = joinedTuple.str();
-                internalNode->add_child(
-                        std::unique_ptr<TreeNode>(new LeafNode(bodyRel + "(" + joinedTupleStr + ")")));
+                internalNode->add_child(std::make_unique<LeafNode>(bodyRel + "(" + joinedTupleStr + ")"));
             } else {
                 internalNode->add_child(
                         explain(bodyRel, subproofTuple, subproofRuleNum, subproofLevelNum, depthLimit - 1));
@@ -208,7 +208,7 @@ public:
     std::unique_ptr<TreeNode> explain(
             std::string relName, std::vector<std::string> args, size_t depthLimit) override {
         auto tuple = argsToNums(relName, args);
-        if (tuple == std::vector<RamDomain>()) {
+        if (tuple.empty()) {
             return std::make_unique<LeafNode>("Relation not found");
         }
 
@@ -247,6 +247,20 @@ public:
         } else {
             return rule->second;
         }
+    }
+
+    void printRulesJSON(std::ostream& os) override {
+        os << "\"rules\": [\n";
+        bool first = true;
+        for (auto const& cur : rules) {
+            if (first)
+                first = false;
+            else
+                os << ",\n";
+            os << "\t{ \"rule-number\": \"(R" << cur.first.second << ")\", \"rule\": \""
+               << stringify(cur.second) << "\"}";
+        }
+        os << "\n]\n";
     }
 };
 

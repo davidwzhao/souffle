@@ -22,9 +22,10 @@
 #include <iostream>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
-#include <ctype.h>
+#include <cctype>
 
 namespace souffle {
 
@@ -44,8 +45,8 @@ class AstAttribute : public AstNode {
     AstTypeIdentifier typeName;
 
 public:
-    AstAttribute(const std::string& n, const AstTypeIdentifier& t, const Type* /*type*/ = nullptr)
-            : name(n), typeName(t) {}
+    AstAttribute(std::string n, AstTypeIdentifier t, const Type* /*type*/ = nullptr)
+            : name(std::move(n)), typeName(std::move(t)) {}
 
     const std::string& getAttributeName() const {
         return name;
@@ -63,7 +64,7 @@ public:
         os << name << ":" << typeName;
     }
 
-    /** Creates a clone if this AST sub-structure */
+    /** Creates a clone of this AST sub-structure */
     AstAttribute* clone() const override {
         AstAttribute* res = new AstAttribute(name, typeName);
         res->setSrcLoc(getSrcLoc());
@@ -83,8 +84,8 @@ public:
 protected:
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstAttribute*>(&node));
-        const AstAttribute& other = static_cast<const AstAttribute&>(node);
+        assert(nullptr != dynamic_cast<const AstAttribute*>(&node));
+        const auto& other = static_cast<const AstAttribute&>(node);
         return name == other.name && typeName == other.typeName;
     }
 };

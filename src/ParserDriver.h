@@ -13,32 +13,36 @@
  * Defines the parser driver.
  *
  ***********************************************************************/
+
 #pragma once
 
+#include "SrcLocation.h"
 #include "parser.hh"
-
+#include <cstdio>
 #include <memory>
-
-#define YY_DECL yy::parser::symbol_type yylex(ParserDriver& driver, yyscan_t yyscanner)
-YY_DECL;
+#include <string>
 
 namespace souffle {
 
-class AstTranslationUnit;
+class AstClause;
+class AstComponent;
+class AstComponentInit;
+class AstIODirective;
+class AstPragma;
 class AstRelation;
+class AstTranslationUnit;
 class AstType;
-class AstProgram;
 class DebugReport;
 class ErrorReport;
 class SymbolTable;
 
-typedef void* yyscan_t;
+using yyscan_t = void*;
 
 struct scanner_data {
-    AstSrcLocation yylloc;
+    SrcLocation yylloc;
 
     /* Stack of parsed files */
-    const char* yyfilename;
+    const char* yyfilename = nullptr;
 };
 
 class ParserDriver {
@@ -50,7 +54,6 @@ public:
 
     void addRelation(std::unique_ptr<AstRelation> r);
     void addIODirective(std::unique_ptr<AstIODirective> d);
-    void addIODirectiveChain(std::unique_ptr<AstIODirective> d);
     void addType(std::unique_ptr<AstType> type);
     void addClause(std::unique_ptr<AstClause> c);
     void addComponent(std::unique_ptr<AstComponent> c);
@@ -59,7 +62,7 @@ public:
 
     souffle::SymbolTable& getSymbolTable();
 
-    bool trace_scanning;
+    bool trace_scanning = false;
 
     std::unique_ptr<AstTranslationUnit> parse(const std::string& filename, FILE* in, SymbolTable& symbolTable,
             ErrorReport& errorReport, DebugReport& debugReport);
@@ -70,10 +73,13 @@ public:
     static std::unique_ptr<AstTranslationUnit> parseTranslationUnit(const std::string& code,
             SymbolTable& symbolTable, ErrorReport& errorReport, DebugReport& debugReport);
 
-    bool trace_parsing;
+    bool trace_parsing = false;
 
-    void error(const AstSrcLocation& loc, const std::string& msg);
+    void error(const SrcLocation& loc, const std::string& msg);
     void error(const std::string& msg);
 };
 
 }  // end of namespace souffle
+
+#define YY_DECL yy::parser::symbol_type yylex(souffle::ParserDriver& driver, yyscan_t yyscanner)
+YY_DECL;

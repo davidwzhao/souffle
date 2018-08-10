@@ -1,6 +1,6 @@
 Warning: No rules/facts defined for relation R in file attrib_dupl.dl at line 5
 .decl R(type:Type, type:Type)
-^-----------------------------
+------^-----------------------
 Error: Doubly defined attribute name type:Type in file attrib_dupl.dl at line 5
 .decl R(type:Type, type:Type)
 ------------------------^-----

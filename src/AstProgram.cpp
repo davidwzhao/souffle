@@ -8,7 +8,7 @@
 
 /************************************************************************
  *
- * @file AstProgram.h
+ * @file AstProgram.cpp
  *
  * Implement methods for class Program that represents a Datalog
  * program consisting of types, relations, and clauses.
@@ -18,19 +18,11 @@
 #include "AstProgram.h"
 #include "AstClause.h"
 #include "AstComponent.h"
+#include "AstLiteral.h"
 #include "AstRelation.h"
-#include "AstTypeAnalysis.h"
-#include "AstUtils.h"
-#include "AstVisitor.h"
 #include "ErrorReport.h"
-#include "GraphUtils.h"
 #include "Util.h"
-
-#include <list>
 #include <sstream>
-
-#include <stdarg.h>
-#include <stdlib.h>
 
 namespace souffle {
 
@@ -116,19 +108,19 @@ AstRelation* AstProgram::getRelation(const AstRelationIdentifier& name) const {
 
 /* Add a clause to the program */
 void AstProgram::addClause(std::unique_ptr<AstClause> clause) {
-    ASSERT(clause && "NULL clause");
+    assert(clause && "NULL clause");
     clauses.push_back(std::move(clause));
 }
 
 /* Add a clause to the program */
 void AstProgram::addIODirective(std::unique_ptr<AstIODirective> directive) {
-    ASSERT(directive && "NULL IO directive");
+    assert(directive && "NULL IO directive");
     ioDirectives.push_back(std::move(directive));
 }
 
 /* Add a pragma to the program */
 void AstProgram::addPragma(std::unique_ptr<AstPragma> pragma) {
-    ASSERT(pragma && "NULL IO directive");
+    assert(pragma && "NULL IO directive");
     pragmaDirectives.push_back(std::move(pragma));
 }
 

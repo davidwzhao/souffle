@@ -128,8 +128,8 @@ public:
 protected:
     /** An internal function to determine equality to another node */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstIODirective*>(&node));
-        const AstIODirective& other = static_cast<const AstIODirective&>(node);
+        assert(nullptr != dynamic_cast<const AstIODirective*>(&node));
+        const auto& other = static_cast<const AstIODirective&>(node);
         return other.names == names && other.input == input && other.kvps == kvps;
     }
 
@@ -142,7 +142,7 @@ protected:
     }
 
     std::string unescape(
-            const std::string& inputString, const std::string& needle, const std::string replacement) const {
+            const std::string& inputString, const std::string& needle, const std::string& replacement) const {
         std::string result = inputString;
         size_t pos = 0;
         while ((pos = result.find(needle, pos)) != std::string::npos) {

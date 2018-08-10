@@ -8,52 +8,49 @@
 
 /************************************************************************
  *
- * @file driver.cpp 
+ * @file driver.cpp
  *
  * Driver program for invoking a Souffle program using the OO-interface
  *
  ***********************************************************************/
 
-#include <array>
-#include <vector>
-#include <string>
 #include "souffle/SouffleInterface.h"
+#include <array>
+#include <string>
+#include <vector>
 
-using namespace souffle; 
+using namespace souffle;
 
 /**
  * Error handler
- */ 
-void error(std::string txt) 
-{
-   std::cerr << "error: " << txt << "\n"; 
-   exit(1); 
-} 
+ */
+void error(std::string txt) {
+    std::cerr << "error: " << txt << "\n";
+    exit(1);
+}
 
 /**
  * Main program
  */
-int main(int argc, char **argv)
-{
-   // check number of arguments 
-   if(argc != 2) error("wrong number of arguments!"); 
+int main(int argc, char** argv) {
+    // check number of arguments
+    if (argc != 2) error("wrong number of arguments!");
 
-   // create instance of program "load_print"
-   if(SouffleProgram *prog = ProgramFactory::newInstance("load_print")) {
+    // create instance of program "load_print"
+    if (SouffleProgram* prog = ProgramFactory::newInstance("load_print")) {
+        // load all input relations from current directory
+        prog->loadAll(argv[1]);
 
-      // load all input relations from current directory
-      prog->loadAll(argv[1]);
- 
-      // run program 
-      prog->run(); 
+        // run program
+        prog->run();
 
-      // print all relations to CSV files in current directory
-      prog->printAll();
+        // print all relations to CSV files in current directory
+        prog->printAll();
 
-      // free program 
-      delete prog; 
+        // free program
+        delete prog;
 
-   } else {
-      error("cannot find program load_print");        
-   }
+    } else {
+        error("cannot find program load_print");
+    }
 }

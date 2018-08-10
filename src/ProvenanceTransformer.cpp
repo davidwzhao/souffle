@@ -14,7 +14,25 @@
  *
  ***********************************************************************/
 
+#include "AstArgument.h"
+#include "AstAttribute.h"
+#include "AstClause.h"
+#include "AstLiteral.h"
+#include "AstNode.h"
+#include "AstProgram.h"
+#include "AstRelation.h"
+#include "AstRelationIdentifier.h"
 #include "AstTransforms.h"
+#include "AstTranslationUnit.h"
+#include "AstType.h"
+#include "BinaryFunctorOps.h"
+#include "Util.h"
+#include <cassert>
+#include <cstddef>
+#include <iosfwd>
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace souffle {
 
@@ -62,15 +80,15 @@ std::unique_ptr<AstRelation> makeInfoRelation(
         if (atom != nullptr) {
             std::string relName = identifierToString(atom->getName());
 
-            infoRelation->addAttribute(std::unique_ptr<AstAttribute>(
-                    new AstAttribute(std::string("rel_") + std::to_string(i), AstTypeIdentifier("symbol"))));
+            infoRelation->addAttribute(std::make_unique<AstAttribute>(
+                    std::string("rel_") + std::to_string(i), AstTypeIdentifier("symbol")));
 
             if (dynamic_cast<AstAtom*>(lit)) {
-                infoClauseHead->addArgument(std::unique_ptr<AstArgument>(
-                        new AstStringConstant(translationUnit.getSymbolTable(), relName.c_str())));
+                infoClauseHead->addArgument(
+                        std::make_unique<AstStringConstant>(translationUnit.getSymbolTable(), relName));
             } else if (dynamic_cast<AstNegation*>(lit)) {
-                infoClauseHead->addArgument(std::unique_ptr<AstArgument>(
-                        new AstStringConstant(translationUnit.getSymbolTable(), ("!" + relName).c_str())));
+                infoClauseHead->addArgument(std::make_unique<AstStringConstant>(
+                        translationUnit.getSymbolTable(), ("!" + relName)));
             }
         }
     }
@@ -80,8 +98,8 @@ std::unique_ptr<AstRelation> makeInfoRelation(
     originalClause.print(ss);
 
     infoRelation->addAttribute(std::make_unique<AstAttribute>("clause_repr", AstTypeIdentifier("symbol")));
-    infoClauseHead->addArgument(std::unique_ptr<AstArgument>(
-            new AstStringConstant(translationUnit.getSymbolTable(), ss.str().c_str())));
+    infoClauseHead->addArgument(
+            std::make_unique<AstStringConstant>(translationUnit.getSymbolTable(), ss.str()));
 
     // set clause head and add clause to info relation
     infoClause->setHead(std::unique_ptr<AstAtom>(infoClauseHead));
@@ -153,7 +171,7 @@ bool ProvenanceTransformer::transform(AstTranslationUnit& translationUnit) {
 
     // get next level number
     auto getNextLevelNumber = [&](std::vector<AstArgument*> levels) {
-        if (levels.size() == 0) {
+        if (levels.empty()) {
             return static_cast<AstArgument*>(new AstNumberConstant(0));
         }
 
@@ -179,10 +197,10 @@ bool ProvenanceTransformer::transform(AstTranslationUnit& translationUnit) {
             transformEqrelRelation(*relation);
         }
 
-        relation->addAttribute(std::unique_ptr<AstAttribute>(
-                new AstAttribute(std::string("@rule_number"), AstTypeIdentifier("number"))));
-        relation->addAttribute(std::unique_ptr<AstAttribute>(
-                new AstAttribute(std::string("@level_number"), AstTypeIdentifier("number"))));
+        relation->addAttribute(
+                std::make_unique<AstAttribute>(std::string("@rule_number"), AstTypeIdentifier("number")));
+        relation->addAttribute(
+                std::make_unique<AstAttribute>(std::string("@level_number"), AstTypeIdentifier("number")));
 
         // record clause number
         size_t clauseNum = 1;
@@ -229,8 +247,7 @@ bool ProvenanceTransformer::transform(AstTranslationUnit& translationUnit) {
                     // add two provenance columns to lit; first is rule num, second is level num
                     if (auto atom = dynamic_cast<AstAtom*>(lit)) {
                         atom->addArgument(std::make_unique<AstUnnamedVariable>());
-                        atom->addArgument(std::unique_ptr<AstArgument>(
-                                new AstVariable("@level_num_" + std::to_string(i))));
+                        atom->addArgument(std::make_unique<AstVariable>("@level_num_" + std::to_string(i)));
                         bodyLevels.push_back(new AstVariable("@level_num_" + std::to_string(i)));
                         /*
                     } else if (auto neg = dynamic_cast<AstNegation*>(lit)) {

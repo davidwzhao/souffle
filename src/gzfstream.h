@@ -138,10 +138,10 @@ private:
     static constexpr unsigned int bufferSize = 4096;
     static constexpr unsigned int reserveSize = 16;
 
-    char buffer[bufferSize];
-    gzFile fileHandle;
+    char buffer[bufferSize] = {};
+    gzFile fileHandle = {};
     bool isOpen = false;
-    std::ios_base::openmode mode;
+    std::ios_base::openmode mode = std::ios_base::in;
 };
 
 class gzfstream : virtual public std::ios {

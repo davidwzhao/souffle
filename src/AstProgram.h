@@ -18,25 +18,24 @@
 #pragma once
 
 #include "AstComponent.h"
+#include "AstNode.h"
 #include "AstPragma.h"
-#include "AstRelation.h"
-#include "ErrorReport.h"
-#include "TypeSystem.h"
+#include "AstRelationIdentifier.h"
+#include "AstType.h"
 #include "Util.h"
-
-#include <list>
+#include <cassert>
+#include <cstddef>
+#include <iosfwd>
 #include <map>
 #include <memory>
-#include <set>
-#include <string>
+#include <utility>
+#include <vector>
 
 namespace souffle {
 
 class AstClause;
+class AstIODirective;
 class AstRelation;
-class AstLiteral;
-class AstAtom;
-class AstArgument;
 
 /**
  *  Intermediate representation of a datalog program
@@ -44,10 +43,9 @@ class AstArgument;
  */
 class AstProgram : public AstNode {
     // TODO: Check whether this is needed
-    friend class ParserDriver;
     friend class ComponentInstantiationTransformer;
+    friend class ParserDriver;
     friend class ProvenanceTransformer;
-    friend class AstBuilder;
 
     /** Program types  */
     std::map<AstTypeIdentifier, std::unique_ptr<AstType>> types;
@@ -182,7 +180,7 @@ public:
 
     // -- Manipulation ---------------------------------------------------------
 
-    /** Creates a clone if this AST sub-structure */
+    /** Creates a clone of this AST sub-structure */
     AstProgram* clone() const override;
 
     /** Mutates this node */
@@ -222,8 +220,8 @@ private:
 protected:
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstProgram*>(&node));
-        const AstProgram& other = static_cast<const AstProgram&>(node);
+        assert(nullptr != dynamic_cast<const AstProgram*>(&node));
+        const auto& other = static_cast<const AstProgram&>(node);
 
         // check list sizes
         if (types.size() != other.types.size()) {

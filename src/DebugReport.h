@@ -21,6 +21,7 @@
 #include <ostream>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace souffle {
@@ -40,9 +41,9 @@ private:
     std::string body;
 
 public:
-    DebugReportSection(
-            std::string id, std::string title, std::vector<DebugReportSection> subsections, std::string body)
-            : id(std::move(id)), title(std::move(title)), subsections(std::move(subsections)),
+    DebugReportSection(const std::string& id, std::string title, std::vector<DebugReportSection> subsections,
+            std::string body)
+            : id(generateUniqueID(id)), title(std::move(title)), subsections(std::move(subsections)),
               body(std::move(body)) {}
 
     /**
@@ -66,6 +67,12 @@ public:
 
     bool hasSubsections() const {
         return !subsections.empty();
+    }
+
+private:
+    static std::string generateUniqueID(const std::string& id) {
+        static int count = 0;
+        return id + std::to_string(count++);
     }
 };
 
@@ -103,7 +110,7 @@ public:
  * a debug report section for the stage after applying the wrapped transformer,
  * and adds it to the translation unit's debug report.
  */
-class DebugReporter : public AstTransformer {
+class DebugReporter : public MetaTransformer {
 private:
     std::unique_ptr<AstTransformer> wrappedTransformer;
 
@@ -112,6 +119,15 @@ private:
 public:
     DebugReporter(std::unique_ptr<AstTransformer> wrappedTransformer)
             : wrappedTransformer(std::move(wrappedTransformer)) {}
+
+    void setDebugReport() override {}
+
+    void setVerbosity(bool verbose) override {
+        this->verbose = verbose;
+        if (auto* mt = dynamic_cast<MetaTransformer*>(wrappedTransformer.get())) {
+            mt->setVerbosity(verbose);
+        }
+    }
 
     std::string getName() const override {
         return "DebugReporter";
@@ -124,17 +140,19 @@ public:
      * @param id the unique id of the generated section
      * @param title the text to display as the heading of the section
      */
-    static void generateDebugReport(AstTranslationUnit& translationUnit, std::string id, std::string title);
+    static void generateDebugReport(
+            AstTranslationUnit& translationUnit, const std::string& id, std::string title);
 
     /**
      * Generate a debug report section for code (preserving formatting), with the given id and title.
      */
-    static DebugReportSection getCodeSection(std::string id, std::string title, std::string code);
+    static DebugReportSection getCodeSection(const std::string& id, std::string title, std::string code);
 
     /**
      * Generated a debug report section for a dot graph specification, with the given id and title.
      */
-    static DebugReportSection getDotGraphSection(std::string id, std::string title, std::string dotSpec);
+    static DebugReportSection getDotGraphSection(
+            const std::string& id, std::string title, const std::string& dotSpec);
 };
 
 }  // end of namespace souffle

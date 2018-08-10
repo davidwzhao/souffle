@@ -13,6 +13,7 @@
  * Defines binary functor operators for AST and RAM
  *
  ***********************************************************************/
+
 #pragma once
 
 #include <cassert>

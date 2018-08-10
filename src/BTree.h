@@ -206,7 +206,7 @@ struct binary_search : public search_strategy {
  */
 template <typename S>
 struct strategy_selection {
-    typedef S type;
+    using type = S;
 };
 
 struct linear : public strategy_selection<linear_search> {};
@@ -238,10 +238,10 @@ template <typename Key, typename Comparator,
 class btree {
 public:
     class iterator;
-    typedef iterator const_iterator;
+    using const_iterator = iterator;
 
-    typedef Key key_type;
-    typedef range<iterator> chunk;
+    using key_type = Key;
+    using chunk = range<iterator>;
 
 private:
     /* ------------- static utilities ----------------- */
@@ -262,9 +262,9 @@ private:
 
     /* -------------- the node type ----------------- */
 
-    typedef std::size_t size_type;
-    typedef uint8_t field_index_type;
-    typedef OptimisticReadWriteLock lock_type;
+    using size_type = std::size_t;
+    using field_index_type = uint8_t;
+    using lock_type = OptimisticReadWriteLock;
 
     struct node;
 
@@ -381,7 +381,7 @@ private:
             }
 
             // copy child nodes recursively
-            inner_node* ires = (inner_node*)res;
+            auto* ires = (inner_node*)res;
             for (size_type i = 0; i <= this->numElements; ++i) {
                 ires->children[i] = this->getChild(i)->clone();
                 ires->children[i]->parent = res;
@@ -548,7 +548,7 @@ private:
             // move child pointers
             if (this->inner) {
                 // move pointers to sibling
-                inner_node* other = static_cast<inner_node*>(sibling);
+                auto* other = static_cast<inner_node*>(sibling);
                 for (unsigned i = split_point + 1, j = 0; i <= maxKeys; ++i, ++j) {
                     other->children[j] = getChildren()[i];
                     other->children[j]->parent = other;
@@ -630,8 +630,8 @@ private:
 
                     // .. and children if necessary
                     if (this->isInner()) {
-                        inner_node* ileft = static_cast<inner_node*>(left);
-                        inner_node* iright = static_cast<inner_node*>(this);
+                        auto* ileft = static_cast<inner_node*>(left);
+                        auto* iright = static_cast<inner_node*>(this);
 
                         // move children
                         for (size_type i = 0; i < num; ++i) {
@@ -697,7 +697,7 @@ private:
                 assert(*root == this);
 
                 // create a new root node
-                inner_node* new_root = new inner_node();
+                auto* new_root = new inner_node();
                 new_root->numElements = 1;
                 new_root->keys[0] = keys[this->numElements];
 
@@ -1035,11 +1035,11 @@ public:
         node const* cur;
 
         // the index of the element currently addressed within the referenced node
-        field_index_type pos;
+        field_index_type pos = 0;
 
     public:
         // default constructor -- creating an end-iterator
-        iterator() : cur(nullptr), pos(0) {}
+        iterator() : cur(nullptr) {}
 
         // creates an iterator referencing a specific element within a given node
         iterator(node const* cur, field_index_type pos) : cur(cur), pos(pos) {}
@@ -1863,9 +1863,8 @@ public:
      * Clears this tree.
      */
     void clear() {
-        if (root) {
-            delete root;
-        }
+        delete root;
+
         root = nullptr;
         leftmost = nullptr;
     }
@@ -2161,7 +2160,7 @@ template <typename Key, typename Comparator = detail::comparator<Key>,
         typename Allocator = std::allocator<Key>,  // is ignored so far
         unsigned blockSize = 256, typename SearchStrategy = typename detail::default_strategy<Key>::type>
 class btree_set : public detail::btree<Key, Comparator, Allocator, blockSize, SearchStrategy, true> {
-    typedef detail::btree<Key, Comparator, Allocator, blockSize, SearchStrategy, true> super;
+    using super = detail::btree<Key, Comparator, Allocator, blockSize, SearchStrategy, true>;
 
     friend class detail::btree<Key, Comparator, Allocator, blockSize, SearchStrategy, true>;
 
@@ -2217,7 +2216,7 @@ template <typename Key, typename Comparator = detail::comparator<Key>,
         typename Allocator = std::allocator<Key>,  // is ignored so far
         unsigned blockSize = 256, typename SearchStrategy = typename detail::default_strategy<Key>::type>
 class btree_multiset : public detail::btree<Key, Comparator, Allocator, blockSize, SearchStrategy, false> {
-    typedef detail::btree<Key, Comparator, Allocator, blockSize, SearchStrategy, false> super;
+    using super = detail::btree<Key, Comparator, Allocator, blockSize, SearchStrategy, false>;
 
     friend class detail::btree<Key, Comparator, Allocator, blockSize, SearchStrategy, false>;
 

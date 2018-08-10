@@ -17,11 +17,11 @@
  ***********************************************************************/
 
 #include "RamOperation.h"
+#include "BinaryConstraintOps.h"
 #include "RamCondition.h"
 #include "RamRelation.h"
-
+#include <cstddef>
 #include <iostream>
-#include <list>
 #include <memory>
 #include <string>
 
@@ -55,16 +55,16 @@ namespace {
 
 /** get indexable element */
 std::unique_ptr<RamValue> getIndexElement(RamCondition* c, size_t& element, size_t level) {
-    if (RamBinaryRelation* binRelOp = dynamic_cast<RamBinaryRelation*>(c)) {
+    if (auto* binRelOp = dynamic_cast<RamBinaryRelation*>(c)) {
         if (binRelOp->getOperator() == BinaryConstraintOp::EQ) {
-            if (RamElementAccess* lhs = dynamic_cast<RamElementAccess*>(binRelOp->getLHS())) {
+            if (auto* lhs = dynamic_cast<RamElementAccess*>(binRelOp->getLHS())) {
                 RamValue* rhs = binRelOp->getRHS();
                 if (lhs->getLevel() == level && (rhs->isConstant() || rhs->getLevel() < level)) {
                     element = lhs->getElement();
                     return binRelOp->takeRHS();
                 }
             }
-            if (RamElementAccess* rhs = dynamic_cast<RamElementAccess*>(binRelOp->getRHS())) {
+            if (auto* rhs = dynamic_cast<RamElementAccess*>(binRelOp->getRHS())) {
                 RamValue* lhs = binRelOp->getLHS();
                 if (rhs->getLevel() == level && (lhs->isConstant() || lhs->getLevel() < level)) {
                     element = rhs->getElement();
@@ -81,7 +81,7 @@ std::unique_ptr<RamValue> getIndexElement(RamCondition* c, size_t& element, size
 void RamScan::addCondition(std::unique_ptr<RamCondition> c, const RamOperation& root) {
     // use condition to narrow scan if possible
     if (c->getLevel() == level) {
-        size_t element;
+        size_t element = 0;
         if (std::unique_ptr<RamValue> value = getIndexElement(c.get(), element, level)) {
             keys |= (1 << element);
             if (queryPattern[element] == nullptr) {
@@ -177,7 +177,7 @@ void RamLookup::print(std::ostream& os, int tabpos) const {
 void RamAggregate::addCondition(std::unique_ptr<RamCondition> c, const RamOperation& root) {
     // use condition to narrow scan if possible
     if (c->getLevel() == level) {
-        size_t element;
+        size_t element = 0;
         if (std::unique_ptr<RamValue> value = getIndexElement(c.get(), element, level)) {
             if (element > 0 || relation->getName().find("__agg") == std::string::npos) {
                 keys |= (1 << element);
@@ -185,9 +185,8 @@ void RamAggregate::addCondition(std::unique_ptr<RamCondition> c, const RamOperat
                     pattern[element] = std::move(value);
                 } else {
                     std::unique_ptr<RamValue> field(new RamElementAccess(level, element));
-                    RamSearch::addCondition(
-                            std::unique_ptr<RamCondition>(new RamBinaryRelation(
-                                    BinaryConstraintOp::EQ, std::move(field), std::move(value))),
+                    RamSearch::addCondition(std::make_unique<RamBinaryRelation>(BinaryConstraintOp::EQ,
+                                                    std::move(field), std::move(value)),
                             root);
                 }
             } else {
@@ -195,8 +194,7 @@ void RamAggregate::addCondition(std::unique_ptr<RamCondition> c, const RamOperat
                 std::unique_ptr<RamCondition> eq(
                         new RamBinaryRelation(BinaryConstraintOp::EQ, std::move(field), std::move(value)));
                 if (condition != nullptr) {
-                    condition =
-                            std::unique_ptr<RamCondition>(new RamAnd(std::move(condition), std::move(eq)));
+                    condition = std::make_unique<RamAnd>(std::move(condition), std::move(eq));
                 } else {
                     condition.swap(eq);
                 }
@@ -279,7 +277,7 @@ void RamProject::addCondition(std::unique_ptr<RamCondition> c, const RamOperatio
     assert(c->getLevel() <= level);
 
     if (condition) {
-        condition = std::unique_ptr<RamCondition>(new RamAnd(std::move(condition), std::move(c)));
+        condition = std::make_unique<RamAnd>(std::move(condition), std::move(c));
     } else {
         condition.swap(c);
     }

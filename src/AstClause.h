@@ -17,26 +17,25 @@
 
 #pragma once
 
-#include "AstArgument.h"
 #include "AstLiteral.h"
-#include "AstRelationIdentifier.h"
+#include "AstNode.h"
 #include "Util.h"
-
+#include <cassert>
+#include <cstddef>
+#include <map>
 #include <memory>
-#include <set>
-#include <string>
+#include <ostream>
+#include <utility>
 #include <vector>
 
 namespace souffle {
-
-class AstProgram;
 
 /**
  * An execution order for atoms within a clause.
  */
 class AstExecutionOrder : public AstNode {
 public:
-    typedef typename std::vector<unsigned int>::const_iterator const_iterator;
+    using const_iterator = typename std::vector<unsigned int>::const_iterator;
 
 private:
     /** The actual order, starting with 1 (!) */
@@ -106,8 +105,8 @@ public:
 protected:
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstExecutionOrder*>(&node));
-        const AstExecutionOrder& other = static_cast<const AstExecutionOrder&>(node);
+        assert(nullptr != dynamic_cast<const AstExecutionOrder*>(&node));
+        const auto& other = static_cast<const AstExecutionOrder&>(node);
         return order == other.order;
     }
 };
@@ -118,17 +117,17 @@ protected:
  */
 class AstExecutionPlan : public AstNode {
 public:
-    typedef typename std::map<int, AstExecutionOrder>::const_iterator const_iterator;
+    using const_iterator = typename std::map<int, AstExecutionOrder>::const_iterator;
 
 private:
     /** Mapping versions of clauses to execution plans */
     std::map<int, std::unique_ptr<AstExecutionOrder>> plans;
 
     /** remember maximal version number */
-    int maxVersion;
+    int maxVersion = -1;
 
 public:
-    AstExecutionPlan() : maxVersion(-1) {}
+    AstExecutionPlan() = default;
 
     /** Updates the execution order for a special version of a rule */
     void setOrderFor(int version, std::unique_ptr<AstExecutionOrder> plan) {
@@ -171,14 +170,14 @@ public:
         if (!plans.empty()) {
             out << "\n\n   .plan ";
             bool first = true;
-            for (auto it = plans.begin(); it != plans.end(); ++it) {
+            for (const auto& plan : plans) {
                 if (first) {
                     first = false;
                 } else {
                     out << ",";
                 }
-                out << (*it).first << ":";
-                (*it).second->print(out);
+                out << plan.first << ":";
+                plan.second->print(out);
             }
         }
     }
@@ -210,8 +209,8 @@ public:
 protected:
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstExecutionPlan*>(&node));
-        const AstExecutionPlan& other = static_cast<const AstExecutionPlan&>(node);
+        assert(nullptr != dynamic_cast<const AstExecutionPlan*>(&node));
+        const auto& other = static_cast<const AstExecutionPlan&>(node);
         if (maxVersion != other.maxVersion) {
             return false;
         }
@@ -259,21 +258,21 @@ protected:
     std::vector<std::unique_ptr<AstConstraint>> constraints;
 
     /** Determines whether the given execution order should be enforced */
-    bool fixedPlan;
+    bool fixedPlan = false;
 
     /** The user defined execution plan -- if any */
     std::unique_ptr<AstExecutionPlan> plan;
 
     /** Determines whether this is an internally generated clause resulting from resolving syntactic sugar */
-    bool generated;
+    bool generated = false;
 
     /** Stores a unique number for each clause in a relation */
-    size_t clauseNum;
+    size_t clauseNum = 0;
 
 public:
     /** Construct an empty clause with empty list of literals and
         its head set to NULL */
-    AstClause() : head(nullptr), fixedPlan(false), plan(nullptr), generated(false) {}
+    AstClause() : head(nullptr), plan(nullptr) {}
 
     ~AstClause() override = default;
 
@@ -315,6 +314,17 @@ public:
     /** Obtains a list of constraints */
     std::vector<AstConstraint*> getConstraints() const {
         return toPtrVector(constraints);
+    }
+
+    /** Obtains a list of binary constraints */
+    std::vector<AstBinaryConstraint*> getBinaryConstraints() const {
+        std::vector<AstBinaryConstraint*> result;
+        for (auto& constraint : constraints) {
+            if (auto* br = dynamic_cast<AstBinaryConstraint*>(constraint.get())) {
+                result.push_back(br);
+            }
+        }
+        return result;
     }
 
     /** Return @p true if the clause is a rule */
@@ -373,7 +383,7 @@ public:
     /** Print this clause to a given stream */
     void print(std::ostream& os) const override;
 
-    /** Creates a clone if this AST sub-structure */
+    /** Creates a clone of this AST sub-structure */
     AstClause* clone() const override {
         auto res = new AstClause();
         res->setSrcLoc(getSrcLoc());
@@ -411,7 +421,7 @@ public:
 
     /** clone head generates a new clause with the same head but empty body */
     AstClause* cloneHead() const {
-        AstClause* clone = new AstClause();
+        auto* clone = new AstClause();
         clone->setSrcLoc(getSrcLoc());
         clone->setHead(std::unique_ptr<AstAtom>(getHead()->clone()));
         if (getExecutionPlan()) {
@@ -439,8 +449,8 @@ public:
 protected:
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstClause*>(&node));
-        const AstClause& other = static_cast<const AstClause&>(node);
+        assert(nullptr != dynamic_cast<const AstClause*>(&node));
+        const auto& other = static_cast<const AstClause&>(node);
         return *head == *other.head && equal_targets(atoms, other.atoms) &&
                equal_targets(negations, other.negations) && equal_targets(constraints, other.constraints);
     }

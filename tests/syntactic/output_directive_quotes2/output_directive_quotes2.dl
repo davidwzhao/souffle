@@ -11,6 +11,5 @@
 
 // With output qualifier
 .decl B(x:number,y:number)
-.output B()
 .output B(IO="file",filename="NameFromOutputDec.csv",delimiter="h")
 B(x,y) :- A(x,y).

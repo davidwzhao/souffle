@@ -17,12 +17,14 @@
 #pragma once
 
 #include "AstLiteral.h"
-#include "Util.h"
 
+#include <iosfwd>
 #include <memory>
 #include <vector>
 
 namespace souffle {
+
+class AstClause;
 
 class RuleBody {
     // a struct to represent literals
@@ -42,7 +44,7 @@ class RuleBody {
     std::vector<clause> dnf;
 
 public:
-    RuleBody() {}
+    RuleBody() = default;
 
     void negate();
 

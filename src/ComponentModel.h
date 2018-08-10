@@ -15,17 +15,18 @@
 #pragma once
 
 #include "AstAnalysis.h"
-#include "AstComponent.h"
-#include "AstRelation.h"
-#include "AstTranslationUnit.h"
-
-#include <memory>
+#include "AstTransformer.h"
+#include "AstType.h"
+#include <cstddef>
+#include <map>
+#include <set>
 #include <string>
 #include <vector>
 
 namespace souffle {
 
-class ErrorReport;
+class AstComponent;
+class AstTranslationUnit;
 
 /**
  * Class that encapsulates std::map of types binding that comes from .init c = Comp<MyType>

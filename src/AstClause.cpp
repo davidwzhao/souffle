@@ -17,18 +17,12 @@
 
 #include "AstClause.h"
 #include "AstLiteral.h"
-#include "AstProgram.h"
-#include "AstRelation.h"
 #include "AstVisitor.h"
-
-#include <set>
-#include <sstream>
-#include <string>
-
-#include <stdlib.h>
-#include <string.h>
+#include <algorithm>
 
 namespace souffle {
+
+class AstAggregator;
 
 /*
  * Clause
@@ -49,7 +43,7 @@ void AstClause::addToBody(std::unique_ptr<AstLiteral> l) {
 
 /* Set the head of clause to h */
 void AstClause::setHead(std::unique_ptr<AstAtom> h) {
-    ASSERT(!head && "Head is already set");
+    assert(!head && "Head is already set");
     head = std::move(h);
 }
 

@@ -4,7 +4,7 @@ Section: misc
 Priority: optional
 Standards-Version: 3.9.5
 Build-Depends: autoconf, automake, bison, mcpp, debhelper (>= 9), flex, libsqlite3-dev, zlib1g-dev, libncurses5-dev
-Homepage: https://github.com/oracle/souffle
+Homepage: https://souffle-lang.org/
 Vcs-Git: https://github.com/souffle-lang/souffle.git
 
 Package: souffle

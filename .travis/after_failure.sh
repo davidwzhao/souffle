@@ -25,13 +25,13 @@ pretty_print () {
 }
 
 TEST_ROOT=`find . -type d -name "testsuite.dir" | head -1`
-RELEVANT_EXTENSIONS=".out .err .log"
+RELEVANT_EXTENSIONS=".out .err .log .ccerr"
 MAXIMUM_LINES="200"
 
 # Show the current directory, and the contents of each direct subdirectory
 pretty_print "Current directory status"
 pwd
-ls
+ls -l
 for FI in */; do
     pretty_print $FI
     ls $FI
@@ -60,7 +60,7 @@ echo
 
 # Show the contents of its directory
 pretty_print "Directory contents: "
-ls "$TEST_ROOT/$CANDIDATE"
+ls -l "$TEST_ROOT/$CANDIDATE"
 echo
 
 # Print any of the relevant files in the directory (up to a maximum, for readability's sake)

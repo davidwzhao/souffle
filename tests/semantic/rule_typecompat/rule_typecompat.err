@@ -1,18 +1,18 @@
 Warning: No rules/facts defined for relation H in file rule_typecompat.dl at line 5
 .decl H (t:T)
-^-------------
+------^-------
 Warning: No rules/facts defined for relation B in file rule_typecompat.dl at line 7
 .decl B (s:S)
-^-------------
+------^-------
 Warning: No rules/facts defined for relation C in file rule_typecompat.dl at line 8
 .decl C (q:Q)
-^-------------
+------^-------
 Warning: No rules/facts defined for relation D in file rule_typecompat.dl at line 9
 .decl D (r:R)
-^-------------
+------^-------
 Warning: No rules/facts defined for relation E in file rule_typecompat.dl at line 10
 .decl E (r:R, s:S)
-^------------------
+------^------------
 Error: Unable to deduce type for variable x in file rule_typecompat.dl at line 15
 A(x) :- B(x).
 --^-----------

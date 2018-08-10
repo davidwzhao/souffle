@@ -13,30 +13,30 @@
  * Defines the semantic checker pass.
  *
  ***********************************************************************/
+
 #pragma once
 
 #include "AstTransformer.h"
+#include <string>
 
 namespace souffle {
 
-class AstTranslationUnit;
-class ErrorReport;
-class AstProgram;
-class AstAtom;
-class AstLiteral;
 class AstAggregator;
 class AstArgument;
+class AstAtom;
 class AstClause;
-class AstRelation;
-class AstSrcLocation;
-class TypeBinding;
-class AstUnionType;
+class AstLiteral;
+class AstProgram;
 class AstRecordType;
+class AstRelation;
+class AstTranslationUnit;
 class AstType;
-class TypeEnvironment;
-class TypeAnalysis;
+class AstUnionType;
+class ErrorReport;
 class PrecedenceGraph;
 class RecursiveClauses;
+class TypeAnalysis;
+class TypeEnvironment;
 
 class AstSemanticChecker : public AstTransformer {
 private:

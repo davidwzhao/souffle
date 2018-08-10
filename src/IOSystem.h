@@ -40,11 +40,11 @@ public:
         return singleton;
     }
 
-    void registerWriteStreamFactory(std::shared_ptr<WriteStreamFactory> factory) {
+    void registerWriteStreamFactory(const std::shared_ptr<WriteStreamFactory>& factory) {
         outputFactories[factory->getName()] = factory;
     }
 
-    void registerReadStreamFactory(std::shared_ptr<ReadStreamFactory> factory) {
+    void registerReadStreamFactory(const std::shared_ptr<ReadStreamFactory>& factory) {
         inputFactories[factory->getName()] = factory;
     }
 

@@ -16,8 +16,11 @@
 
 #include "AstParserUtils.h"
 #include "AstClause.h"
-
+#include "AstNode.h"
+#include "Util.h"
 #include <memory>
+#include <ostream>
+#include <utility>
 #include <vector>
 
 namespace souffle {
@@ -85,10 +88,10 @@ std::vector<AstClause*> RuleBody::toClauseBodies() const {
             // negate if necessary
             if (lit.negated) {
                 // negate
-                if (AstAtom* atom = dynamic_cast<AstAtom*>(base)) {
+                if (auto* atom = dynamic_cast<AstAtom*>(base)) {
                     base = new AstNegation(std::unique_ptr<AstAtom>(atom));
                     base->setSrcLoc(atom->getSrcLoc());
-                } else if (AstConstraint* cstr = dynamic_cast<AstConstraint*>(base)) {
+                } else if (auto* cstr = dynamic_cast<AstConstraint*>(base)) {
                     cstr->negate();
                 }
             }
@@ -151,11 +154,12 @@ bool RuleBody::equal(const clause& a, const clause& b) {
     if (a.size() != b.size()) {
         return false;
     }
-    for (std::size_t i = 0; i < a.size(); ++i) {
+    for (const auto& i : a) {
         bool found = false;
-        for (std::size_t j = 0; !found && j < b.size(); ++j) {
-            if (equal(a[i], b[j])) {
+        for (const auto& j : b) {
+            if (equal(i, j)) {
                 found = true;
+                break;
             }
         }
         if (!found) {
@@ -169,11 +173,12 @@ bool RuleBody::isSubsetOf(const clause& a, const clause& b) {
     if (a.size() > b.size()) {
         return false;
     }
-    for (std::size_t i = 0; i < a.size(); ++i) {
+    for (const auto& i : a) {
         bool found = false;
-        for (std::size_t j = 0; !found && j < b.size(); ++j) {
-            if (equal(a[i], b[j])) {
+        for (const auto& j : b) {
+            if (equal(i, j)) {
                 found = true;
+                break;
             }
         }
         if (!found) {

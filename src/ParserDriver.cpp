@@ -15,11 +15,21 @@
  ***********************************************************************/
 
 #include "ParserDriver.h"
+#include "AstClause.h"
+#include "AstComponent.h"
+#include "AstIODirective.h"
+#include "AstPragma.h"
 #include "AstProgram.h"
+#include "AstRelation.h"
+#include "AstRelationIdentifier.h"
 #include "AstTranslationUnit.h"
+#include "AstType.h"
 #include "ErrorReport.h"
+#include "Util.h"
+#include <memory>
+#include <utility>
 
-typedef struct yy_buffer_state* YY_BUFFER_STATE;
+using YY_BUFFER_STATE = struct yy_buffer_state*;
 extern YY_BUFFER_STATE yy_scan_string(const char*, yyscan_t scanner);
 extern int yylex_destroy(yyscan_t scanner);
 extern int yylex_init_extra(scanner_data* data, yyscan_t* scanner);
@@ -27,14 +37,14 @@ extern void yyset_in(FILE* in_str, yyscan_t scanner);
 
 namespace souffle {
 
-ParserDriver::ParserDriver() : trace_scanning(false), trace_parsing(false) {}
+ParserDriver::ParserDriver() = default;
 
 ParserDriver::~ParserDriver() = default;
 
 std::unique_ptr<AstTranslationUnit> ParserDriver::parse(const std::string& filename, FILE* in,
         SymbolTable& symbolTable, ErrorReport& errorReport, DebugReport& debugReport) {
-    translationUnit = std::unique_ptr<AstTranslationUnit>(new AstTranslationUnit(
-            std::unique_ptr<AstProgram>(new AstProgram()), symbolTable, errorReport, debugReport));
+    translationUnit = std::make_unique<AstTranslationUnit>(
+            std::unique_ptr<AstProgram>(new AstProgram()), symbolTable, errorReport, debugReport);
     yyscan_t scanner;
     scanner_data data;
     data.yyfilename = filename.c_str();
@@ -54,8 +64,8 @@ std::unique_ptr<AstTranslationUnit> ParserDriver::parse(const std::string& filen
 
 std::unique_ptr<AstTranslationUnit> ParserDriver::parse(const std::string& code, SymbolTable& symbolTable,
         ErrorReport& errorReport, DebugReport& debugReport) {
-    translationUnit = std::unique_ptr<AstTranslationUnit>(new AstTranslationUnit(
-            std::unique_ptr<AstProgram>(new AstProgram()), symbolTable, errorReport, debugReport));
+    translationUnit = std::make_unique<AstTranslationUnit>(
+            std::unique_ptr<AstProgram>(new AstProgram()), symbolTable, errorReport, debugReport);
 
     scanner_data data;
     data.yyfilename = "<in-memory>";
@@ -113,26 +123,12 @@ void ParserDriver::addRelation(std::unique_ptr<AstRelation> r) {
     }
 }
 
-void ParserDriver::addIODirectiveChain(std::unique_ptr<AstIODirective> d) {
-    for (auto& currentName : d->getNames()) {
-        auto clone = std::unique_ptr<AstIODirective>(d->clone());
-        clone->setName(currentName);
-        addIODirective(std::move(clone));
-    }
-}
-
 void ParserDriver::addIODirective(std::unique_ptr<AstIODirective> d) {
-    if (d->isOutput()) {
-        translationUnit->getProgram()->addIODirective(std::move(d));
-        return;
-    }
-
     for (const auto& cur : translationUnit->getProgram()->getIODirectives()) {
-        if (((cur->isInput() && d->isInput()) || (cur->isPrintSize() && d->isPrintSize())) &&
-                cur->getName() == d->getName()) {
+        if ((cur->isPrintSize() && d->isPrintSize()) && cur->getName() == d->getName()) {
             Diagnostic err(Diagnostic::ERROR,
                     DiagnosticMessage(
-                            "Redefinition of input directives for relation " + toString(d->getName()),
+                            "Redefinition of printsize directives for relation " + toString(d->getName()),
                             d->getSrcLoc()),
                     {DiagnosticMessage("Previous definition", cur->getSrcLoc())});
             translationUnit->getErrorReport().addDiagnostic(err);
@@ -168,7 +164,7 @@ souffle::SymbolTable& ParserDriver::getSymbolTable() {
     return translationUnit->getSymbolTable();
 }
 
-void ParserDriver::error(const AstSrcLocation& loc, const std::string& msg) {
+void ParserDriver::error(const SrcLocation& loc, const std::string& msg) {
     translationUnit->getErrorReport().addError(msg, loc);
 }
 void ParserDriver::error(const std::string& msg) {

@@ -51,17 +51,17 @@ public:
         out << "END DECLARATION " << std::endl;
         out << "PROGRAM" << std::endl;
         out << *main;
-        out << "END PROGRAM" << std::endl;
-        for (auto it = subroutines.begin(); it != subroutines.end(); it++) {
-            out << std::endl << "SUBROUTINE " << it->first << std::endl;
-            it->second->print(out);
-            out << "END SUBROUTINE" << std::endl;
+        out << "\nEND PROGRAM" << std::endl;
+        for (const auto& subroutine : subroutines) {
+            out << std::endl << "SUBROUTINE " << subroutine.first << std::endl;
+            out << *subroutine.second;
+            out << "\nEND SUBROUTINE" << std::endl;
         }
     }
 
     /** Get main program */
     RamStatement* getMain() const {
-        ASSERT(main);
+        assert(main);
         return main.get();
     }
 
@@ -71,7 +71,7 @@ public:
     }
 
     /** Get relation */
-    const RamRelation& getRelation(std::string name) const {
+    const RamRelation& getRelation(const std::string& name) const {
         return *relations.at(name);
     }
 
@@ -90,7 +90,7 @@ public:
     }
 
     /** Get subroutine */
-    const RamStatement& getSubroutine(std::string name) const {
+    const RamStatement& getSubroutine(const std::string& name) const {
         return *subroutines.at(name);
     }
 
@@ -114,8 +114,8 @@ public:
 protected:
     /** Check equality */
     bool equal(const RamNode& node) const override {
-        assert(dynamic_cast<const RamProgram*>(&node));
-        const RamProgram& other = static_cast<const RamProgram&>(node);
+        assert(nullptr != dynamic_cast<const RamProgram*>(&node));
+        const auto& other = static_cast<const RamProgram&>(node);
         bool areSubroutinesEqual = true;
         for (auto& cur : subroutines) {
             if (other.subroutines.count(cur.first) == 0) {

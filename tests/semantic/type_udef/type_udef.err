@@ -1,6 +1,6 @@
 Warning: No rules/facts defined for relation R in file type_udef.dl at line 5
 .decl R(type1:Type, type2:XType)
-^--------------------------------
+------^--------------------------
 Error: Undefined type in attribute type2:XType in file type_udef.dl at line 5
 .decl R(type1:Type, type2:XType)
 --------------------------^------

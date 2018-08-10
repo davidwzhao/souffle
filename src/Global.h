@@ -1,19 +1,28 @@
-#pragma once
+/*
+ * Souffle - A Datalog Compiler
+ * Copyright (c) 2018 The Souffle Developers. All Rights reserved
+ * Licensed under the Universal Permissive License v 1.0 as shown at:
+ * - https://opensource.org/licenses/UPL
+ * - <souffle root>/licenses/SOUFFLE-UPL.txt
+ */
 
-#include "Util.h"
+/************************************************************************
+ *
+ * @file Global.h
+ *
+ * Defines a configuration environment
+ *
+ ***********************************************************************/
+
+#pragma once
 
 #include <iostream>
 #include <map>
-#include <sstream>
 #include <string>
 #include <vector>
 
-#include <ctype.h>
-#include <getopt.h>
-
 namespace souffle {
 
-// TODO: this is the wrong place for this class, find somewhere better to put it
 /* A simple table class, to be used as a base for others to extend from. */
 template <typename K, typename V>
 class BaseTable {
@@ -53,11 +62,11 @@ public:
         return (has(key)) ? _data.at(key) : value;
     }
     /* Check the table has the specified key. */
-    const bool has(const K& key) const {
+    bool has(const K& key) const {
         return _data.find(key) != _data.end();
     }
     /* Check the table has the specified key and the specified value for that key. */
-    const bool has(const K& key, const V& value) const {
+    bool has(const K& key, const V& value) const {
         return has(key) && _data.at(key) == value;
     }
     /* Set the entry in the table for the specified key to an object of the value class called with an empty
@@ -106,7 +115,7 @@ public:
     /* The argument processing method, this takes the arguments provided to main, a header, a footer, and a
        list of options.
        From these, we construct the help text and the global configuration. See Global.cpp for details. */
-    void processArgs(int argc, char** argv, const std::string header, const std::string footer,
+    void processArgs(int argc, char** argv, const std::string& header, const std::string& footer,
             const std::vector<MainOption> mainOptions);
     /* Obtain the help text as a string. Note that 'processArgs' must be called before this is used. */
     const std::string& help() const {

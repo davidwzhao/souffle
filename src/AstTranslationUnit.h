@@ -15,6 +15,7 @@
  * cached analysis results.
  *
  ***********************************************************************/
+
 #pragma once
 
 #include "AstAnalysis.h"

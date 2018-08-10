@@ -28,6 +28,16 @@ m4_define([SAME_FILE],[
   AT_CHECK([diff "$1" "$2"],[],[],[])
 ])
 
+dnl Check whether two files have identical sorted contents.
+dnl the contents of two files are identical
+dnl $1 -- generated file
+dnl $2 -- expected file
+m4_define([SORTED_SAME_FILE],[
+    sort "$1" > "$(basename $1).sorted.generated"
+    sort "$2" > "$(basename $2).sorted.expected"
+    SAME_FILE(["$(basename $1).sorted.generated"], ["$(basename $2).sorted.expected"])
+])
+
 dnl Check whether all files matching a regex have identical sorted contents
 dnl to those in the given directory.
 dnl the contents of two files are identical
@@ -87,8 +97,15 @@ m4_define([TEST_EVAL],[
   # is equal to the number of expected CSV files.
   ls *.csv|wc -l >"num.generated"
   ls EXPECTEDDIR/*.csv|wc -l >"num.expected"
-  # validate stdout and stderr
-  SAME_FILE([TESTNAME.out],[EXPECTEDDIR/TESTNAME.out])
+
+  # remove mpi messages
+  cat TESTNAME.out | \
+  tr '\n' '\r' | \
+  perl -pi -e 's/--*\x0D.*\x0D--*\x0D//g' | \
+  tr '\r' '\n' > TESTNAME.nompi.out
+
+  # sort output files as printsize statements are non-deterministically ordered
+  SORTED_SAME_FILE([TESTNAME.nompi.out],[EXPECTEDDIR/TESTNAME.out])
   SAME_FILE([TESTNAME.err],[EXPECTEDDIR/TESTNAME.err])
   SAME_FILE([num.generated],[num.expected])
 ])
@@ -113,10 +130,17 @@ m4_define([TEST_EVAL_IN],[
   # is equal to the number of expected CSV files.
   ls *.csv|wc -l >"num.generated"
   ls EXPECTEDDIR/*.csv|wc -l >"num.expected"
-  # remove non-deterministic record numbering
-  sed 's/subproof \(@<:@a-zA-Z0-9?_@:>@*\)(@<:@0-9@:>@*)/subproof \1()/g' TESTNAME.out | sed -e '$a\' >TESTNAME.sed.out
-  # validate stdout and stderr
-  SAME_FILE([TESTNAME.sed.out],[EXPECTEDDIR/TESTNAME.out])
+
+  # remove non-deterministic record numbering and mpi error messages
+  cat TESTNAME.out | \
+  sed 's/subproof \(@<:@a-zA-Z0-9?_@:>@*\)(@<:@0-9@:>@*)/subproof \1()/g' | \
+  sed -e '$a\' | \
+  tr '\n' '\r' | \
+  perl -pi -e 's/--*\x0D.*\x0D--*\x0D//g' | \
+  tr '\r' '\n' > TESTNAME.nompi.out
+
+  # sort output files as printsize statements are non-deterministically ordered
+  SORTED_SAME_FILE([TESTNAME.nompi.out],[EXPECTEDDIR/TESTNAME.out])
   SAME_FILE([TESTNAME.err],[EXPECTEDDIR/TESTNAME.err])
   SAME_FILE([num.generated],[num.expected])
 ])
@@ -182,14 +206,9 @@ m4_define([NEGATIVE_TEST],[
 dnl Defines most relevant Souffle flag configurations for testing.
 dnl NOTE: This is the default configuration that can be overridden
 dnl using SOUFFLE_CONFS environment variable.
-m4_define([DEFAULT_CONFS], [[],     dnl run interpreter
-  [-c],                              dnl compile, then execute
-  [-j8],                             dnl run interpreter in parallel
+m4_define([DEFAULT_CONFS], [[-j8],   dnl run interpreter in parallel
   [-c -j8],                          dnl compile, then execute in parallel
-  [-f -j8],                          dnl run interpreter with fault-tolerance in parallel
-  [-c -f -j8],                       dnl compile with fault tolerance enabled, then execute in parallel
-  [-c -j8 -s-],                      dnl compile to subprograms, then execute each in parallel
-  [-c -f -j8 -s-]                    dnl compile to subprograms with fault tolerance enabled, then execute each in parallel
+  [-c -j8 -efile]                    dnl compile, then execute in parallel with file communication engine
 ])
 
 dnl Store user-defined souffle flag configuration given by the SOUFFLE_CONFS env (if any)

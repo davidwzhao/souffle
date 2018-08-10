@@ -13,6 +13,7 @@
  * Defines the interface for RAM transformation passes.
  *
  ***********************************************************************/
+
 #pragma once
 
 #include <string>

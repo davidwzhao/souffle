@@ -13,6 +13,7 @@
  * Defines an interface for RAM analysis
  *
  ***********************************************************************/
+
 #pragma once
 
 #include <iostream>

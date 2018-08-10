@@ -13,6 +13,7 @@
  * Defines binary constraint operators for AST & RAM
  *
  ***********************************************************************/
+
 #pragma once
 
 #include <cassert>

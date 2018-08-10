@@ -1,5 +1,40 @@
+/*
+ * Souffle - A Datalog Compiler
+ * Copyright (c) 2018 The Souffle Developers. All Rights reserved
+ * Licensed under the Universal Permissive License v 1.0 as shown at:
+ * - https://opensource.org/licenses/UPL
+ * - <souffle root>/licenses/SOUFFLE-UPL.txt
+ */
+
+/************************************************************************
+ *
+ * @file InlineRelationsTransformer.cpp
+ *
+ * Implements relation inlining
+ *
+ ***********************************************************************/
+
+#include "AstArgument.h"
+#include "AstClause.h"
+#include "AstLiteral.h"
+#include "AstNode.h"
+#include "AstProgram.h"
+#include "AstRelation.h"
+#include "AstRelationIdentifier.h"
 #include "AstTransforms.h"
+#include "AstTranslationUnit.h"
 #include "AstVisitor.h"
+#include "BinaryConstraintOps.h"
+#include "BinaryFunctorOps.h"
+#include "Util.h"
+#include <cassert>
+#include <cstddef>
+#include <memory>
+#include <ostream>
+#include <set>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace souffle {
 
@@ -7,11 +42,11 @@ template <class T>
 class NullableVector {
 private:
     std::vector<T> vector;
-    bool valid;
+    bool valid = false;
 
 public:
-    NullableVector() : valid(false) {}
-    NullableVector(std::vector<T> vector) : vector(vector), valid(true) {}
+    NullableVector() = default;
+    NullableVector(std::vector<T> vector) : vector(std::move(vector)), valid(true) {}
 
     bool isValid() const {
         return valid;
@@ -50,14 +85,14 @@ void normaliseInlinedHeads(AstProgram& program) {
 
             // Set up the head arguments in the new clause
             for (AstArgument* arg : clause->getHead()->getArguments()) {
-                if (AstConstant* constant = dynamic_cast<AstConstant*>(arg)) {
+                if (auto* constant = dynamic_cast<AstConstant*>(arg)) {
                     // Found a constant in the head, so replace it with a variable
                     std::stringstream newVar;
                     newVar << "<new_var_" << newVarCount++ << ">";
                     clauseHead->addArgument(std::make_unique<AstVariable>(newVar.str()));
 
                     // Add a body constraint to set the variable's value to be the original constant
-                    newClause->addToBody(std::make_unique<AstConstraint>(BinaryConstraintOp::EQ,
+                    newClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
                             std::make_unique<AstVariable>(newVar.str()),
                             std::unique_ptr<AstArgument>(constant->clone())));
                 } else {
@@ -84,14 +119,14 @@ void nameInlinedUnderscores(AstProgram& program) {
         bool replaceUnderscores;
 
         M(std::set<AstRelationIdentifier> inlinedRelations, bool replaceUnderscores)
-                : inlinedRelations(inlinedRelations), replaceUnderscores(replaceUnderscores) {}
+                : inlinedRelations(std::move(inlinedRelations)), replaceUnderscores(replaceUnderscores) {}
 
         std::unique_ptr<AstNode> operator()(std::unique_ptr<AstNode> node) const override {
             static int underscoreCount = 0;
 
             if (!replaceUnderscores) {
                 // Check if we should start replacing underscores for this node's subnodes
-                if (AstAtom* atom = dynamic_cast<AstAtom*>(node.get())) {
+                if (auto* atom = dynamic_cast<AstAtom*>(node.get())) {
                     if (inlinedRelations.find(atom->getName()) != inlinedRelations.end()) {
                         // Atom associated with an inlined relation, so replace the underscores
                         // in all of its subnodes with named variables.
@@ -235,11 +270,11 @@ NullableVector<std::pair<AstArgument*, AstArgument*>> unifyAtoms(AstAtom* first,
  * Returns the vector of replacement literals and the necessary constraints.
  * If unification is unsuccessful, the vector of literals is marked as invalid.
  */
-std::pair<NullableVector<AstLiteral*>, std::vector<AstConstraint*>> inlineBodyLiterals(
+std::pair<NullableVector<AstLiteral*>, std::vector<AstBinaryConstraint*>> inlineBodyLiterals(
         AstAtom* atom, AstClause* atomInlineClause) {
     bool changed = false;
     std::vector<AstLiteral*> addedLits;
-    std::vector<AstConstraint*> constraints;
+    std::vector<AstBinaryConstraint*> constraints;
 
     // Rename the variables in the inlined clause to avoid conflicts when unifying multiple atoms
     // - particularly when an inlined relation appears twice in a clause.
@@ -252,7 +287,7 @@ std::pair<NullableVector<AstLiteral*>, std::vector<AstConstraint*>> inlineBodyLi
         int varnum;
         VariableRenamer(int varnum) : varnum(varnum) {}
         std::unique_ptr<AstNode> operator()(std::unique_ptr<AstNode> node) const override {
-            if (AstVariable* var = dynamic_cast<AstVariable*>(node.get())) {
+            if (auto* var = dynamic_cast<AstVariable*>(node.get())) {
                 // Rename the variable
                 auto newVar = std::unique_ptr<AstVariable>(var->clone());
                 std::stringstream newName;
@@ -275,7 +310,7 @@ std::pair<NullableVector<AstLiteral*>, std::vector<AstConstraint*>> inlineBodyLi
     if (res.isValid()) {
         changed = true;
         for (std::pair<AstArgument*, AstArgument*> pair : res.getVector()) {
-            constraints.push_back(new AstConstraint(BinaryConstraintOp::EQ,
+            constraints.push_back(new AstBinaryConstraint(BinaryConstraintOp::EQ,
                     std::unique_ptr<AstArgument>(pair.first->clone()),
                     std::unique_ptr<AstArgument>(pair.second->clone())));
         }
@@ -299,18 +334,19 @@ std::pair<NullableVector<AstLiteral*>, std::vector<AstConstraint*>> inlineBodyLi
  * Returns the negated version of a given literal
  */
 AstLiteral* negateLiteral(AstLiteral* lit) {
-    if (AstAtom* atom = dynamic_cast<AstAtom*>(lit)) {
+    if (auto* atom = dynamic_cast<AstAtom*>(lit)) {
         AstNegation* neg = new AstNegation(std::unique_ptr<AstAtom>(atom->clone()));
         return neg;
-    } else if (AstNegation* neg = dynamic_cast<AstNegation*>(lit)) {
+    } else if (auto* neg = dynamic_cast<AstNegation*>(lit)) {
         AstAtom* atom = neg->getAtom()->clone();
         return atom;
-    } else if (AstConstraint* cons = dynamic_cast<AstConstraint*>(lit)) {
+    } else if (auto* cons = dynamic_cast<AstConstraint*>(lit)) {
         AstConstraint* newCons = cons->clone();
         newCons->negate();
         return newCons;
     } else {
         assert(false && "Unsupported literal type!");
+        return nullptr;
     }
 }
 
@@ -322,12 +358,17 @@ std::vector<std::vector<AstLiteral*>> combineNegatedLiterals(
         std::vector<std::vector<AstLiteral*>> litGroups) {
     std::vector<std::vector<AstLiteral*>> negation;
 
+    // Corner case: !() = ()
+    if (litGroups.empty()) {
+        return negation;
+    }
+
     std::vector<AstLiteral*> litGroup = litGroups[0];
     if (litGroups.size() == 1) {
         // !(a1 ^ a2 ^ a3 ^ ...) --into-> !a1 v !a2 v !a3 v ...
-        for (size_t i = 0; i < litGroup.size(); i++) {
+        for (auto& i : litGroup) {
             std::vector<AstLiteral*> newVec;
-            newVec.push_back(negateLiteral(litGroup[i]));
+            newVec.push_back(negateLiteral(i));
             negation.push_back(newVec);
         }
 
@@ -347,7 +388,7 @@ std::vector<std::vector<AstLiteral*>> combineNegatedLiterals(
             newVec.push_back(negateLiteral(lhsLit));
 
             for (AstLiteral* lit : rhsVec) {
-                newVec.push_back(lit->clone());
+                newVec.push_back(lit);
             }
 
             negation.push_back(newVec);
@@ -367,15 +408,15 @@ std::vector<std::vector<AstLiteral*>> formNegatedLiterals(AstProgram& program, A
     // Constraints added to unify atoms should not be negated and should be added to
     // all the final rule combinations produced, and so should be stored separately.
     std::vector<std::vector<AstLiteral*>> addedBodyLiterals;
-    std::vector<std::vector<AstConstraint*>> addedConstraints;
+    std::vector<std::vector<AstBinaryConstraint*>> addedConstraints;
 
     // Go through every possible clause associated with the given atom
     for (AstClause* inClause : program.getRelation(atom->getName())->getClauses()) {
         // Form the replacement clause by inlining based on the current clause
-        std::pair<NullableVector<AstLiteral*>, std::vector<AstConstraint*>> inlineResult =
+        std::pair<NullableVector<AstLiteral*>, std::vector<AstBinaryConstraint*>> inlineResult =
                 inlineBodyLiterals(atom, inClause);
         NullableVector<AstLiteral*> replacementBodyLiterals = inlineResult.first;
-        std::vector<AstConstraint*> currConstraints = inlineResult.second;
+        std::vector<AstBinaryConstraint*> currConstraints = inlineResult.second;
 
         if (!replacementBodyLiterals.isValid()) {
             // Failed to unify, so just move on
@@ -392,10 +433,10 @@ std::vector<std::vector<AstLiteral*>> formNegatedLiterals(AstProgram& program, A
             combineNegatedLiterals(addedBodyLiterals);
 
     // Add in the necessary constraints to all the body literals
-    for (size_t i = 0; i < negatedAddedBodyLiterals.size(); i++) {
-        for (std::vector<AstConstraint*> constraintGroup : addedConstraints) {
-            for (AstConstraint* constraint : constraintGroup) {
-                negatedAddedBodyLiterals[i].push_back(constraint->clone());
+    for (auto& negatedAddedBodyLiteral : negatedAddedBodyLiterals) {
+        for (std::vector<AstBinaryConstraint*> constraintGroup : addedConstraints) {
+            for (AstBinaryConstraint* constraint : constraintGroup) {
+                negatedAddedBodyLiteral.push_back(constraint->clone());
             }
         }
     }
@@ -406,7 +447,7 @@ std::vector<std::vector<AstLiteral*>> formNegatedLiterals(AstProgram& program, A
             delete lit;
         }
     }
-    for (std::vector<AstConstraint*> consGroup : addedConstraints) {
+    for (std::vector<AstBinaryConstraint*> consGroup : addedConstraints) {
         for (AstConstraint* cons : consGroup) {
             delete cons;
         }
@@ -426,7 +467,7 @@ void renameVariables(AstArgument* arg) {
         int varnum;
         M(int varnum) : varnum(varnum) {}
         std::unique_ptr<AstNode> operator()(std::unique_ptr<AstNode> node) const override {
-            if (AstVariable* var = dynamic_cast<AstVariable*>(node.get())) {
+            if (auto* var = dynamic_cast<AstVariable*>(node.get())) {
                 auto newVar = std::unique_ptr<AstVariable>(var->clone());
                 std::stringstream newName;
                 newName << var->getName() << "-v" << varnum;
@@ -472,7 +513,7 @@ NullableVector<AstArgument*> getInlinedArgument(AstProgram& program, const AstAr
 
     // Each argument has to be handled differently - essentially, want to go down to
     // nested aggregators, and inline their bodies if needed.
-    if (const AstAggregator* aggr = dynamic_cast<const AstAggregator*>(arg)) {
+    if (const auto* aggr = dynamic_cast<const AstAggregator*>(arg)) {
         // First try inlining the target expression if necessary
         if (aggr->getTargetExpression() != nullptr) {
             NullableVector<AstArgument*> argumentVersions =
@@ -484,7 +525,7 @@ NullableVector<AstArgument*> getInlinedArgument(AstProgram& program, const AstAr
 
                 // Create a new aggregator per version of the target expression
                 for (AstArgument* newArg : argumentVersions.getVector()) {
-                    AstAggregator* newAggr = new AstAggregator(aggr->getOperator());
+                    auto* newAggr = new AstAggregator(aggr->getOperator());
                     newAggr->setTargetExpression(std::unique_ptr<AstArgument>(newArg));
                     for (AstLiteral* lit : aggr->getBodyLiterals()) {
                         newAggr->addBodyLiteral(std::unique_ptr<AstLiteral>(lit->clone()));
@@ -513,7 +554,7 @@ NullableVector<AstArgument*> getInlinedArgument(AstProgram& program, const AstAr
                     // Create an aggregator (with the same operation) for each possible body
                     std::vector<AstAggregator*> aggrVersions;
                     for (std::vector<AstLiteral*> inlineVersions : literalVersions.getVector()) {
-                        AstAggregator* newAggr = new AstAggregator(aggr->getOperator());
+                        auto* newAggr = new AstAggregator(aggr->getOperator());
                         if (aggr->getTargetExpression() != nullptr) {
                             newAggr->setTargetExpression(
                                     std::unique_ptr<AstArgument>(aggr->getTargetExpression()->clone()));
@@ -561,7 +602,7 @@ NullableVector<AstArgument*> getInlinedArgument(AstProgram& program, const AstAr
         }
     } else if (dynamic_cast<const AstFunctor*>(arg)) {
         // Each type of functor (unary, binary, ternary) must be handled differently.
-        if (const AstUnaryFunctor* functor = dynamic_cast<const AstUnaryFunctor*>(arg)) {
+        if (const auto* functor = dynamic_cast<const AstUnaryFunctor*>(arg)) {
             NullableVector<AstArgument*> argumentVersions =
                     getInlinedArgument(program, functor->getOperand());
             if (argumentVersions.isValid()) {
@@ -572,7 +613,7 @@ NullableVector<AstArgument*> getInlinedArgument(AstProgram& program, const AstAr
                     versions.push_back(newFunctor);
                 }
             }
-        } else if (const AstBinaryFunctor* functor = dynamic_cast<const AstBinaryFunctor*>(arg)) {
+        } else if (const auto* functor = dynamic_cast<const AstBinaryFunctor*>(arg)) {
             NullableVector<AstArgument*> lhsVersions = getInlinedArgument(program, functor->getLHS());
             if (lhsVersions.isValid()) {
                 changed = true;
@@ -594,7 +635,7 @@ NullableVector<AstArgument*> getInlinedArgument(AstProgram& program, const AstAr
                     }
                 }
             }
-        } else if (const AstTernaryFunctor* functor = dynamic_cast<const AstTernaryFunctor*>(arg)) {
+        } else if (const auto* functor = dynamic_cast<const AstTernaryFunctor*>(arg)) {
             NullableVector<AstArgument*> leftVersions = getInlinedArgument(program, functor->getArg(0));
             if (leftVersions.isValid()) {
                 changed = true;
@@ -632,7 +673,7 @@ NullableVector<AstArgument*> getInlinedArgument(AstProgram& program, const AstAr
                 }
             }
         }
-    } else if (const AstTypeCast* cast = dynamic_cast<const AstTypeCast*>(arg)) {
+    } else if (const auto* cast = dynamic_cast<const AstTypeCast*>(arg)) {
         NullableVector<AstArgument*> argumentVersions = getInlinedArgument(program, cast->getValue());
         if (argumentVersions.isValid()) {
             changed = true;
@@ -642,7 +683,7 @@ NullableVector<AstArgument*> getInlinedArgument(AstProgram& program, const AstAr
                 versions.push_back(newTypeCast);
             }
         }
-    } else if (const AstRecordInit* record = dynamic_cast<const AstRecordInit*>(arg)) {
+    } else if (const auto* record = dynamic_cast<const AstRecordInit*>(arg)) {
         std::vector<AstArgument*> recordArguments = record->getArguments();
         for (size_t i = 0; i < recordArguments.size(); i++) {
             AstArgument* currentRecArg = recordArguments[i];
@@ -650,7 +691,7 @@ NullableVector<AstArgument*> getInlinedArgument(AstProgram& program, const AstAr
             if (argumentVersions.isValid()) {
                 changed = true;
                 for (AstArgument* newArgumentVersion : argumentVersions.getVector()) {
-                    AstRecordInit* newRecordArg = new AstRecordInit();
+                    auto* newRecordArg = new AstRecordInit();
                     for (size_t j = 0; j < recordArguments.size(); j++) {
                         if (i == j) {
                             newRecordArg->add(std::unique_ptr<AstArgument>(newArgumentVersion));
@@ -737,7 +778,7 @@ NullableVector<std::vector<AstLiteral*>> getInlinedLiteral(AstProgram& program, 
     std::vector<std::vector<AstLiteral*>> addedBodyLiterals;
     std::vector<AstLiteral*> versions;
 
-    if (AstAtom* atom = dynamic_cast<AstAtom*>(lit)) {
+    if (auto* atom = dynamic_cast<AstAtom*>(lit)) {
         // Check if this atom is meant to be inlined
         AstRelation* rel = program.getRelation(atom->getName());
 
@@ -750,10 +791,10 @@ NullableVector<std::vector<AstLiteral*>> getInlinedLiteral(AstProgram& program, 
             // associated with the inlined relation
             for (AstClause* inClause : rel->getClauses()) {
                 // Form the replacement clause
-                std::pair<NullableVector<AstLiteral*>, std::vector<AstConstraint*>> inlineResult =
+                std::pair<NullableVector<AstLiteral*>, std::vector<AstBinaryConstraint*>> inlineResult =
                         inlineBodyLiterals(atom, inClause);
                 NullableVector<AstLiteral*> replacementBodyLiterals = inlineResult.first;
-                std::vector<AstConstraint*> currConstraints = inlineResult.second;
+                std::vector<AstBinaryConstraint*> currConstraints = inlineResult.second;
 
                 if (!replacementBodyLiterals.isValid()) {
                     // Failed to unify the atoms! We can skip this one...
@@ -764,7 +805,7 @@ NullableVector<std::vector<AstLiteral*>> getInlinedLiteral(AstProgram& program, 
                 // replacement We can add in the unification constraints as part of these literals.
                 std::vector<AstLiteral*> bodyResult = replacementBodyLiterals.getVector();
 
-                for (AstConstraint* cons : currConstraints) {
+                for (AstBinaryConstraint* cons : currConstraints) {
                     bodyResult.push_back(cons);
                 }
 
@@ -781,7 +822,7 @@ NullableVector<std::vector<AstLiteral*>> getInlinedLiteral(AstProgram& program, 
                 }
             }
         }
-    } else if (AstNegation* neg = dynamic_cast<AstNegation*>(lit)) {
+    } else if (auto* neg = dynamic_cast<AstNegation*>(lit)) {
         // For negations, check the corresponding atom
         AstAtom* atom = neg->getAtom();
         NullableVector<std::vector<AstLiteral*>> atomVersions = getInlinedLiteral(program, atom);
@@ -790,25 +831,38 @@ NullableVector<std::vector<AstLiteral*>> getInlinedLiteral(AstProgram& program, 
             // The atom can be inlined
             inlined = true;
 
-            // Suppose an atom a(x) is inlined and has the following rules:
-            //  - a(x) :- a11(x), a12(x).
-            //  - a(x) :- a21(x), a22(x).
-            // Then, a(x) <- (a11(x) ^ a12(x)) v (a21(x) ^ a22(x))
-            //  => !a(x) <- (!a11(x) v !a12(x)) ^ (!a21(x) v !a22(x))
-            //  => !a(x) <- (!a11(x) ^ !a21(x)) v (!a11(x) ^ !a22(x)) v ...
-            // Essentially, produce every combination (m_1 ^ m_2 ^ ...) where m_i is a
-            // negated literal in the ith rule of a.
-            addedBodyLiterals = formNegatedLiterals(program, atom);
+            if (atomVersions.getVector().empty()) {
+                // No clauses associated with the atom, so just becomes a true literal
+                std::vector<AstLiteral*> trueBody;
+                // TODO: change this to AstBoolean
+                trueBody.push_back(new AstBinaryConstraint(BinaryConstraintOp::EQ,
+                        std::make_unique<AstNumberConstant>(1), std::make_unique<AstNumberConstant>(1)));
+                addedBodyLiterals.push_back(trueBody);
+            } else {
+                // Suppose an atom a(x) is inlined and has the following rules:
+                //  - a(x) :- a11(x), a12(x).
+                //  - a(x) :- a21(x), a22(x).
+                // Then, a(x) <- (a11(x) ^ a12(x)) v (a21(x) ^ a22(x))
+                //  => !a(x) <- (!a11(x) v !a12(x)) ^ (!a21(x) v !a22(x))
+                //  => !a(x) <- (!a11(x) ^ !a21(x)) v (!a11(x) ^ !a22(x)) v ...
+                // Essentially, produce every combination (m_1 ^ m_2 ^ ...) where m_i is a
+                // negated literal in the ith rule of a.
+                addedBodyLiterals = formNegatedLiterals(program, atom);
+            }
         }
-    } else {
-        AstConstraint* constraint = dynamic_cast<AstConstraint*>(lit);
+        for (const auto& curVec : atomVersions.getVector()) {
+            for (auto* cur : curVec) {
+                delete cur;
+            }
+        }
+    } else if (auto* constraint = dynamic_cast<AstBinaryConstraint*>(lit)) {
         NullableVector<AstArgument*> lhsVersions = getInlinedArgument(program, constraint->getLHS());
         if (lhsVersions.isValid()) {
             changed = true;
             for (AstArgument* newLhs : lhsVersions.getVector()) {
-                AstLiteral* newLit =
-                        new AstConstraint(constraint->getOperator(), std::unique_ptr<AstArgument>(newLhs),
-                                std::unique_ptr<AstArgument>(constraint->getRHS()->clone()));
+                AstLiteral* newLit = new AstBinaryConstraint(constraint->getOperator(),
+                        std::unique_ptr<AstArgument>(newLhs),
+                        std::unique_ptr<AstArgument>(constraint->getRHS()->clone()));
                 versions.push_back(newLit);
             }
         } else {
@@ -816,7 +870,7 @@ NullableVector<std::vector<AstLiteral*>> getInlinedLiteral(AstProgram& program, 
             if (rhsVersions.isValid()) {
                 changed = true;
                 for (AstArgument* newRhs : rhsVersions.getVector()) {
-                    AstLiteral* newLit = new AstConstraint(constraint->getOperator(),
+                    AstLiteral* newLit = new AstBinaryConstraint(constraint->getOperator(),
                             std::unique_ptr<AstArgument>(constraint->getLHS()->clone()),
                             std::unique_ptr<AstArgument>(newRhs));
                     versions.push_back(newLit);
@@ -861,7 +915,7 @@ std::vector<AstClause*> getInlinedClause(AstProgram& program, const AstClause& c
 
         // Produce the new clauses with the replacement head atoms
         for (AstAtom* newHead : headVersions.getVector()) {
-            AstClause* newClause = new AstClause();
+            auto* newClause = new AstClause();
             newClause->setSrcLoc(clause.getSrcLoc());
 
             newClause->setHead(std::unique_ptr<AstAtom>(newHead));
@@ -898,17 +952,19 @@ std::vector<AstClause*> getInlinedClause(AstProgram& program, const AstClause& c
                 // The literal may be replaced with several different bodies.
                 // Create a new clause for each possible version.
                 std::vector<std::vector<AstLiteral*>> bodyVersions = litVersions.getVector();
-                for (std::vector<AstLiteral*> body : bodyVersions) {
-                    AstClause* replacementClause = clause.cloneHead();
 
-                    // Add in all body literals from the original except the literal being inlined
-                    for (AstLiteral* oldLit : bodyLiterals) {
-                        if (currLit != oldLit) {
-                            replacementClause->addToBody(std::unique_ptr<AstLiteral>(oldLit->clone()));
-                        }
+                // Create the base clause with the current literal removed
+                auto baseClause = std::unique_ptr<AstClause>(clause.cloneHead());
+                for (AstLiteral* oldLit : bodyLiterals) {
+                    if (currLit != oldLit) {
+                        baseClause->addToBody(std::unique_ptr<AstLiteral>(oldLit->clone()));
                     }
+                }
 
-                    // Add in the current set of literals replacing the literal
+                for (std::vector<AstLiteral*> body : bodyVersions) {
+                    AstClause* replacementClause = baseClause->clone();
+
+                    // Add in the current set of literals replacing the inlined literal
                     // In Case 2, each body contains exactly one literal
                     for (AstLiteral* newLit : body) {
                         replacementClause->addToBody(std::unique_ptr<AstLiteral>(newLit));

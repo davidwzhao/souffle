@@ -1,6 +1,6 @@
 /*
  * Souffle - A Datalog Compiler
- * Copyright (c) 2013, 2015, Oracle and/or its affiliates. All rights reserved
+ * Copyright (c) 2018, The Souffle Developers. All rights reserved.
  * Licensed under the Universal Permissive License v 1.0 as shown at:
  * - https://opensource.org/licenses/UPL
  * - <souffle root>/licenses/SOUFFLE-UPL.txt
@@ -16,66 +16,64 @@
 
 #pragma once
 
-#include "RamProgram.h"
-#include "RamRelation.h"
-#include "SymbolTable.h"
-
+#include "IndexSetAnalysis.h"
 #include "RamStatement.h"
-
+#include "RamTypes.h"
+#include <map>
 #include <ostream>
+#include <set>
 #include <string>
-#include <vector>
 
 namespace souffle {
+
+class RamOperation;
+class RamRelation;
+class RamTranslationUnit;
 
 /**
  * A RAM synthesiser: synthesises a C++ program from a RAM program.
  */
 class Synthesiser {
 private:
-    /** An optional stream to print logging information to an output stream */
-    std::ostream* report;
+    /** RAM identifier to C++ identifier map */
+    std::map<const std::string, const std::string> identifiers;
 
-    /** compile command */
-    std::string compileCmd;
+    /** Frequency profiling of searches */
+    std::map<std::string, unsigned> idxMap;
+
+protected:
+    /** Convert RAM identifier */
+    const std::string convertRamIdent(const std::string& name);
+
+    /** Check whether indexes are disabled */
+    bool areIndexesDisabled();
+
+    /** Get relation name */
+    const std::string getRelationName(const RamRelation& rel);
+
+    /** Get context name */
+    const std::string getOpContextName(const RamRelation& rel);
+
+    /** Get relation type */
+    std::string getRelationType(const RamRelation& rel, std::size_t arity, const IndexSet& indexes);
+
+    /* Convert SearchColums to a template index */
+    std::string toIndex(SearchColumns key);
+
+    /** Get referenced relations */
+    std::set<RamRelation> getReferencedRelations(const RamOperation& op);
+
+    /** Generate code */
+    void emitCode(std::ostream& out, const RamStatement& stmt);
+
+    /** Lookup frequency counter */
+    unsigned lookupFreqIdx(const std::string& txt);
 
 public:
-    /**
-     * Updates logging stream
-     */
-    void setReportTarget(std::ostream& report) {
-        this->report = &report;
-    }
+    Synthesiser() = default;
+    virtual ~Synthesiser() = default;
 
-public:
-    /** A simple constructor */
-    Synthesiser(const std::string& compileCmd) : report(nullptr), compileCmd(compileCmd) {}
-
-    /**
-     * Generates the code for the given ram statement.The target file
-     * name is either set by the corresponding member field or will
-     * be determined randomly. The chosen file-name will be returned.
-     */
-    std::string generateCode(const SymbolTable& symTable, const RamProgram& prog,
-            const std::string& filename = "", const int index = -1) const;
-
-    /**
-     * Compiles the given statement to a binary file. The target file
-     * name is either set by the corresponding member field or will
-     * be determined randomly. The chosen file-name will be returned.
-     * Note that this uses the generateCode method for code generation.
-     */
-    std::string compileToBinary(const SymbolTable& symTable, const RamProgram& prog,
-            const std::string& filename = "", const int index = -1) const;
-
-    /**
-     * Compiles the given statement to a binary file. The target file
-     * name is either set by the corresponding member field or will
-     * be determined randomly. The environment after execution will be returned.
-     * Note that this uses the compileToBinary method for code compilation.
-     */
-    std::string executeBinary(const SymbolTable& symTable, const RamProgram& prog,
-            const std::string& filename = "", const int index = -1) const;
+    /** Generate code */
+    void generateCode(const RamTranslationUnit& tu, std::ostream& os, const std::string& id);
 };
-
 }  // end of namespace souffle

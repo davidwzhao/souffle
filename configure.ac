@@ -4,7 +4,7 @@
 # - https://opensource.org/licenses/UPL
 # - <souffle root>/licenses/SOUFFLE-UPL.txt
 
-AC_INIT(souffle, m4_esyscmd([git describe --tags --abbrev=0 --always | tr -d '\n']), [souffle-talk@googlegroups.com])
+AC_INIT(souffle, m4_esyscmd([git describe --tags --always | tr -d '\n']), [souffle-talk@googlegroups.com])
 AC_PREREQ(2.68)
 AC_COPYRIGHT(['2013-15 Oracle and/or its affiliates'])
 
@@ -58,7 +58,7 @@ AC_ARG_ENABLE(
 )
 
 AS_IF([test "x$enable_debug" = "xyes"], [CXXFLAGS="$CXXFLAGS -O0 -g3"],
-  [test "x$enable_debug" != "xyes"], [CXXFLAGS="$CXXFLAGS -O3"]
+  [test "x$enable_debug" != "xyes"], [CXXFLAGS="$CXXFLAGS -O3 -DNDEBUG"]
 )
 
 if test "$BUILD_TYPE" == "Debug" ; then
@@ -66,6 +66,18 @@ if test "$BUILD_TYPE" == "Debug" ; then
   # set up debug mode
   CXXFLAGS="$CXXFLAGS -O0 -g3"
 fi
+
+# Enable MPI
+AC_ARG_ENABLE(
+  [mpi],
+  [AS_HELP_STRING([--enable-mpi], [Enable MPI])]
+)
+AS_IF([test "x$enable_mpi" = "xyes"], [
+    AS_VAR_APPEND(CXXFLAGS, [" -DUSE_MPI "])
+    AS_VAR_APPEND(CXXFLAGS, [" $(mpiCC --showme:compile) "])
+    AS_VAR_APPEND(LDFLAGS, [" $(mpiCC --showme:link) "])
+])
+AM_CONDITIONAL([MPI], [test "x$enable_mpi" = "xyes"])
 
 AC_ISC_POSIX
 AC_PROG_CPP
@@ -184,6 +196,14 @@ AS_IF([test "x$enable_intel_rtm" = "xyes"], [
   AS_VAR_APPEND(CXXFLAGS, [" -mrtm -DHAS_TSX"])
 ])
 
+AC_ARG_ENABLE(
+  [64bit-domain],
+  [AS_HELP_STRING([--enable-64bit-domain], [Enable 64-bit number values in Datalog tuples])]
+)
+AS_IF([test "x$enable_64bit_domain" = "xyes"], [
+  AS_VAR_APPEND(CXXFLAGS, [" -DRAM_DOMAIN_SIZE=64"])
+])
+
 dnl Check for the program(s), define a variable and perform substitution in the
 dnl Makefiles if found.  Bail with an error message otherwise
 dnl   $1 -- Variable
@@ -245,43 +265,71 @@ AC_CONFIG_FILES([
   tests/Makefile
   tests/atlocal
 ])
-AC_CONFIG_LINKS([include/souffle/CompiledRamOptions.h:src/CompiledRamOptions.h])
-AC_CONFIG_LINKS([include/souffle/CompiledRamIndexUtils.h:src/CompiledRamIndexUtils.h])
-AC_CONFIG_LINKS([include/souffle/CompiledRamRelation.h:src/CompiledRamRelation.h])
-AC_CONFIG_LINKS([include/souffle/CompiledRamTuple.h:src/CompiledRamTuple.h])
-AC_CONFIG_LINKS([include/souffle/CompiledRamRecord.h:src/CompiledRamRecord.h])
-AC_CONFIG_LINKS([include/souffle/CompiledSouffle.h:src/CompiledSouffle.h])
-AC_CONFIG_LINKS([include/souffle/SouffleInterface.h:src/SouffleInterface.h])
-AC_CONFIG_LINKS([include/souffle/ParallelUtils.h:src/ParallelUtils.h])
-AC_CONFIG_LINKS([include/souffle/RamTypes.h:src/RamTypes.h])
 AC_CONFIG_LINKS([include/souffle/AstTypes.h:src/AstTypes.h])
 AC_CONFIG_LINKS([include/souffle/BTree.h:src/BTree.h])
-AC_CONFIG_LINKS([include/souffle/htmx86.h:src/htmx86.h])
-AC_CONFIG_LINKS([include/souffle/Trie.h:src/Trie.h])
 AC_CONFIG_LINKS([include/souffle/BinaryRelation.h:src/BinaryRelation.h])
 AC_CONFIG_LINKS([include/souffle/BlockList.h:src/BlockList.h])
-AC_CONFIG_LINKS([include/souffle/UnionFind.h:src/UnionFind.h])
-AC_CONFIG_LINKS([include/souffle/Table.h:src/Table.h])
-AC_CONFIG_LINKS([include/souffle/IterUtils.h:src/IterUtils.h])
-AC_CONFIG_LINKS([include/souffle/Util.h:src/Util.h])
-AC_CONFIG_LINKS([include/souffle/Macro.h:src/Macro.h])
-AC_CONFIG_LINKS([include/souffle/Logger.h:src/Logger.h])
+AC_CONFIG_LINKS([include/souffle/CompiledIndexUtils.h:src/CompiledIndexUtils.h])
+AC_CONFIG_LINKS([include/souffle/CompiledOptions.h:src/CompiledOptions.h])
+AC_CONFIG_LINKS([include/souffle/CompiledRecord.h:src/CompiledRecord.h])
+AC_CONFIG_LINKS([include/souffle/CompiledRelation.h:src/CompiledRelation.h])
+AC_CONFIG_LINKS([include/souffle/CompiledSouffle.h:src/CompiledSouffle.h])
+AC_CONFIG_LINKS([include/souffle/CompiledTuple.h:src/CompiledTuple.h])
+AC_CONFIG_LINKS([include/souffle/EventProcessor.h:src/EventProcessor.h])
 AC_CONFIG_LINKS([include/souffle/Explain.h:src/Explain.h])
-AC_CONFIG_LINKS([include/souffle/ExplainTree.h:src/ExplainTree.h])
 AC_CONFIG_LINKS([include/souffle/ExplainProvenance.h:src/ExplainProvenance.h])
 AC_CONFIG_LINKS([include/souffle/ExplainProvenanceSLD.h:src/ExplainProvenanceSLD.h])
-AC_CONFIG_LINKS([include/souffle/SignalHandler.h:src/SignalHandler.h])
+AC_CONFIG_LINKS([include/souffle/ExplainTree.h:src/ExplainTree.h])
 AC_CONFIG_LINKS([include/souffle/IODirectives.h:src/IODirectives.h])
 AC_CONFIG_LINKS([include/souffle/IOSystem.h:src/IOSystem.h])
-AC_CONFIG_LINKS([include/souffle/gzfstream.h:src/gzfstream.h])
+AC_CONFIG_LINKS([include/souffle/IterUtils.h:src/IterUtils.h])
+AC_CONFIG_LINKS([include/souffle/Logger.h:src/Logger.h])
+AC_CONFIG_LINKS([include/souffle/ParallelUtils.h:src/ParallelUtils.h])
+AC_CONFIG_LINKS([include/souffle/ProfileDatabase.h:src/ProfileDatabase.h])
+AC_CONFIG_LINKS([include/souffle/ProfileEvent.h:src/ProfileEvent.h])
+AC_CONFIG_LINKS([include/souffle/RamTypes.h:src/RamTypes.h])
 AC_CONFIG_LINKS([include/souffle/ReadStream.h:src/ReadStream.h])
 AC_CONFIG_LINKS([include/souffle/ReadStreamCSV.h:src/ReadStreamCSV.h])
 AC_CONFIG_LINKS([include/souffle/ReadStreamSQLite.h:src/ReadStreamSQLite.h])
+AC_CONFIG_LINKS([include/souffle/SignalHandler.h:src/SignalHandler.h])
+AC_CONFIG_LINKS([include/souffle/SouffleInterface.h:src/SouffleInterface.h])
+AC_CONFIG_LINKS([include/souffle/SymbolMask.h:src/SymbolMask.h])
+AC_CONFIG_LINKS([include/souffle/SymbolTable.h:src/SymbolTable.h])
+AC_CONFIG_LINKS([include/souffle/Table.h:src/Table.h])
+AC_CONFIG_LINKS([include/souffle/Trie.h:src/Trie.h])
+AC_CONFIG_LINKS([include/souffle/UnionFind.h:src/UnionFind.h])
+AC_CONFIG_LINKS([include/souffle/Util.h:src/Util.h])
 AC_CONFIG_LINKS([include/souffle/WriteStream.h:src/WriteStream.h])
 AC_CONFIG_LINKS([include/souffle/WriteStreamCSV.h:src/WriteStreamCSV.h])
 AC_CONFIG_LINKS([include/souffle/WriteStreamSQLite.h:src/WriteStreamSQLite.h])
-AC_CONFIG_LINKS([include/souffle/SymbolMask.h:src/SymbolMask.h])
-AC_CONFIG_LINKS([include/souffle/SymbolTable.h:src/SymbolTable.h])
+AC_CONFIG_LINKS([include/souffle/Mpi.h:src/Mpi.h])
+AC_CONFIG_LINKS([include/souffle/gzfstream.h:src/gzfstream.h])
+AC_CONFIG_LINKS([include/souffle/htmx86.h:src/htmx86.h])
+AC_CONFIG_LINKS([include/souffle/json11.h:src/json11.h])
+AC_CONFIG_LINKS([include/souffle/profile/Cell.h:src/profile/Cell.h])
+AC_CONFIG_LINKS([include/souffle/profile/CellInterface.h:src/profile/CellInterface.h])
+AC_CONFIG_LINKS([include/souffle/profile/Cli.h:src/profile/Cli.h])
+AC_CONFIG_LINKS([include/souffle/profile/DataComparator.h:src/profile/DataComparator.h])
+AC_CONFIG_LINKS([include/souffle/profile/Iteration.h:src/profile/Iteration.h])
+AC_CONFIG_LINKS([include/souffle/profile/OutputProcessor.h:src/profile/OutputProcessor.h])
+AC_CONFIG_LINKS([include/souffle/profile/ProgramRun.h:src/profile/ProgramRun.h])
+AC_CONFIG_LINKS([include/souffle/profile/Reader.h:src/profile/Reader.h])
+AC_CONFIG_LINKS([include/souffle/profile/Relation.h:src/profile/Relation.h])
+AC_CONFIG_LINKS([include/souffle/profile/Row.h:src/profile/Row.h])
+AC_CONFIG_LINKS([include/souffle/profile/Rule.h:src/profile/Rule.h])
+AC_CONFIG_LINKS([include/souffle/profile/StringUtils.h:src/profile/StringUtils.h])
+AC_CONFIG_LINKS([include/souffle/profile/Table.h:src/profile/Table.h])
+AC_CONFIG_LINKS([include/souffle/profile/Tui.h:src/profile/Tui.h])
+AC_CONFIG_LINKS([include/souffle/profile/UserInputReader.h:src/profile/UserInputReader.h])
+AC_CONFIG_LINKS([include/souffle/profile/HtmlString.h:src/profile/HtmlString.h])
+AC_CONFIG_LINKS([include/souffle/profile/htmlCssChartist.h:src/profile/htmlCssChartist.h])
+AC_CONFIG_LINKS([include/souffle/profile/htmlJsChartistMin.h:src/profile/htmlJsChartistMin.h])
+AC_CONFIG_LINKS([include/souffle/profile/htmlJsMain.h:src/profile/htmlJsMain.h])
+AC_CONFIG_LINKS([include/souffle/profile/htmlJsUtil.h:src/profile/htmlJsUtil.h])
+AC_CONFIG_LINKS([include/souffle/profile/htmlCssStyle.h:src/profile/htmlCssStyle.h])
+AC_CONFIG_LINKS([include/souffle/profile/htmlJsChartistPlugin.h:src/profile/htmlJsChartistPlugin.h])
+AC_CONFIG_LINKS([include/souffle/profile/htmlJsTableSort.h:src/profile/htmlJsTableSort.h])
+AC_CONFIG_LINKS([include/souffle/profile/htmlMain.h:src/profile/htmlMain.h])
 
 AM_MISSING_PROG([AUTOM4TE], [autom4te])
 

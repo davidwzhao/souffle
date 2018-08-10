@@ -16,20 +16,19 @@
 
 #pragma once
 
-#include <map>
 #include <set>
 #include <vector>
 
 namespace souffle {
 
 // some forward declarations
-class AstNode;
-class AstVariable;
-class AstRelation;
 class AstAtom;
 class AstClause;
-class AstProgram;
 class AstLiteral;
+class AstNode;
+class AstProgram;
+class AstRelation;
+class AstVariable;
 
 // ---------------------------------------------------------------
 //                      General Utilities

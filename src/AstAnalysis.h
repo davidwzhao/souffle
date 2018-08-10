@@ -13,6 +13,7 @@
  * Defines an interface for AST analysis
  *
  ***********************************************************************/
+
 #pragma once
 
 #include <iostream>
