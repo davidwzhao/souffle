@@ -23,6 +23,7 @@
 #include "RamTypes.h"
 #include "Table.h"
 #include "Util.h"
+#include "cpp-btree/btree_set.h"
 #include <iostream>
 #include <iterator>
 #include <mutex>
@@ -1332,8 +1333,10 @@ struct tuple_less<index<First, Rest...>> {
 struct std_set_config {
     template <unsigned arity, typename Index>
     using set_type = typename std::conditional<index_utils::is_full_index<arity, Index>::value,
-            std::set<Tuple<RamDomain, arity>, tuple_less<Index>>,
-            std::multiset<Tuple<RamDomain, arity>, tuple_less<Index>>>::type;
+            btree::btree_set<Tuple<RamDomain, arity>, tuple_less<Index>>,
+            btree::btree_multiset<Tuple<RamDomain, arity>, tuple_less<Index>>>::type;
+            // std::set<Tuple<RamDomain, arity>, tuple_less<Index>>,
+            // std::multiset<Tuple<RamDomain, arity>, tuple_less<Index>>>::type;
 
     template <typename Query, typename Index>
     using covers_query = index_utils::is_compatible_with<Query, Index>;
