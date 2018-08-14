@@ -23,6 +23,8 @@
 #include "RamTypes.h"
 #include "Table.h"
 #include "Util.h"
+#include "tbb/concurrent_unordered_set.h"
+#include "tbb/tbb_allocator.h"
 #include <iostream>
 #include <iterator>
 #include <mutex>
@@ -374,7 +376,8 @@ public:
         // check primary index first
         {
             // acquire exclusive access to the primary index
-            auto lease = insert_lock.acquire();
+            // NOT NEEDED FOR tbb::concurrent_unordered_set
+            // auto lease = insert_lock.acquire();
 
             // if already present => skip
             if (contains(tuple, context)) return false;
@@ -1392,8 +1395,10 @@ struct tuple_equal<index<First, Rest...>> {
 struct std_unordered_config {
     template <unsigned arity, typename Index>
     using set_type = typename std::conditional<index_utils::is_full_index<arity, Index>::value,
-            std::unordered_set<Tuple<RamDomain, arity>, tuple_hasher<Index>, tuple_equal<Index>>,
-            std::unordered_multiset<Tuple<RamDomain, arity>, tuple_hasher<Index>, tuple_equal<Index>>>::type;
+            tbb::interface5::concurrent_unordered_set<Tuple<RamDomain, arity>, tuple_hasher<Index>, tuple_equal<Index>>,
+            tbb::interface5::concurrent_unordered_multiset<Tuple<RamDomain, arity>, tuple_hasher<Index>, tuple_equal<Index>>>::type;
+            // std::unordered_set<Tuple<RamDomain, arity>, tuple_hasher<Index>, tuple_equal<Index>>,
+            // std::unordered_multiset<Tuple<RamDomain, arity>, tuple_hasher<Index>, tuple_equal<Index>>>::type;
 
     template <typename Query, typename Index>
     using covers_query = index_utils::is_permutation<Query, Index>;

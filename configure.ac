@@ -37,6 +37,8 @@ AS_IF([test "x$enable_provenance" != "xno"], [
 ])
 AM_CONDITIONAL([PROVENANCE], [test "x$enable_provenance" != "xno"])
 
+AS_VAR_APPEND(LIBS, [" -ltbb "])
+
 # Enable sanitise memory mode
 AC_ARG_ENABLE(
   [sanitise-memory],
@@ -330,6 +332,7 @@ AC_CONFIG_LINKS([include/souffle/profile/htmlCssStyle.h:src/profile/htmlCssStyle
 AC_CONFIG_LINKS([include/souffle/profile/htmlJsChartistPlugin.h:src/profile/htmlJsChartistPlugin.h])
 AC_CONFIG_LINKS([include/souffle/profile/htmlJsTableSort.h:src/profile/htmlJsTableSort.h])
 AC_CONFIG_LINKS([include/souffle/profile/htmlMain.h:src/profile/htmlMain.h])
+AC_CONFIG_LINKS([include/tbb:src/tbb])
 
 AM_MISSING_PROG([AUTOM4TE], [autom4te])
 
