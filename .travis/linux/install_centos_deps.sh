@@ -4,6 +4,9 @@ yum install -y https://dl.bintray.com/souffle-lang/rpm-unstable/centos/7/x86_64/
 
 yum install -y autoconf automake bison clang doxygen flex gcc gcc-c++ git kernel-devel ncurses-devel sqlite-devel libtool make mcpp python sqlite sudo zlib-devel
 
+yum install -y centos-release-scl
+yum install -y devtoolset-7-gcc-c++
+
 yum install -y ruby-devel gcc make rpm-build libffi-devel
 
 gem install --no-ri --no-rdoc fpm

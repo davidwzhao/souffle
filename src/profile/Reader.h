@@ -187,9 +187,12 @@ public:
             for (const auto& key : directory.getKeys()) {
                 directory.readEntry(key)->accept(rulesVisitor);
             }
-        } else {
-            std::cerr << "Unexpected entry: " << std::endl;
-            directory.print(std::cerr, 0);
+        }
+        if (directory.getKey() == "maxRSS") {
+            auto* preMaxRSS = dynamic_cast<SizeEntry*>(directory.readEntry("pre"));
+            auto* postMaxRSS = dynamic_cast<SizeEntry*>(directory.readEntry("post"));
+            relation.setPreMaxRSS(preMaxRSS->getSize());
+            relation.setPostMaxRSS(postMaxRSS->getSize());
         }
     }
 
@@ -247,6 +250,11 @@ public:
             for (const auto& key : directory.getKeys()) {
                 directory.readEntry(key)->accept(rulesVisitor);
             }
+        } else if (directory.getKey() == "maxRSS") {
+            auto* preMaxRSS = dynamic_cast<SizeEntry*>(directory.readEntry("pre"));
+            auto* postMaxRSS = dynamic_cast<SizeEntry*>(directory.readEntry("post"));
+            base.setPreMaxRSS(preMaxRSS->getSize());
+            base.setPostMaxRSS(postMaxRSS->getSize());
         }
     }
 };

@@ -101,7 +101,7 @@ Table inline OutputProcessor::getRelTable() {
     Table table;
     for (auto& rel : relation_map) {
         std::shared_ptr<Relation> r = rel.second;
-        Row row(11);
+        Row row(12);
         double total_time = r->getNonRecTime() + r->getRecTime() + r->getCopyTime();
         row[0] = std::shared_ptr<CellInterface>(new Cell<double>(total_time));
         row[1] = std::shared_ptr<CellInterface>(new Cell<double>(r->getNonRecTime()));
@@ -118,6 +118,7 @@ Table inline OutputProcessor::getRelTable() {
         }
         row[9] = std::shared_ptr<CellInterface>(new Cell<double>(r->getSavetime()));
         row[10] = std::shared_ptr<CellInterface>(new Cell<double>(r->getLoadtime()));
+        row[11] = std::shared_ptr<CellInterface>(new Cell<long>(r->getMaxRSSDiff()));
 
         table.addRow(std::make_shared<Row>(row));
     }

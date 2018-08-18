@@ -8,18 +8,21 @@
 
 #pragma once
 
+#include "../ProfileEvent.h"
 #include "HtmlString.h"
 #include "OutputProcessor.h"
 #include "Reader.h"
 #include "Table.h"
 #include "UserInputReader.h"
 #include <algorithm>
+#include <cstdio>
 #include <iostream>
 #include <memory>
 #include <string>
 #include <thread>
 #include <vector>
 #include <dirent.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 
 namespace souffle {
@@ -147,6 +150,8 @@ public:
             } else {
                 std::cout << "Invalid parameters to graph command.\n";
             }
+        } else if (c[0].compare("usage") == 0) {
+            usage();
         } else if (c[0].compare("help") == 0) {
             help();
         } else {
@@ -475,6 +480,152 @@ public:
         std::printf("  %-30s%-5s %s\n", "q", "-", "exit program.");
     }
 
+    void usage() {
+        struct Usage {
+            uint64_t time;
+            uint32_t maxRSS;
+            uint64_t systemtime;
+            uint64_t usertime;
+            bool operator<(const Usage& other) const {
+                return time < other.time;
+            }
+        };
+
+        uint32_t width = getTermWidth() - 8;
+        uint32_t height = 20;
+
+        DirectoryEntry* usageStats = dynamic_cast<DirectoryEntry*>(
+                ProfileEventSingleton::instance().getDB().lookupEntry({"program", "usage", "timepoint"}));
+        if (usageStats == nullptr || usageStats->getKeys().size() < 2) {
+            for (uint8_t i = 0; i < height + 2; ++i) {
+                std::cout << std::endl;
+            }
+            std::cout << "Insufficient data for usage statistics." << std::endl;
+            return;
+        }
+
+        double maxIntervalUsage = 0;
+        double peakUsagePercent = 0;
+
+        Usage currentUsage;
+        Usage previousUsage{0, 0, 0, 0};
+        uint64_t startTime = 0;
+        uint64_t endTime = 0;
+        uint64_t timeStep = 0;
+
+        std::set<Usage> usages;
+        {
+            // Translate the string ordered text usage stats to a time ordered binary form.
+            std::set<Usage> allUsages;
+            for (auto& currentKey : usageStats->getKeys()) {
+                currentUsage.time = std::stol(currentKey);
+                currentUsage.systemtime = dynamic_cast<SizeEntry*>(
+                        usageStats->readDirectoryEntry(currentKey)->readEntry("systemtime"))
+                                                  ->getSize();
+                currentUsage.usertime = dynamic_cast<SizeEntry*>(
+                        usageStats->readDirectoryEntry(currentKey)->readEntry("usertime"))
+                                                ->getSize();
+                currentUsage.maxRSS = dynamic_cast<SizeEntry*>(
+                        usageStats->readDirectoryEntry(currentKey)->readEntry("maxRSS"))
+                                              ->getSize();
+
+                allUsages.insert(currentUsage);
+                double cpuUsage = 100.0 *
+                                  (currentUsage.systemtime + currentUsage.usertime -
+                                          previousUsage.systemtime - previousUsage.usertime) /
+                                  (currentUsage.time - previousUsage.time);
+                if (cpuUsage > peakUsagePercent) {
+                    peakUsagePercent = cpuUsage;
+                }
+                previousUsage = currentUsage;
+            }
+
+            // Extract our overall stats
+            startTime = allUsages.begin()->time;
+            endTime = allUsages.rbegin()->time;
+
+            if (allUsages.size() < width) {
+                width = allUsages.size();
+                usages = allUsages;
+                timeStep = (endTime - startTime) / width;
+            } else {
+                timeStep = (endTime - startTime) / width;
+
+                // Store the timepoints we need for the graph
+                for (uint32_t i = 1; i <= width; ++i) {
+                    auto it = allUsages.upper_bound(Usage{startTime + timeStep * i});
+                    if (it != allUsages.begin()) {
+                        --it;
+                    }
+                    usages.insert(*it);
+                }
+            }
+        }
+
+        // Find maximum so we can normalise the graph
+        previousUsage = {0, 0, 0, 0};
+        for (auto& currentUsage : usages) {
+            long usageDiff = currentUsage.systemtime - previousUsage.systemtime + currentUsage.usertime -
+                             previousUsage.usertime;
+            if (usageDiff > maxIntervalUsage) {
+                maxIntervalUsage = usageDiff;
+            }
+            previousUsage = currentUsage;
+        }
+
+        double intervalUsagePercent = 100.0 * maxIntervalUsage / timeStep;
+        std::printf("%11s%10s\n", "cpu total", "cpu peak");
+        std::printf("%11s%9s%%\n", Tools::formatTime(usages.rbegin()->usertime / 1000000.0).c_str(),
+                Tools::formatNum(2, peakUsagePercent).c_str());
+
+        // Add columns to the graph
+        char grid[height][width];
+        for (uint32_t i = 0; i < height; ++i) {
+            for (uint32_t j = 0; j < width; ++j) {
+                grid[i][j] = ' ';
+            }
+        }
+
+        previousUsage = {0, 0, 0, 0};
+        uint32_t col = 0;
+        for (const Usage& currentUsage : usages) {
+            uint64_t curHeight = 0;
+            uint64_t curSystemHeight = 0;
+            // Usage may be 0
+            if (maxIntervalUsage != 0) {
+                curHeight = (currentUsage.systemtime - previousUsage.systemtime + currentUsage.usertime -
+                                    previousUsage.usertime) *
+                            height / maxIntervalUsage;
+                curSystemHeight =
+                        (currentUsage.systemtime - previousUsage.systemtime) / (maxIntervalUsage * height);
+            }
+            for (uint32_t row = 0; row < curHeight; ++row) {
+                grid[row][col] = '*';
+            }
+            for (uint32_t row = curHeight - curSystemHeight; row < curHeight; ++row) {
+                grid[row][col] = '+';
+            }
+            previousUsage = currentUsage;
+            ++col;
+        }
+
+        // Print array
+        for (int32_t row = height - 1; row >= 0; --row) {
+            printf("%6s%% ", Tools::formatNum(0, intervalUsagePercent * (row + 1) / height).c_str());
+            for (uint32_t col = 0; col < width; ++col) {
+                std::cout << grid[row][col];
+            }
+            std::cout << std::endl;
+        }
+        for (uint32_t col = 0; col < 8; ++col) {
+            std::cout << ' ';
+        }
+        for (uint32_t col = 0; col < width; ++col) {
+            std::cout << '-';
+        }
+        std::cout << std::endl;
+    }
+
     void setupTabCompletion() {
         linereader.clearTabCompletion();
 
@@ -484,6 +635,7 @@ public:
         linereader.appendTabCompletion("graph ");
         linereader.appendTabCompletion("top");
         linereader.appendTabCompletion("help");
+        linereader.appendTabCompletion("usage");
 
         // add rel tab completes after the rest so users can see all commands first
         for (auto& row : out.formatTable(rel_table_state, precision)) {
@@ -497,23 +649,25 @@ public:
     void top() {
         std::shared_ptr<ProgramRun>& run = out.getProgramRun();
         if (alive) run->update();
-        std::printf("%11s%10s%10s%20s\n\n", "runtime", "loadtime", "savetime", "tuples generated");
+        std::printf("%11s%10s%10s%20s\n", "runtime", "loadtime", "savetime", "tuples generated");
 
-        std::printf("%10s%10s%10s%14s\n", run->getRuntime().c_str(),
+        std::printf("%11s%10s%10s%14s\n", run->getRuntime().c_str(),
                 run->formatTime(run->getTotLoadtime()).c_str(),
                 run->formatTime(run->getTotSavetime()).c_str(),
                 run->formatNum(precision, run->getTotNumTuples()).c_str());
+        std::cout << std::endl;
+        usage();
     }
 
     void rel() {
         rel_table_state.sort(sort_col);
         std::cout << " ----- Relation Table -----\n";
-        std::printf("%8s%8s%8s%8s%8s%8s%15s%6s%1s%s\n\n", "TOT_T", "NREC_T", "REC_T", "COPY_T", "LOAD_T",
-                "SAVE_T", "TUPLES", "ID", "", "NAME");
+        std::printf("%8s%8s%8s%8s%8s%8s%8s%15s%6s%1s%s\n\n", "TOT_T", "NREC_T", "REC_T", "COPY_T", "LOAD_T",
+                "SAVE_T", "RSSDiff", "TUPLES", "ID", "", "NAME");
         for (auto& row : out.formatTable(rel_table_state, precision)) {
-            std::printf("%8s%8s%8s%8s%8s%8s%15s%6s%1s%s\n", row[0].c_str(), row[1].c_str(), row[2].c_str(),
-                    row[3].c_str(), row[9].c_str(), row[10].c_str(), row[4].c_str(), row[6].c_str(), "",
-                    row[5].c_str());
+            std::printf("%8s%8s%8s%8s%8s%8s%8s%15s%6s%1s%s\n", row[0].c_str(), row[1].c_str(), row[2].c_str(),
+                    row[3].c_str(), row[9].c_str(), row[10].c_str(), row[11].c_str(), row[4].c_str(),
+                    row[6].c_str(), "", row[5].c_str());
         }
     }
 
@@ -898,6 +1052,13 @@ protected:
         reader->processFile();
         rul_table_state = out.getRulTable();
         rel_table_state = out.getRelTable();
+    }
+
+    uint32_t getTermWidth() {
+        struct winsize w;
+        ioctl(0, TIOCGWINSZ, &w);
+        uint32_t width = w.ws_col > 0 ? w.ws_col : 80;
+        return width;
     }
 };
 

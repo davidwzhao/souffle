@@ -7,6 +7,8 @@ DESCRIPTION="Translator of declarative Datalog programs into the C++ language.\
  high-performance C++ code that can be compiled with the native compiler on\
  the target machine."
 
+source scl_source enable devtoolset-7
+
 # Enable debugging and logging of shell operations
 # that are executed.
 set -e

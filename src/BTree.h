@@ -1113,32 +1113,35 @@ public:
      * A collection of operation hints speeding up some of the involved operations
      * by exploiting temporal locality.
      */
-    struct operation_hints {
+    template <unsigned size = 1>
+    struct btree_operation_hints {
+        using node_cache = LRUCache<node*, size>;
+
         // the node where the last insertion terminated
-        node* last_insert;
+        node_cache last_insert;
 
         // the node where the last find-operation terminated
-        node* last_find_end;
+        node_cache last_find_end;
 
         // the node where the last lower-bound operation terminated
-        node* last_lower_bound_end;
+        node_cache last_lower_bound_end;
 
         // the node where the last upper-bound operation terminated
-        node* last_upper_bound_end;
+        node_cache last_upper_bound_end;
 
         // default constructor
-        operation_hints()
-                : last_insert(nullptr), last_find_end(nullptr), last_lower_bound_end(nullptr),
-                  last_upper_bound_end(nullptr) {}
+        btree_operation_hints() {}
 
         // resets all hints (to be triggered e.g. when deleting nodes)
         void clear() {
-            last_insert = nullptr;
-            last_find_end = nullptr;
-            last_lower_bound_end = nullptr;
-            last_upper_bound_end = nullptr;
+            last_insert.clear(nullptr);
+            last_find_end.clear(nullptr);
+            last_lower_bound_end.clear(nullptr);
+            last_upper_bound_end.clear(nullptr);
         }
     };
+
+    using operation_hints = btree_operation_hints<1>;
 
 private:
 #if defined(IS_PARALLEL) && !defined(HAS_TSX)
@@ -1300,7 +1303,7 @@ public:
             // operation complete => we can release the root lock
             root_lock.end_write();
 
-            hints.last_insert = leftmost;
+            hints.last_insert.access(leftmost);
 
             return true;
         }
@@ -1309,30 +1312,32 @@ public:
 
         node* cur = nullptr;
 
-        // test last insert
+        // test last insert hints
         lock_type::Lease cur_lease;
 
-        if (hints.last_insert) {
+        auto checkHint = [&](node* last_insert) {
+            // ignore null pointer
+            if (!last_insert) return false;
             // get a read lease on indicated node
-            auto hint_lease = hints.last_insert->lock.start_read();
+            auto hint_lease = last_insert->lock.start_read();
             // check whether it covers the key
-            if (covers(hints.last_insert, k)) {
-                // and if there was no concurrent modification
-                if (hints.last_insert->lock.validate(hint_lease)) {
-                    // use hinted location
-                    cur = hints.last_insert;
-                    // and keep lease
-                    cur_lease = hint_lease;
-                    // register this as a hit
-                    hint_stats.inserts.addHit();
-                } else {
-                    // register this as a miss
-                    hint_stats.inserts.addMiss();
-                }
-            } else {
-                // register this as a miss
-                hint_stats.inserts.addMiss();
-            }
+            if (!covers(last_insert, k)) return false;
+            // and if there was no concurrent modification
+            if (!last_insert->lock.validate(hint_lease)) return false;
+            // use hinted location
+            cur = last_insert;
+            // and keep lease
+            cur_lease = hint_lease;
+            // we found a hit
+            return true;
+        };
+
+        if (hints.last_insert.any(checkHint)) {
+            // register this as a hit
+            hint_stats.inserts.addHit();
+        } else {
+            // register this as a miss
+            hint_stats.inserts.addMiss();
         }
 
         // if there is no valid hint ..
@@ -1419,7 +1424,7 @@ public:
             // upgrade to write-permission
             if (!cur->lock.try_upgrade_to_write(cur_lease)) {
                 // something has changed => restart
-                hints.last_insert = cur;
+                hints.last_insert.access(cur);
                 return insert(k, hints);
             }
 
@@ -1502,7 +1507,7 @@ public:
             cur->lock.end_write();
 
             // remember last insertion position
-            hints.last_insert = cur;
+            hints.last_insert.access(cur);
             return true;
         }
 #else
@@ -1524,7 +1529,7 @@ public:
             leftmost->keys[0] = k;
             root = leftmost;
 
-            hints.last_insert = leftmost;
+            hints.last_insert.access(leftmost);
 
 #ifdef HAS_TSX
             // end hardware transaction
@@ -1536,9 +1541,15 @@ public:
         // insert using iterative implementation
         node* cur = root;
 
+        auto checkHints = [&](node* last_insert) {
+            if (!last_insert) return false;
+            if (!covers(last_insert, k)) return false;
+            cur = last_insert;
+            return true;
+        };
+
         // test last insert
-        if (hints.last_insert && covers(hints.last_insert, k)) {
-            cur = hints.last_insert;
+        if (hints.last_insert.any(checkHints)) {
             hint_stats.inserts.addHit();
         } else {
             hint_stats.inserts.addMiss();
@@ -1610,7 +1621,7 @@ public:
             cur->numElements++;
 
             // remember last insertion position
-            hints.last_insert = cur;
+            hints.last_insert.access(cur);
 
 #ifdef HAS_TSX
             // end hardware transaction
@@ -1720,9 +1731,15 @@ public:
 
         node* cur = root;
 
+        auto checkHints = [&](node* last_find_end) {
+            if (!last_find_end) return false;
+            if (!covers(last_find_end, k)) return false;
+            cur = last_find_end;
+            return true;
+        };
+
         // test last location searched (temporal locality)
-        if (hints.last_find_end && covers(hints.last_find_end, k)) {
-            cur = hints.last_find_end;
+        if (hints.last_find_end.any(checkHints)) {
             // register it as a hit
             hint_stats.contains.addHit();
         } else {
@@ -1739,12 +1756,12 @@ public:
             auto pos = search(k, a, b, comp);
 
             if (pos < b && equal(*pos, k)) {
-                hints.last_find_end = cur;
+                hints.last_find_end.access(cur);
                 return iterator(cur, pos - a);
             }
 
             if (!cur->inner) {
-                hints.last_find_end = cur;
+                hints.last_find_end.access(cur);
                 return end();
             }
 
@@ -1775,9 +1792,15 @@ public:
 
         node* cur = root;
 
+        auto checkHints = [&](node* last_lower_bound_end) {
+            if (!last_lower_bound_end) return false;
+            if (!covers(last_lower_bound_end, k)) return false;
+            cur = last_lower_bound_end;
+            return true;
+        };
+
         // test last searched node
-        if (hints.last_lower_bound_end && covers(hints.last_lower_bound_end, k)) {
-            cur = hints.last_lower_bound_end;
+        if (hints.last_lower_bound_end.any(checkHints)) {
             hint_stats.lower_bound.addHit();
         } else {
             hint_stats.lower_bound.addMiss();
@@ -1792,7 +1815,7 @@ public:
             auto idx = pos - a;
 
             if (!cur->inner) {
-                hints.last_lower_bound_end = cur;
+                hints.last_lower_bound_end.access(cur);
                 return (pos != b) ? iterator(cur, idx) : res;
             }
 
@@ -1830,9 +1853,15 @@ public:
 
         node* cur = root;
 
+        auto checkHints = [&](node* last_upper_bound_end) {
+            if (!last_upper_bound_end) return false;
+            if (!coversUpperBound(last_upper_bound_end, k)) return false;
+            cur = last_upper_bound_end;
+            return true;
+        };
+
         // test last search node
-        if (hints.last_upper_bound_end && coversUpperBound(hints.last_upper_bound_end, k)) {
-            cur = hints.last_upper_bound_end;
+        if (hints.last_upper_bound_end.any(checkHints)) {
             hint_stats.upper_bound.addHit();
         } else {
             hint_stats.upper_bound.addMiss();
@@ -1847,7 +1876,7 @@ public:
             auto idx = pos - a;
 
             if (!cur->inner) {
-                hints.last_upper_bound_end = cur;
+                hints.last_upper_bound_end.access(cur);
                 return (pos != b) ? iterator(cur, idx) : res;
             }
 

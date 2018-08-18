@@ -65,11 +65,12 @@ public:
     }
 
     /** create an event for recording start and end times */
-    void makeTimingEvent(const std::string& txt, time_point start, time_point end, size_t iteration) {
+    void makeTimingEvent(const std::string& txt, time_point start, time_point end, size_t startMaxRSS,
+            size_t endMaxRSS, size_t iteration) {
         microseconds start_ms = std::chrono::duration_cast<microseconds>(start.time_since_epoch());
         microseconds end_ms = std::chrono::duration_cast<microseconds>(end.time_since_epoch());
         profile::EventProcessorSingleton::instance().process(
-                database, txt.c_str(), start_ms, end_ms, iteration);
+                database, txt.c_str(), start_ms, end_ms, startMaxRSS, endMaxRSS, iteration);
     }
 
     /** create quantity event */
