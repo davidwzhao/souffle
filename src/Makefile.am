@@ -101,6 +101,7 @@ souffle_sources = \
               InterpreterRelation.h                     \
               LogStatement.h                            \
               MagicSet.cpp          MagicSet.h          \
+              MinimiseProgramTransformer.cpp            \
               ParserDriver.cpp      ParserDriver.h      \
               PrecedenceGraph.cpp   PrecedenceGraph.h   \
               ProfileEvent.h                            \

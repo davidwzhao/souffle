@@ -946,6 +946,7 @@ bool RemoveBooleanConstraintsTransformer::transform(AstTranslationUnit& translat
 }
 
 bool ExtractDisconnectedLiteralsTransformer::transform(AstTranslationUnit& translationUnit) {
+    // TODO (azreika): consider extending to partition body atoms based on variable-use instead
     bool changed = false;
     AstProgram& program = *translationUnit.getProgram();
 

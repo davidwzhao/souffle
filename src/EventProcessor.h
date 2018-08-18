@@ -194,6 +194,12 @@ public:
         const std::string& rule = signature[3];
         microseconds start = va_arg(args, microseconds);
         microseconds end = va_arg(args, microseconds);
+        size_t startMaxRSS = va_arg(args, size_t);
+        size_t endMaxRSS = va_arg(args, size_t);
+        db.addSizeEntry(
+                {"program", "relation", relation, "non-recursive-rule", rule, "maxRSS", "pre"}, startMaxRSS);
+        db.addSizeEntry(
+                {"program", "relation", relation, "non-recursive-rule", rule, "maxRSS", "post"}, endMaxRSS);
         db.addTextEntry(
                 {"program", "relation", relation, "non-recursive-rule", rule, "source-locator"}, srcLocator);
         db.addDurationEntry(
@@ -236,7 +242,15 @@ public:
         const std::string& rule = signature[4];
         microseconds start = va_arg(args, microseconds);
         microseconds end = va_arg(args, microseconds);
+        size_t startMaxRSS = va_arg(args, size_t);
+        size_t endMaxRSS = va_arg(args, size_t);
         std::string iteration = std::to_string(va_arg(args, size_t));
+        db.addSizeEntry({"program", "relation", relation, "iteration", iteration, "recursive-rule", rule,
+                                version, "maxRSS", "pre"},
+                startMaxRSS);
+        db.addSizeEntry({"program", "relation", relation, "iteration", iteration, "recursive-rule", rule,
+                                version, "maxRSS", "post"},
+                endMaxRSS);
         db.addTextEntry({"program", "relation", relation, "iteration", iteration, "recursive-rule", rule,
                                 version, "source-locator"},
                 srcLocator);
@@ -284,6 +298,10 @@ public:
         const std::string& srcLocator = signature[2];
         microseconds start = va_arg(args, microseconds);
         microseconds end = va_arg(args, microseconds);
+        size_t startMaxRSS = va_arg(args, size_t);
+        size_t endMaxRSS = va_arg(args, size_t);
+        db.addSizeEntry({"program", "relation", relation, "maxRSS", "pre"}, startMaxRSS);
+        db.addSizeEntry({"program", "relation", relation, "maxRSS", "post"}, endMaxRSS);
         db.addTextEntry({"program", "relation", relation, "source-locator"}, srcLocator);
         db.addDurationEntry({"program", "relation", relation, "runtime"}, start, end);
     }
@@ -321,9 +339,15 @@ public:
         const std::string& srcLocator = signature[2];
         microseconds start = va_arg(args, microseconds);
         microseconds end = va_arg(args, microseconds);
+        size_t startMaxRSS = va_arg(args, size_t);
+        size_t endMaxRSS = va_arg(args, size_t);
         std::string iteration = std::to_string(va_arg(args, size_t));
         db.addTextEntry({"program", "relation", relation, "source-locator"}, srcLocator);
         db.addDurationEntry({"program", "relation", relation, "iteration", iteration, "runtime"}, start, end);
+        db.addSizeEntry(
+                {"program", "relation", relation, "iteration", iteration, "maxRSS", "pre"}, startMaxRSS);
+        db.addSizeEntry(
+                {"program", "relation", relation, "iteration", iteration, "maxRSS", "post"}, endMaxRSS);
     }
 } recursiveRelationTimingProcessor;
 
@@ -360,7 +384,13 @@ public:
         const std::string& srcLocator = signature[2];
         microseconds start = va_arg(args, microseconds);
         microseconds end = va_arg(args, microseconds);
+        size_t startMaxRSS = va_arg(args, size_t);
+        size_t endMaxRSS = va_arg(args, size_t);
         std::string iteration = std::to_string(va_arg(args, size_t));
+        db.addSizeEntry(
+                {"program", "relation", relation, "iteration", iteration, "maxRSS", "pre"}, startMaxRSS);
+        db.addSizeEntry(
+                {"program", "relation", relation, "iteration", iteration, "maxRSS", "post"}, endMaxRSS);
         db.addTextEntry({"program", "relation", relation, "source-locator"}, srcLocator);
         db.addDurationEntry(
                 {"program", "relation", relation, "iteration", iteration, "copytime"}, start, end);
@@ -400,8 +430,8 @@ public:
     void process(ProfileDatabase& db, const std::vector<std::string>& signature, va_list& args) override {
         microseconds time = va_arg(args, microseconds);
         auto path = signature;
-        path.insert(path.begin(), "program");
-        db.addTimeEntry(signature, time);
+        path[0] = "program";
+        db.addTimeEntry(path, time);
     }
 } programTimepointProcessor;
 

@@ -321,6 +321,9 @@ protected:
                     auto start = std::chrono::microseconds(cur.second["start"].long_value());
                     auto end = std::chrono::microseconds(cur.second["end"].long_value());
                     node->writeEntry(std::make_unique<DurationEntry>(cur.first, start, end));
+                } else if (cur.second.has_shape({{"time", json11::Json::NUMBER}}, err)) {
+                    auto time = std::chrono::microseconds(cur.second["time"].long_value());
+                    node->writeEntry(std::make_unique<TimeEntry>(cur.first, time));
                 } else {
                     auto dir = std::make_unique<DirectoryEntry>(cur.first);
                     parseJson(cur.second, dir);
