@@ -193,12 +193,11 @@ public:
 
     /** A print function (for debugging) */
     void print(std::ostream& out) const {
-        out << "{"
-            << join(map, ",",
-                       [](std::ostream& out,
-                               const std::pair<const std::string, std::unique_ptr<AstArgument>>& cur) {
-                           out << cur.first << " -> " << *cur.second;
-                       })
+        out << "{" << join(map, ",",
+                              [](std::ostream& out,
+                                      const std::pair<const std::string, std::unique_ptr<AstArgument>>& cur) {
+                                  out << cur.first << " -> " << *cur.second;
+                              })
             << "}";
     }
 

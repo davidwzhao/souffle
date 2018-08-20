@@ -64,7 +64,7 @@ struct AstVisitor : public ast_visitor_tag {
      * @param args a list of extra parameters to be forwarded
      */
     virtual R visit(const AstNode& node, Params... args) {
-        // dispatch node processing based on dynamic type
+// dispatch node processing based on dynamic type
 
 #define FORWARD(Kind) \
     if (const auto* n = dynamic_cast<const Ast##Kind*>(&node)) return visit##Kind(*n, args...);

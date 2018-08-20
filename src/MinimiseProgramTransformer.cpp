@@ -186,13 +186,11 @@ bool isValidPermutation(
     rightAtoms.push_back(right->getHead());
 
     // check if a valid variable mapping exists
-    auto isVariable = [&](const AstArgument* arg) {
-        return dynamic_cast<const AstVariable*>(arg) != nullptr;
-    };
+    auto isVariable = [&](
+            const AstArgument* arg) { return dynamic_cast<const AstVariable*>(arg) != nullptr; };
 
-    auto isConstant = [&](const AstArgument* arg) {
-        return dynamic_cast<const AstConstant*>(arg) != nullptr;
-    };
+    auto isConstant = [&](
+            const AstArgument* arg) { return dynamic_cast<const AstConstant*>(arg) != nullptr; };
 
     bool validMapping = true;
     for (size_t i = 0; i < leftAtoms.size() && validMapping; i++) {

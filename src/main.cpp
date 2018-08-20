@@ -70,7 +70,7 @@ void executeBinary(const std::string& binaryFilename
         ,
         const int numberOfProcesses
 #endif
-) {
+        ) {
     assert(!binaryFilename.empty() && "binary filename cannot be blank");
 
     // check whether the executable exists
@@ -570,7 +570,7 @@ int main(int argc, char** argv) {
                             ,
                             ((int)astTranslationUnit->getAnalysis<SCCGraph>()->getNumberOfSCCs()) + 1
 #endif
-                    );
+                            );
                 }
             }
         } catch (std::exception& e) {

@@ -245,15 +245,14 @@ public:
 
     /** Print */
     void print(std::ostream& os) const override {
-        os << "("
-           << join(values, ",",
-                      [](std::ostream& out, const std::unique_ptr<RamValue>& value) {
-                          if (!value) {
-                              out << "_";
-                          } else {
-                              out << *value;
-                          }
-                      })
+        os << "(" << join(values, ",",
+                             [](std::ostream& out, const std::unique_ptr<RamValue>& value) {
+                                 if (!value) {
+                                     out << "_";
+                                 } else {
+                                     out << *value;
+                                 }
+                             })
            << ") ∉ " << relation->getName();
     }
 
