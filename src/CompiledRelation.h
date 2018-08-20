@@ -376,8 +376,7 @@ public:
         // check primary index first
         {
             // acquire exclusive access to the primary index
-            // NOT NEEDED FOR tbb::concurrent_unordered_set
-            // auto lease = insert_lock.acquire();
+            auto lease = insert_lock.acquire();
 
             // if already present => skip
             if (contains(tuple, context)) return false;
@@ -1186,7 +1185,8 @@ class GenericRelation : public RelationBase<arity, GenericRelation<config, arity
     group_type indices;
 
     // a lock to synchronize insertions
-    std::mutex lock;
+    // NOT NEEDED FOR tbb::concurrent_unordered_set
+    // std::mutex lock;
 
 public:
     using iterator = decltype(std::declval<group_type>().template get<full_index>().begin());
@@ -1217,7 +1217,7 @@ public:
     }
 
     bool insert(const tuple_type& tuple, operation_context&) {
-        std::lock_guard<std::mutex> guard(lock);
+        // std::lock_guard<std::mutex> guard(lock);
         if (contains(tuple)) return false;
         indices.insert(tuple);
         return true;

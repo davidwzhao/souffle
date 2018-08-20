@@ -37,7 +37,6 @@ AS_IF([test "x$enable_provenance" != "xno"], [
 ])
 AM_CONDITIONAL([PROVENANCE], [test "x$enable_provenance" != "xno"])
 
-AS_VAR_APPEND(LIBS, [" -ltbb "])
 
 # Enable sanitise memory mode
 AC_ARG_ENABLE(
@@ -332,13 +331,15 @@ AC_CONFIG_LINKS([include/souffle/profile/htmlCssStyle.h:src/profile/htmlCssStyle
 AC_CONFIG_LINKS([include/souffle/profile/htmlJsChartistPlugin.h:src/profile/htmlJsChartistPlugin.h])
 AC_CONFIG_LINKS([include/souffle/profile/htmlJsTableSort.h:src/profile/htmlJsTableSort.h])
 AC_CONFIG_LINKS([include/souffle/profile/htmlMain.h:src/profile/htmlMain.h])
-AC_CONFIG_LINKS([include/tbb:src/tbb])
+# AC_CONFIG_LINKS([include/tbb:src/tbb])
 
 AM_MISSING_PROG([AUTOM4TE], [autom4te])
 
 # Checks for header files.
 AC_FUNC_ALLOCA
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h float.h inttypes.h libintl.h limits.h malloc.h memory.h netdb.h stddef.h stdint.h stdlib.h string.h strings.h sys/time.h sys/timeb.h unistd.h wchar.h wctype.h])
+
+AS_VAR_APPEND(LIBS, [" -ltbb "])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_INLINE
