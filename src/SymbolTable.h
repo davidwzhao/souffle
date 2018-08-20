@@ -377,11 +377,10 @@ public:
 #endif
         {
             out << "SymbolTable: {\n\t";
-            out << join(strToNum, "\n\t",
-                           [](std::ostream& out, const std::pair<std::string, std::size_t>& entry) {
-                               out << entry.first << "\t => " << entry.second;
-                           })
-                << "\n";
+            out << join(strToNum, "\n\t", [](std::ostream& out,
+                                                  const std::pair<std::string, std::size_t>& entry) {
+                out << entry.first << "\t => " << entry.second;
+            }) << "\n";
             out << "}\n";
         }
     }

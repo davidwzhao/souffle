@@ -1272,25 +1272,8 @@ public:
     }
 
     std::vector<range<iterator>> partition() const {
-        // split it up in 100 partitions
-        auto n = size();
-        auto s = n / 100;
-        std::vector<range<iterator>> res;
-        auto cur = begin();
-        auto last = cur;
-        int i = 0;
-        while (cur != end()) {
-            cur++;
-            i++;
-            if (i > s) {
-                res.push_back({last, cur});
-                last = cur;
-            }
-        }
-        if (cur != last) {
-            res.push_back({last, cur});
-        }
-        return res;
+        range<iterator> full(begin(), end());
+        return full.partition(100);
     }
 
     /* Prints a description of the inner organization of this relation. */

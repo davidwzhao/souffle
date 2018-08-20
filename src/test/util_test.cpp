@@ -216,3 +216,42 @@ TEST(Util, LRUCache_S0) {
     c.clear(5);
     EXPECT_EQ("-empty-", toString(c));
 }
+
+TEST(Util, Range) {
+    using container = std::vector<int>;
+    using iter = container::const_iterator;
+
+    std::vector<int> list(9);
+
+    for (int i = 0; i < 9; i++) {
+        list[i] = i;
+    }
+
+    range<iter> range(list.begin(), list.end());
+
+    {
+        int last = -1;
+        for (const auto& p : range.partition(4)) {
+            auto size = p.end() - p.begin();
+            EXPECT_TRUE(2 <= size && size <= 3);
+            for (const auto& cur : p) {
+                EXPECT_EQ(last + 1, cur);
+                last = cur;
+            }
+        }
+        EXPECT_EQ(last, 8);
+    }
+
+    {
+        int last = -1;
+        for (const auto& p : range.partition(7)) {
+            auto size = p.end() - p.begin();
+            EXPECT_TRUE(1 <= size && size <= 2);
+            for (const auto& cur : p) {
+                EXPECT_EQ(last + 1, cur);
+                last = cur;
+            }
+        }
+        EXPECT_EQ(last, 8);
+    }
+}

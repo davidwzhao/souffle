@@ -267,6 +267,37 @@ struct range {
     bool empty() const {
         return a == b;
     }
+
+    // splits up this range into the given number of partitions
+    std::vector<range> partition(int np = 100) {
+        // obtain the size
+        int n = 0;
+        for (auto i = a; i != b; ++i) n++;
+
+        // split it up
+        auto s = n / np;
+        auto r = n % np;
+        std::vector<range> res;
+        res.reserve(np);
+        auto cur = a;
+        auto last = cur;
+        int i = 0;
+        int p = 0;
+        while (cur != b) {
+            ++cur;
+            i++;
+            if (i >= (s + (p < r ? 1 : 0))) {
+                res.push_back({last, cur});
+                last = cur;
+                p++;
+                i = 0;
+            }
+        }
+        if (cur != last) {
+            res.push_back({last, cur});
+        }
+        return res;
+    }
 };
 
 /**
