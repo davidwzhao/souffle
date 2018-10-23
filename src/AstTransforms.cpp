@@ -1951,7 +1951,7 @@ bool TopKTransformer::transform(AstTranslationUnit& translationUnit) {
         }
 
         return std::make_pair(relName, nums);
-    }
+    };
 
     std::pair<std::string, std::vector<RamDomain>> queryTuple = parseTuple(tupleString);
     auto queryTupleRel = queryTuple.first;
@@ -1966,8 +1966,8 @@ bool TopKTransformer::transform(AstTranslationUnit& translationUnit) {
         }
 
         // check each argument
-        for (size_t i = 0; i < head.getArity(); i++) {
-            auto& arg = head.getArgument(i);
+        for (size_t i = 0; i < head->getArity(); i++) {
+            auto arg = head->getArgument(i);
             if (dynamic_cast<AstVariable*>(arg)) {
                 continue;
             } else if (auto constant = dynamic_cast<AstConstant*>(arg)) {
@@ -1978,6 +1978,18 @@ bool TopKTransformer::transform(AstTranslationUnit& translationUnit) {
         }
 
         // we know that they match, add a new relation and rule
+        auto provRelation = std::make_unique<AstRelation>();
+        provRelation->setName(new AstRelationIdentifier(head->getName().getName() + "_prov"));
+        for (auto& attr : head->getAttributes()) {
+            provRelation->addAttribute(attr);
+        }
+
+        // for each expansion of the body of clause add a new clause to provRelation
+        // if rule is R <- R1, R2, R3.
+        // make new rules R <- R1', R2, R3.
+        // make new rules R <- R1, R2', R3.
+        // make new rules R <- R1, R2, R3'.
+        // where each Ri' is replaced with constants from query tuple and also is of the transitive prov relation
     });
 }
 
