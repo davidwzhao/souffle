@@ -1894,4 +1894,91 @@ bool NormaliseConstraintsTransformer::transform(AstTranslationUnit& translationU
     return changed;
 }
 
+bool TopKTransformer::transform(AstTranslationUnit& translationUnit) {
+    AstProgram& program = *translationUnit.getProgram();
+    // get provenance query tuple
+    std::string tupleString = Global::config().get("topk");
+
+    // parse relation, split into relation name and values
+    auto parseTuple = [&](const std::string& str) {
+        std::string relName;
+        std::vector<std::string> args;
+        std::vector<RamDomain> nums;
+
+        // regex for matching tuples
+        // values matches numbers or strings enclosed in quotation marks
+        std::regex relRegex(
+                "([a-zA-Z0-9_]*)[[:blank:]]*\\(([[:blank:]]*([0-9]+|\"[^\"]*\")([[:blank:]]*,[[:blank:]]*([0-"
+                "9]+|\"[^\"]*\"))*)?\\)",
+                std::regex_constants::extended);
+        std::smatch relMatch;
+
+        // first check that format matches correctly
+        // and extract relation name
+        if (!std::regex_match(str, relMatch, relRegex) || relMatch.size() < 3) {
+            return std::make_pair(relName, args);
+        }
+
+        // set relation name
+        relName = relMatch[1];
+
+        // extract each argument
+        std::string argsList = relMatch[2];
+        std::smatch argsMatcher;
+        std::regex argRegex(R"([0-9]+|"[^"]*")", std::regex_constants::extended);
+
+        while (std::regex_search(argsList, argsMatcher, argRegex)) {
+            // match the start of the arguments
+            std::string currentArg = argsMatcher[0];
+            args.push_back(currentArg);
+
+            // use the rest of the arguments
+            argsList = argsMatcher.suffix().str();
+        }
+
+        auto rel = program.getRelation(relName);
+
+        for (size_t i = 0; i < args.size(); i++) {
+            if (*rel->getAttrType(i) == 's') {
+                // remove quotation marks
+                if (args[i].size() >= 2 && args[i][0] == '"' && args[i][args[i].size() - 1] == '"') {
+                    auto originalStr = args[i].substr(1, args[i].size() - 2);
+                    nums.push_back(translationUnit.getSymbolTable().lookupExisting(originalStr));
+                }
+            } else {
+                nums.push_back(std::stoi(args[i]));
+            }
+        }
+
+        return std::make_pair(relName, nums);
+    }
+
+    std::pair<std::string, std::vector<RamDomain>> queryTuple = parseTuple(tupleString);
+    auto queryTupleRel = queryTuple.first;
+    auto queryTupleArgs = queryTuple.second;
+
+    visitDepthFirst(program, [&](const AstClause& clause) {
+        // check if clause head matches tuple through partial assignment
+        bool matches = true;
+        auto head = clause.getHead();
+        if (head->getName().getName() != queryTupleRel) {
+            return;
+        }
+
+        // check each argument
+        for (size_t i = 0; i < head.getArity(); i++) {
+            auto& arg = head.getArgument(i);
+            if (dynamic_cast<AstVariable*>(arg)) {
+                continue;
+            } else if (auto constant = dynamic_cast<AstConstant*>(arg)) {
+                if (constant.getIndex() != queryTupleArgs[i]) {
+                    return;
+                }
+            }
+        }
+
+        // we know that they match, add a new relation and rule
+    });
+}
+
 }  // end of namespace souffle

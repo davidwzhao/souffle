@@ -332,6 +332,19 @@ public:
 };
 
 /**
+ * Top-K provenance Transformation
+ */
+class TopKTransformer : public AstTransformer {
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
+
+public:
+    std::string getName() const override {
+        return "TopKTransformer";
+    }
+};
+
+/**
  * Transformer that holds an arbitrary number of sub-transformations
  */
 class PipelineTransformer : public MetaTransformer {

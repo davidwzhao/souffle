@@ -215,6 +215,7 @@ int main(int argc, char** argv) {
                                     "execution engine."},
                             {"verbose", 'v', "", "", false, "Verbose output."},
                             {"version", '\2', "", "", false, "Version."},
+                            {"topk", '\3', "", "", false, "Specify a tuple to instrument Datalog with top-k style"},
                             {"help", 'h', "", "", false, "Display this help message."}};
                     return std::vector<MainOption>(std::begin(opts), std::end(opts));
                 }());
