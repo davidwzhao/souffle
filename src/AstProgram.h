@@ -46,6 +46,7 @@ class AstProgram : public AstNode {
     friend class ComponentInstantiationTransformer;
     friend class ParserDriver;
     friend class ProvenanceTransformer;
+    friend class TopKTransformer;
 
     /** Program types  */
     std::map<AstTypeIdentifier, std::unique_ptr<AstType>> types;

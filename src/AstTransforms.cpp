@@ -39,6 +39,7 @@
 #include <memory>
 #include <ostream>
 #include <set>
+#include <regex>
 
 namespace souffle {
 
@@ -1916,7 +1917,7 @@ bool TopKTransformer::transform(AstTranslationUnit& translationUnit) {
         // first check that format matches correctly
         // and extract relation name
         if (!std::regex_match(str, relMatch, relRegex) || relMatch.size() < 3) {
-            return std::make_pair(relName, args);
+            return std::make_pair(relName, nums);
         }
 
         // set relation name
@@ -1939,12 +1940,12 @@ bool TopKTransformer::transform(AstTranslationUnit& translationUnit) {
         auto rel = program.getRelation(relName);
 
         for (size_t i = 0; i < args.size(); i++) {
-            if (*rel->getAttrType(i) == 's') {
+            // if (*rel->getAttribute(i)->getAttrType() == 's') {
                 // remove quotation marks
                 if (args[i].size() >= 2 && args[i][0] == '"' && args[i][args[i].size() - 1] == '"') {
                     auto originalStr = args[i].substr(1, args[i].size() - 2);
                     nums.push_back(translationUnit.getSymbolTable().lookupExisting(originalStr));
-                }
+                // }
             } else {
                 nums.push_back(std::stoi(args[i]));
             }
@@ -1960,18 +1961,18 @@ bool TopKTransformer::transform(AstTranslationUnit& translationUnit) {
     // create provenance and transitive provenance versions of each relation
     for (auto rel : program.getRelations()) {
         auto provRelation = std::make_unique<AstRelation>();
-        provRelation->setName(new AstRelationIdentifier(head->getName().getName() + "_prov"));
-        for (auto& attr : head->getAttributes()) {
-            provRelation->addAttribute(attr);
+        provRelation->setName(AstRelationIdentifier(rel->getName().getName() + "_prov"));
+        for (auto attr : rel->getAttributes()) {
+            provRelation->addAttribute(std::unique_ptr<AstAttribute>(attr->clone()));
         }
-        program.addRelation(std::move(provRelation));
+        program.appendRelation(std::move(provRelation));
 
         auto transProvRelation = std::make_unique<AstRelation>();
-        transProvRelation->setName(new AstRelationIdentifier(head->getName().getName() + "_transitive_prov"));
-        for (auto& attr : head->getAttributes()) {
-            transProvRelation->addAttribute(attr);
+        transProvRelation->setName(AstRelationIdentifier(rel->getName().getName() + "_transitive_prov"));
+        for (auto attr : rel->getAttributes()) {
+            transProvRelation->addAttribute(std::unique_ptr<AstAttribute>(attr->clone()));
         }
-        program.addRelation(std::move(transProvRelation));
+        program.appendRelation(std::move(transProvRelation));
     }
 
 
@@ -1984,20 +1985,20 @@ bool TopKTransformer::transform(AstTranslationUnit& translationUnit) {
         }
 
         // check each argument and build a variable assignment
-        std::map<AstVariable, RamDomain> variableAssignment;
+        std::map<std::string, RamDomain> variableAssignment;
         for (size_t i = 0; i < head->getArity(); i++) {
             auto arg = head->getArgument(i);
-            if (dynamic_cast<AstVariable*>(arg)) {
-                variableAssignment[*arg] = queryTupleArgs[i];
+            if (auto var = dynamic_cast<AstVariable*>(arg)) {
+                variableAssignment[var->getName()] = queryTupleArgs[i];
             } else if (auto constant = dynamic_cast<AstConstant*>(arg)) {
-                if (constant.getIndex() != queryTupleArgs[i]) {
+                if (constant->getIndex() != queryTupleArgs[i]) {
                     return;
                 }
             }
         }
 
         // we know that they match, add new rules
-        auto provRelation = program.getRelation(new AstRelationIdentifier(head->getName().getName() + "_prov"));
+        auto provRelation = program.getRelation(AstRelationIdentifier(head->getName().getName() + "_prov"));
 
         // for each expansion of the body of clause add a new clause to provRelation
         // if rule is R <- R1, R2, R3.
@@ -2007,35 +2008,40 @@ bool TopKTransformer::transform(AstTranslationUnit& translationUnit) {
         // where each Ri' is replaced with constants from query tuple and also is of the transitive prov relation
         for (size_t i = 0; i < clause.getAtoms().size(); i++) {
             auto provClause = clause.clone();
-            provClause->getHead()->setName(new AstRelationIdentifier(head->getName().getName() + "_prov"));
-            for (size_t j = 0; j < provClause()->getHead()->getArity()) {
-                auto arg = provClause()->getHead()->getArgument(j);
+            provClause->getHead()->setName(AstRelationIdentifier(head->getName().getName() + "_prov"));
+            for (size_t j = 0; j < provClause->getHead()->getArity(); j++) {
+                auto arg = provClause->getHead()->getArgument(j);
                 if (auto var = dynamic_cast<AstVariable*>(arg)) {
-                    if (variableAssignment.find(*var) != variableAssignment.end()) {
-                        if (program.getRelation(provClause()->getHead()->getName())->getAttribute(j)->getTypeName().getNames()[0][0] == 's') {
-                            provClause()->getHead()->setArgument(j, std::make_unique<AstStringConstant>(translationUnit.getSymbolTable(), translationUnit.getSymbolTable().resolve(variableAssignment[*var])));
+                    if (variableAssignment.find(var->getName()) != variableAssignment.end()) {
+                        if (dynamic_cast<const AstPrimitiveType*>(program.getType(program.getRelation(provClause->getHead()->getName())->getAttribute(j)->getTypeName())) && dynamic_cast<const AstPrimitiveType*>(program.getType(program.getRelation(provClause->getHead()->getName())->getAttribute(j)->getTypeName()))->isSymbolic()) {
+                            provClause->getHead()->setArgument(j, std::make_unique<AstStringConstant>(translationUnit.getSymbolTable(), translationUnit.getSymbolTable().resolve(variableAssignment[var->getName()])));
                         } else {
-                            provClause()->getHead()->setArgument(j, std::make_unique<AstNumberConstant>(variableAssignment[*var]));
+                            provClause->getHead()->setArgument(j, std::make_unique<AstNumberConstant>(variableAssignment[var->getName()]));
                         }
                     }
                 }
             }
 
-            provClause->getBodyLiteral(i)->setName(new AstRelationIdentifier(provClause->getBodyLiteral(i)->getName().getName() + "_prov"));
-            for (size_t j = 0; j < provClause()->getBodyLiteral(i)->getArity()) {
-                auto arg = provClause()->getBodyLiteral(i)->getArgument(j);
+            dynamic_cast<AstAtom*>(provClause->getBodyLiteral(i))->setName(AstRelationIdentifier(provClause->getBodyLiteral(i)->getAtom()->getName().getName() + "_prov"));
+            for (size_t j = 0; j < provClause->getBodyLiteral(i)->getAtom()->getArity(); j++) {
+                auto arg = provClause->getBodyLiteral(i)->getAtom()->getArgument(j);
                 if (auto var = dynamic_cast<AstVariable*>(arg)) {
-                    if (variableAssignment.find(*var) != variableAssignment.end()) {
-                        if (program.getRelation(provClause()->getBodyLiteral(i)->getName())->getAttribute(j)->getTypeName().getNames()[0][0] == 's') {
-                            provClause()->getBodyLiteral(i)->setArgument(j, std::make_unique<AstStringConstant>(translationUnit.getSymbolTable(), translationUnit.getSymbolTable().resolve(variableAssignment[*var])));
+                    if (variableAssignment.find(var->getName()) != variableAssignment.end()) {
+                        if (dynamic_cast<const AstPrimitiveType*>(program.getType(program.getRelation(provClause->getBodyLiteral(i)->getAtom()->getName())->getAttribute(j)->getTypeName())) && dynamic_cast<const AstPrimitiveType*>(program.getType(program.getRelation(provClause->getBodyLiteral(i)->getAtom()->getName())->getAttribute(j)->getTypeName()))->isSymbolic()) {
+                            dynamic_cast<AstAtom*>(provClause->getBodyLiteral(i))->setArgument(j, std::make_unique<AstStringConstant>(translationUnit.getSymbolTable(), translationUnit.getSymbolTable().resolve(variableAssignment[var->getName()])));
                         } else {
-                            provClause()->getBodyLiteral(i)->setArgument(j, std::make_unique<AstNumberConstant>(variableAssignment[*var]));
+                            dynamic_cast<AstAtom*>(provClause->getBodyLiteral(i))->setArgument(j, std::make_unique<AstNumberConstant>(variableAssignment[var->getName()]));
                         }
                     }
                 }
             }
+            program.addClause(std::unique_ptr<AstClause>(provClause));
         }
     });
+
+    program.print(std::cout);
+
+    return true;
 }
 
 }  // end of namespace souffle

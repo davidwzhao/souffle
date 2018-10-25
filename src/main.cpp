@@ -215,7 +215,7 @@ int main(int argc, char** argv) {
                                     "execution engine."},
                             {"verbose", 'v', "", "", false, "Verbose output."},
                             {"version", '\2', "", "", false, "Version."},
-                            {"topk", '\3', "", "", false, "Specify a tuple to instrument Datalog with top-k style"},
+                            {"topk", '\3', "TUPLE", "", false, "Specify a tuple to instrument Datalog with top-k style"},
                             {"help", 'h', "", "", false, "Display this help message."}};
                     return std::vector<MainOption>(std::begin(opts), std::end(opts));
                 }());
@@ -449,6 +449,9 @@ int main(int argc, char** argv) {
     auto provenancePipeline = std::make_unique<PipelineTransformer>();
 #endif
 
+    auto topkPipeline = std::make_unique<PipelineTransformer>(std::make_unique<ConditionalTransformer>(
+                Global::config().has("topk"), std::make_unique<TopKTransformer>()));
+
     // Main pipeline
     auto pipeline = std::make_unique<PipelineTransformer>(std::make_unique<AstComponentChecker>(),
             std::make_unique<ComponentInstantiationTransformer>(),
@@ -463,7 +466,7 @@ int main(int argc, char** argv) {
             std::make_unique<RemoveEmptyRelationsTransformer>(),
             std::make_unique<ReorderLiteralsTransformer>(),
             std::make_unique<RemoveRedundantRelationsTransformer>(), std::move(magicPipeline),
-            std::make_unique<AstExecutionPlanChecker>(), std::move(provenancePipeline));
+            std::make_unique<AstExecutionPlanChecker>(), std::move(provenancePipeline), std::move(topkPipeline));
 
     // Disable unwanted transformations
     if (Global::config().has("disable-transformers")) {
