@@ -1937,8 +1937,6 @@ bool TopKTransformer::transform(AstTranslationUnit& translationUnit) {
             argsList = argsMatcher.suffix().str();
         }
 
-        auto rel = program.getRelation(relName);
-
         for (size_t i = 0; i < args.size(); i++) {
             // if (*rel->getAttribute(i)->getAttrType() == 's') {
                 // remove quotation marks
@@ -1965,6 +1963,7 @@ bool TopKTransformer::transform(AstTranslationUnit& translationUnit) {
         for (auto attr : rel->getAttributes()) {
             provRelation->addAttribute(std::unique_ptr<AstAttribute>(attr->clone()));
         }
+        provRelation->setQualifier(OUTPUT_RELATION);
         program.appendRelation(std::move(provRelation));
 
         auto transProvRelation = std::make_unique<AstRelation>();
@@ -1972,13 +1971,13 @@ bool TopKTransformer::transform(AstTranslationUnit& translationUnit) {
         for (auto attr : rel->getAttributes()) {
             transProvRelation->addAttribute(std::unique_ptr<AstAttribute>(attr->clone()));
         }
+        transProvRelation->setQualifier(OUTPUT_RELATION);
         program.appendRelation(std::move(transProvRelation));
     }
 
 
     visitDepthFirst(program, [&](const AstClause& clause) {
         // check if clause head matches tuple through partial assignment
-        bool matches = true;
         auto head = clause.getHead();
         if (head->getName().getName() != queryTupleRel) {
             return;
@@ -1999,13 +1998,14 @@ bool TopKTransformer::transform(AstTranslationUnit& translationUnit) {
 
         // we know that they match, add new rules
         auto provRelation = program.getRelation(AstRelationIdentifier(head->getName().getName() + "_prov"));
+        auto transProvRelation = program.getRelation(AstRelationIdentifier(head->getName().getName() + "_transitive_prov"));
 
         // for each expansion of the body of clause add a new clause to provRelation
         // if rule is R <- R1, R2, R3.
         // make new rules R <- R1', R2, R3.
         // make new rules R <- R1, R2', R3.
         // make new rules R <- R1, R2, R3'.
-        // where each Ri' is replaced with constants from query tuple and also is of the transitive prov relation
+        // where each Ri' is replaced with constants from query tuple and also is of the prov relation
         for (size_t i = 0; i < clause.getAtoms().size(); i++) {
             auto provClause = clause.clone();
             provClause->getHead()->setName(AstRelationIdentifier(head->getName().getName() + "_prov"));
@@ -2035,8 +2035,24 @@ bool TopKTransformer::transform(AstTranslationUnit& translationUnit) {
                     }
                 }
             }
-            program.addClause(std::unique_ptr<AstClause>(provClause));
+            provRelation->addClause(std::unique_ptr<AstClause>(provClause));
         }
+
+        // TODO: separate out the prov relations for each node of the tree
+        // it should be something like R <- R1^0, R2^1, R3^2
+        // we do the same thing but without constant replacement and with the transitive prov relation
+        for (size_t i = 0; i < clause.getAtoms().size(); i++) {
+            auto provClause = clause.clone();
+            provClause->getHead()->setName(AstRelationIdentifier(head->getName().getName() + "_transitive_prov"));
+
+            dynamic_cast<AstAtom*>(provClause->getBodyLiteral(i))->setName(AstRelationIdentifier(provClause->getBodyLiteral(i)->getAtom()->getName().getName() + "_transitive_prov"));
+            transProvRelation->addClause(std::unique_ptr<AstClause>(provClause));
+        }
+
+        // also add a copy of the clause with the transitive relation as the head
+        auto provClause = clause.clone();
+        provClause->getHead()->setName(AstRelationIdentifier(head->getName().getName() + "_prov"));
+        provRelation->addClause(std::unique_ptr<AstClause>(provClause));
     });
 
     program.print(std::cout);
