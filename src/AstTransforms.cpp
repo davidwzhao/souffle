@@ -1956,25 +1956,93 @@ bool TopKTransformer::transform(AstTranslationUnit& translationUnit) {
     auto queryTupleRel = queryTuple.first;
     auto queryTupleArgs = queryTuple.second;
 
+    /*
     // create provenance and transitive provenance versions of each relation
     for (auto rel : program.getRelations()) {
-        auto provRelation = std::make_unique<AstRelation>();
-        provRelation->setName(AstRelationIdentifier(rel->getName().getName() + "_prov"));
+        auto prov0Relation = std::make_unique<AstRelation>();
+        prov0Relation->setName(AstRelationIdentifier(rel->getName().getName() + "_prov_0"));
         for (auto attr : rel->getAttributes()) {
-            provRelation->addAttribute(std::unique_ptr<AstAttribute>(attr->clone()));
+            prov0Relation->addAttribute(std::unique_ptr<AstAttribute>(attr->clone()));
         }
-        provRelation->setQualifier(OUTPUT_RELATION);
-        program.appendRelation(std::move(provRelation));
+        prov0Relation->setQualifier(OUTPUT_RELATION);
+        program.appendRelation(std::move(prov0Relation));
 
-        auto transProvRelation = std::make_unique<AstRelation>();
-        transProvRelation->setName(AstRelationIdentifier(rel->getName().getName() + "_transitive_prov"));
+        auto prov1Relation = std::make_unique<AstRelation>();
+        prov1Relation->setName(AstRelationIdentifier(rel->getName().getName() + "_prov_1"));
         for (auto attr : rel->getAttributes()) {
-            transProvRelation->addAttribute(std::unique_ptr<AstAttribute>(attr->clone()));
+            prov1Relation->addAttribute(std::unique_ptr<AstAttribute>(attr->clone()));
         }
-        transProvRelation->setQualifier(OUTPUT_RELATION);
-        program.appendRelation(std::move(transProvRelation));
+        prov1Relation->setQualifier(OUTPUT_RELATION);
+        program.appendRelation(std::move(prov1Relation));
+
+        auto transProv0Relation = std::make_unique<AstRelation>();
+        transProv0Relation->setName(AstRelationIdentifier(rel->getName().getName() + "_transitive_prov_0"));
+        for (auto attr : rel->getAttributes()) {
+            transProv0Relation->addAttribute(std::unique_ptr<AstAttribute>(attr->clone()));
+        }
+        transProv0Relation->setQualifier(OUTPUT_RELATION);
+        program.appendRelation(std::move(transProv0Relation));
+
+        auto transProv1Relation = std::make_unique<AstRelation>();
+        transProv1Relation->setName(AstRelationIdentifier(rel->getName().getName() + "_transitive_prov_1"));
+        for (auto attr : rel->getAttributes()) {
+            transProv1Relation->addAttribute(std::unique_ptr<AstAttribute>(attr->clone()));
+        }
+        transProv1Relation->setQualifier(OUTPUT_RELATION);
+        program.appendRelation(std::move(transProv1Relation));
     }
+    */
 
+    // copy all EDB relations into the transitive_prov_1 version
+    visitDepthFirst(program, [&](const AstRelation& rel) {
+        auto prov0Relation = std::make_unique<AstRelation>();
+        prov0Relation->setName(AstRelationIdentifier(rel.getName().getName() + "_prov_0"));
+        for (auto attr : rel.getAttributes()) {
+            prov0Relation->addAttribute(std::unique_ptr<AstAttribute>(attr->clone()));
+        }
+        prov0Relation->setQualifier(OUTPUT_RELATION);
+        program.appendRelation(std::move(prov0Relation));
+
+        auto prov1Relation = std::make_unique<AstRelation>();
+        prov1Relation->setName(AstRelationIdentifier(rel.getName().getName() + "_prov_1"));
+        for (auto attr : rel.getAttributes()) {
+            prov1Relation->addAttribute(std::unique_ptr<AstAttribute>(attr->clone()));
+        }
+        prov1Relation->setQualifier(OUTPUT_RELATION);
+        program.appendRelation(std::move(prov1Relation));
+
+        auto transProv1Relation = std::make_unique<AstRelation>();
+        transProv1Relation->setName(AstRelationIdentifier(rel.getName().getName() + "_transitive_prov_1"));
+        for (auto attr : rel.getAttributes()) {
+            transProv1Relation->addAttribute(std::unique_ptr<AstAttribute>(attr->clone()));
+        }
+        transProv1Relation->setQualifier(OUTPUT_RELATION);
+
+        bool isEDB = true;
+        visitDepthFirst(rel, [&](const AstClause& clause) {
+            if (!clause.isFact()) {
+                isEDB = false;
+            }
+        });
+
+        if (isEDB) {
+            std::unique_ptr<AstClause> copyClause = std::make_unique<AstClause>();
+            std::unique_ptr<AstAtom> copyClauseHead = std::make_unique<AstAtom>(AstRelationIdentifier(rel.getName().getName() + "_transitive_prov_1"));
+            std::unique_ptr<AstAtom> copyClauseBody = std::make_unique<AstAtom>(AstRelationIdentifier(rel.getName().getName()));
+
+            for (size_t i = 0; i < rel.getArity(); i++) {
+                copyClauseHead->addArgument(std::make_unique<AstVariable>("x" + std::to_string(i)));
+                copyClauseBody->addArgument(std::make_unique<AstVariable>("x" + std::to_string(i)));
+            }
+
+            copyClause->setHead(std::move(copyClauseHead));
+            copyClause->addToBody(std::move(copyClauseBody));
+            
+            transProv1Relation->addClause(std::move(copyClause));
+        }
+
+        program.appendRelation(std::move(transProv1Relation));
+    });
 
     visitDepthFirst(program, [&](const AstClause& clause) {
         // check if clause head matches tuple through partial assignment
@@ -1997,18 +2065,18 @@ bool TopKTransformer::transform(AstTranslationUnit& translationUnit) {
         }
 
         // we know that they match, add new rules
-        auto provRelation = program.getRelation(AstRelationIdentifier(head->getName().getName() + "_prov"));
-        auto transProvRelation = program.getRelation(AstRelationIdentifier(head->getName().getName() + "_transitive_prov"));
+        auto provRelation = program.getRelation(AstRelationIdentifier(head->getName().getName() + "_prov_0"));
+        auto transProvRelation = program.getRelation(AstRelationIdentifier(head->getName().getName() + "_transitive_prov_1"));
 
         // for each expansion of the body of clause add a new clause to provRelation
         // if rule is R <- R1, R2, R3.
         // make new rules R <- R1', R2, R3.
         // make new rules R <- R1, R2', R3.
         // make new rules R <- R1, R2, R3'.
-        // where each Ri' is replaced with constants from query tuple and also is of the prov relation
+        // where each Ri' is replaced with constants from query tuple and also is of the transitive_prov1 relation
         for (size_t i = 0; i < clause.getAtoms().size(); i++) {
             auto provClause = clause.clone();
-            provClause->getHead()->setName(AstRelationIdentifier(head->getName().getName() + "_prov"));
+            provClause->getHead()->setName(AstRelationIdentifier(head->getName().getName() + "_prov_0"));
             for (size_t j = 0; j < provClause->getHead()->getArity(); j++) {
                 auto arg = provClause->getHead()->getArgument(j);
                 if (auto var = dynamic_cast<AstVariable*>(arg)) {
@@ -2022,7 +2090,7 @@ bool TopKTransformer::transform(AstTranslationUnit& translationUnit) {
                 }
             }
 
-            dynamic_cast<AstAtom*>(provClause->getBodyLiteral(i))->setName(AstRelationIdentifier(provClause->getBodyLiteral(i)->getAtom()->getName().getName() + "_prov"));
+            dynamic_cast<AstAtom*>(provClause->getBodyLiteral(i))->setName(AstRelationIdentifier(provClause->getBodyLiteral(i)->getAtom()->getName().getName() + "_transitive_prov_1"));
             for (size_t j = 0; j < provClause->getBodyLiteral(i)->getAtom()->getArity(); j++) {
                 auto arg = provClause->getBodyLiteral(i)->getAtom()->getArgument(j);
                 if (auto var = dynamic_cast<AstVariable*>(arg)) {
@@ -2043,16 +2111,11 @@ bool TopKTransformer::transform(AstTranslationUnit& translationUnit) {
         // we do the same thing but without constant replacement and with the transitive prov relation
         for (size_t i = 0; i < clause.getAtoms().size(); i++) {
             auto provClause = clause.clone();
-            provClause->getHead()->setName(AstRelationIdentifier(head->getName().getName() + "_transitive_prov"));
+            provClause->getHead()->setName(AstRelationIdentifier(head->getName().getName() + "_transitive_prov_1"));
 
-            dynamic_cast<AstAtom*>(provClause->getBodyLiteral(i))->setName(AstRelationIdentifier(provClause->getBodyLiteral(i)->getAtom()->getName().getName() + "_transitive_prov"));
+            dynamic_cast<AstAtom*>(provClause->getBodyLiteral(i))->setName(AstRelationIdentifier(provClause->getBodyLiteral(i)->getAtom()->getName().getName() + "_transitive_prov_1"));
             transProvRelation->addClause(std::unique_ptr<AstClause>(provClause));
         }
-
-        // also add a copy of the clause with the transitive relation as the head
-        auto provClause = clause.clone();
-        provClause->getHead()->setName(AstRelationIdentifier(head->getName().getName() + "_prov"));
-        provRelation->addClause(std::unique_ptr<AstClause>(provClause));
     });
 
     program.print(std::cout);
