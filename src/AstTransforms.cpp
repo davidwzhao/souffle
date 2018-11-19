@@ -2106,7 +2106,12 @@ bool TopKTransformer::transform(AstTranslationUnit& translationUnit) {
             provRelation->addClause(std::unique_ptr<AstClause>(provClause));
         }
 
-        // TODO: separate out the prov relations for each node of the tree
+        // create a copy of clause
+        // R_prov_1 <- R1, R2, R3.
+        // auto provClause = clause.clone();
+        // provClause->getHead()->setName(AstRelationIdentifier(head->getName().getName() + "_prov_1"));
+        // program.getRelation(AstRelationIdentifier(head->getName().getName() + "_prov_1"))->addClause(std::unique_ptr<AstClause>(provClause));
+
         // it should be something like R <- R1^0, R2^1, R3^2
         // we do the same thing but without constant replacement and with the transitive prov relation
         for (size_t i = 0; i < clause.getAtoms().size(); i++) {
