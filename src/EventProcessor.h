@@ -53,6 +53,39 @@ public:
  * Singleton that is the connection point for events
  */
 class EventProcessorSingleton {
+public:
+    /** get instance */
+    static EventProcessorSingleton& instance() {
+        static EventProcessorSingleton singleton;
+        return singleton;
+    }
+
+    /** register an event processor with its keyword */
+    void registerEventProcessor(const std::string& keyword, EventProcessor* processor) {
+        registry[keyword] = processor;
+    }
+
+    /** process a profile event */
+    void process(ProfileDatabase& db, const char* txt, ...) {
+        va_list args;
+        va_start(args, txt);
+
+        // escape signature
+        std::string escapedText = escape(txt);
+        // obtain event signature by splitting event text
+        std::vector<std::string> eventSignature = splitSignature(escapedText);
+
+        // invoke the event processor of the event
+        const std::string& keyword = eventSignature[0];
+        assert(eventSignature.size() > 0 && "no keyword in event description");
+        assert(registry.find(keyword) != registry.end() && "EventProcessor not found!");
+        registry[keyword]->process(db, eventSignature, args);
+
+        // terminate access to variadic arguments
+        va_end(args);
+    }
+
+private:
     /** keyword / event processor mapping */
     std::map<std::string, EventProcessor*> registry;
 
@@ -73,7 +106,7 @@ class EventProcessorSingleton {
             }
             ++start_pos;
             if (str[start_pos] == 't' || str[start_pos] == '"' || str[start_pos] == '\\' ||
-                    str[start_pos] == 'n') {
+                    str[start_pos] == 'n' || str[start_pos] == ';') {
                 continue;
             }
             str.replace(start_pos - 1, 1, "\\\\");
@@ -131,52 +164,15 @@ class EventProcessorSingleton {
                 str.erase(i--, 1);
             }
         }
-        bool changed = false;
         std::vector<std::string> result = split(str, ";");
         for (size_t i = 0; i < result.size(); i++) {
             for (size_t j = 0; j < result[i].size(); j++) {
                 if (result[i][j] == '\b') {
                     result[i][j] = ';';
-                    changed = true;
                 }
-            }
-            if (changed) {
-                changed = false;
             }
         }
         return result;
-    }
-
-public:
-    /** get instance */
-    static EventProcessorSingleton& instance() {
-        static EventProcessorSingleton singleton;
-        return singleton;
-    }
-
-    /** register an event processor with its keyword */
-    void registerEventProcessor(const std::string& keyword, EventProcessor* processor) {
-        registry[keyword] = processor;
-    }
-
-    /** process a profile event */
-    void process(ProfileDatabase& db, const char* txt, ...) {
-        va_list args;
-        va_start(args, txt);
-
-        // escape signature
-        std::string escapedText = escape(txt);
-        // obtain event signature by splitting event text
-        std::vector<std::string> eventSignature = splitSignature(escapedText);
-
-        // invoke the event processor of the event
-        const std::string& keyword = eventSignature[0];
-        assert(eventSignature.size() > 0 && "no keyword in event description");
-        assert(registry.find(keyword) != registry.end() && "EventProcessor not found!");
-        registry[keyword]->process(db, eventSignature, args);
-
-        // terminate access to variadic arguments
-        va_end(args);
     }
 };
 
@@ -521,6 +517,23 @@ public:
         }
     }
 } frequencyAtomProcessor;
+
+/**
+ * Reads Processor
+ */
+const class RelationReadsProcessor : public EventProcessor {
+public:
+    RelationReadsProcessor() {
+        EventProcessorSingleton::instance().registerEventProcessor("@relation-reads", this);
+    }
+    /** process event input */
+    void process(ProfileDatabase& db, const std::vector<std::string>& signature, va_list& args) override {
+        const std::string& relation = signature[1];
+        size_t reads = va_arg(args, size_t);
+        db.addSizeEntry({"program", "relation", relation, "reads"}, reads);
+    }
+
+} relationReadsProcessor;
 
 /**
  * Config entry processor

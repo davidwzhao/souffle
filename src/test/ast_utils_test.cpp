@@ -14,9 +14,11 @@
  *
  ***********************************************************************/
 
+#include "AstGroundAnalysis.h"
 #include "AstTransforms.h"
 #include "AstTranslationUnit.h"
 #include "AstTypeAnalysis.h"
+#include "AstTypeEnvironmentAnalysis.h"
 #include "AstUtils.h"
 #include "AstVisitor.h"
 #include "ParserDriver.h"
@@ -36,7 +38,7 @@ TEST(Ast, CloneAndEquals) {
     std::unique_ptr<AstTranslationUnit> tu = ParserDriver::parseTranslationUnit(
             R"(
                  .decl r(a:number,b:number,c:number,d:number)
-                 r(X,Y,Z,W) :- a(X), 10 = Y, Y = Z, 8 + W = 12 + 14. 
+                 r(X,Y,Z,W) :- a(X), 10 = Y, Y = Z, 8 + W = 12 + 14.
             )",
             sym, e, d);
     AstProgram& program = *tu->getProgram();
@@ -48,38 +50,6 @@ TEST(Ast, CloneAndEquals) {
     EXPECT_NE(clone, &program);
     EXPECT_EQ(*clone, program);
     delete clone;
-}
-
-TEST(AstUtils, Const) {
-    // TODO: add test for records
-
-    SymbolTable sym;
-    ErrorReport e;
-    DebugReport d;
-    // load some test program
-    std::unique_ptr<AstTranslationUnit> tu = ParserDriver::parseTranslationUnit(
-            R"(
-                 .decl r(a:number,b:number,c:number,d:number)
-                 r(X,Y,Z,W) :- a(X), 10 = Y, Y = Z, 8 + W = 12 + 14. 
-            )",
-            sym, e, d);
-
-    AstProgram& program = *tu->getProgram();
-
-    AstClause* clause = program.getRelation("r")->getClause(0);
-
-    // check construction
-    EXPECT_EQ("r(X,Y,Z,W) :- \n   a(X),\n   10 = Y,\n   Y = Z,\n   (8+W) = (12+14).", toString(*clause));
-
-    // obtain analyse constness
-    auto isConst = getConstTerms(*clause);
-
-    // check selected sub-terms
-    auto head = clause->getHead();
-    EXPECT_FALSE(isConst[head->getArgument(0)]);  // X
-    EXPECT_TRUE(isConst[head->getArgument(1)]);   // Y
-    EXPECT_TRUE(isConst[head->getArgument(2)]);   // Z
-    EXPECT_TRUE(isConst[head->getArgument(3)]);   // W
 }
 
 TEST(AstUtils, Grounded) {
@@ -140,7 +110,7 @@ TEST(AstUtils, GroundedRecords) {
                  .decl r ( r : R )
                  .decl s ( r : N )
 
-                 s(x) :- r([x,y]). 
+                 s(x) :- r([x,y]).
 
             )",
             sym, e, d);
@@ -180,7 +150,7 @@ TEST(AstUtils, SimpleTypes) {
                  .decl a ( x : A )
                  .decl b ( x : B )
                  .decl u ( x : U )
-                 
+
                  a(X) :- u(X).
                  b(X) :- u(X).
                  u(X) :- u(X).
@@ -227,7 +197,7 @@ TEST(AstUtils, NumericTypes) {
                  .decl a ( x : A )
                  .decl b ( x : B )
                  .decl u ( x : U )
-                 
+
                  a(X) :- X < 10.
                  b(X) :- X < 10.
                  u(X) :- X < 10.
@@ -262,11 +232,11 @@ TEST(AstUtils, SubtypeChain) {
                 .type C = D
                 .type B = C
                 .type A = B
-            
+
                 .decl R1(x:A,y:B)
                 .decl R2(x:C,y:D)
                 .decl R4(x:A) output
-            
+
                 R4(x) :- R2(x,x),R1(x,x).
             )",
             sym, e, d);
@@ -311,7 +281,7 @@ TEST(AstUtils, FactTypes) {
                  .decl a ( x : A )
                  .decl b ( x : B )
                  .decl u ( x : U )
-                 
+
                  a("Hello").
                  b(10).
                  u("World").
@@ -344,7 +314,7 @@ TEST(AstUtils, NestedFunctions) {
             R"(
                 .type D
                 .decl r(x:D)
-            
+
                 r(x) :- r(y), x=cat(cat(x,x),x).
             )",
             sym, e, d);
@@ -439,7 +409,7 @@ TEST(AstUtils, ResolveGroundedAliases) {
     EXPECT_EQ("p(a,b) :- \n   p(x,y),\n   r = [x,y],\n   s = r,\n   s = [w,v],\n   [w,v] = [a,b].",
             toString(*program.getRelation("p")->getClause(0)));
 
-    ResolveAliasesTransformer::resolveAliases(program);
+    std::make_unique<ResolveAliasesTransformer>()->apply(*tu);
 
     EXPECT_EQ("p(x,y) :- \n   p(x,y).", toString(*program.getRelation("p")->getClause(0)));
 }
@@ -463,11 +433,9 @@ TEST(AstUtils, ResolveAliasesWithTermsInAtoms) {
     EXPECT_EQ("p(x,c) :- \n   p(x,b),\n   p(b,c),\n   c = (b+1),\n   x = (c+2).",
             toString(*program.getRelation("p")->getClause(0)));
 
-    ResolveAliasesTransformer::resolveAliases(program);
+    std::make_unique<ResolveAliasesTransformer>()->apply(*tu);
 
-    EXPECT_EQ(
-            "p(((b+1)+2),(b+1)) :- \n   p( _tmp_0,b),\n   p(b, _tmp_1),\n    _tmp_0 = ((b+1)+2),\n    _tmp_1 "
-            "= (b+1).",
+    EXPECT_EQ("p(x,c) :- \n   p(x,b),\n   p(b,c),\n   c = (b+1),\n   x = (c+2).",
             toString(*program.getRelation("p")->getClause(0)));
 }
 
@@ -497,7 +465,7 @@ TEST(AstUtils, RemoveRelationCopies) {
 
     EXPECT_EQ(4, program.getRelations().size());
 
-    RemoveRelationCopiesTransformer::removeRelationCopies(program);
+    RemoveRelationCopiesTransformer::removeRelationCopies(*tu);
 
     EXPECT_EQ(2, program.getRelations().size());
 }
@@ -528,7 +496,7 @@ TEST(AstUtils, RemoveRelationCopiesOutput) {
 
     EXPECT_EQ(4, program.getRelations().size());
 
-    RemoveRelationCopiesTransformer::removeRelationCopies(program);
+    RemoveRelationCopiesTransformer::removeRelationCopies(*tu);
 
     EXPECT_EQ(3, program.getRelations().size());
 }

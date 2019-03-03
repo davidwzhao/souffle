@@ -35,6 +35,17 @@ std::vector<const AstVariable*> getVariables(const AstNode* root) {
     return getVariables(*root);
 }
 
+std::vector<const AstRecordInit*> getRecords(const AstNode& root) {
+    // simply collect the list of all records by visiting all records
+    std::vector<const AstRecordInit*> recs;
+    visitDepthFirst(root, [&](const AstRecordInit& rec) { recs.push_back(&rec); });
+    return recs;
+}
+
+std::vector<const AstRecordInit*> getRecords(const AstNode* root) {
+    return getRecords(*root);
+}
+
 const AstRelation* getAtomRelation(const AstAtom* atom, const AstProgram* program) {
     return program->getRelation(atom->getName());
 }

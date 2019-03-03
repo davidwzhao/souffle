@@ -63,7 +63,11 @@ souffle_sources = \
               AstComponent.h                            \
               AstComponentChecker.cpp                   \
               AstComponentChecker.h                     \
-              AstIODirective.h                          \
+              AstConstraintAnalysis.h                   \
+              AstFunctorDeclaration.h                   \
+              AstGroundAnalysis.cpp AstGroundAnalysis.h \
+              AstIO.h                                   \
+              AstIOTypeAnalysis.cpp AstIOTypeAnalysis.h \
               AstLiteral.h                              \
               AstNode.h                                 \
               AstParserUtils.cpp    AstParserUtils.h    \
@@ -80,14 +84,17 @@ souffle_sources = \
               AstTranslator.cpp     AstTranslator.h     \
               AstType.h                                 \
               AstTypeAnalysis.cpp   AstTypeAnalysis.h   \
+              AstTypeEnvironmentAnalysis.cpp            \
+              AstTypeEnvironmentAnalysis.h              \
+              AstTypes.h                                \
               AstUtils.cpp          AstUtils.h          \
               AstVisitor.h                              \
               BinaryConstraintOps.h                     \
-              BinaryFunctorOps.h                        \
               ComponentModel.cpp    ComponentModel.h    \
               Constraints.h                             \
               DebugReport.cpp       DebugReport.h       \
               EventProcessor.h                          \
+              FunctorOps.h                              \
               Global.cpp            Global.h            \
               GraphUtils.h                              \
               IODirectives.h                            \
@@ -108,6 +115,13 @@ souffle_sources = \
               ProfileEvent.h                            \
               ProvenanceTransformer.cpp                 \
               RamAnalysis.h                             \
+              RamConstValue.cpp RamConstValue.h         \
+              RamExistenceCheckAnalysis.cpp RamExistenceCheckAnalysis.h \
+              RamProvenanceExistenceCheckAnalysis.cpp RamProvenanceExistenceCheckAnalysis.h \
+              RamIndexScanKeys.cpp  RamIndexScanKeys.h  \
+              RamConditionLevel.cpp RamConditionLevel.h \
+              RamOperationDepth.cpp RamOperationDepth.h \
+              RamValueLevel.cpp RamValueLevel.h         \
               RamCondition.h                            \
               RamNode.h                                 \
               RamOperation.cpp      RamOperation.h      \
@@ -116,19 +130,22 @@ souffle_sources = \
               RamSemanticChecker.h                      \
               RamStatement.h                            \
               RamTransformer.cpp    RamTransformer.h    \
+              RamTransforms.cpp     RamTransforms.h     \
               RamTranslationUnit.h                      \
               RamValue.h                                \
               RamVisitor.h                              \
               ReadStream.h                              \
               ReadStreamCSV.h                           \
+              RelationRepresentation.h                  \
+              ReorderLiteralsTransformer.cpp            \
+              ResolveAliasesTransformer.cpp             \
               SignalHandler.h                           \
               SrcLocation.cpp    SrcLocation.h          \
               StringPool.h                              \
               Synthesiser.cpp       Synthesiser.h       \
-              SynthesiserRelation.cpp SynthesiserRelation.h \
-              TernaryFunctorOps.h                       \
+              SynthesiserRelation.cpp                   \
+              SynthesiserRelation.h                     \
               TypeSystem.cpp        TypeSystem.h        \
-              UnaryFunctorOps.h                         \
               WriteStream.h                             \
               WriteStreamCSV.h                          \
               parser.cc             parser.hh           \
@@ -141,8 +158,8 @@ souffle_sources = \
 # -- build souffle as a library so it can be reused in testing
 noinst_LTLIBRARIES = libsouffle.la
 libsouffle_la_SOURCES  = $(souffle_sources)
-libsouffle_la_CXXFLAGS = $(souffle_CPPFLAGS)
-libsouffle_la_LDFLAGS = --static --dlopen --pic
+libsouffle_la_CXXFLAGS = $(souffle_CPPFLAGS) $(FFI_CFLAGS)
+libsouffle_la_LDFLAGS = --static --dlopen --pic -ldl -lffi
 
 souffle_SOURCES = main.cpp
 souffle_LDADD = libsouffle.la
@@ -164,10 +181,8 @@ soufflepublicdir = $(includedir)/souffle
 
 soufflepublic_HEADERS = \
 						CompiledOptions.h       \
-                        AstTypes.h              \
+                        Brie.h                  \
                         BTree.h                 \
-                        BinaryRelation.h        \
-                        BlockList.h             \
                         CompiledIndexUtils.h    \
                         CompiledRecord.h        \
                         CompiledRelation.h      \
@@ -178,11 +193,14 @@ soufflepublic_HEADERS = \
                         ExplainProvenance.h     \
                         ExplainProvenanceSLD.h  \
                         ExplainTree.h           \
+                        EquivalenceRelation.h 	\
                         IODirectives.h          \
                         IOSystem.h              \
                         IterUtils.h             \
+                        LambdaBTree.h           \
                         Logger.h                \
                         ParallelUtils.h         \
+                        PiggyList.h             \
                         ProfileDatabase.h       \
                         ProfileEvent.h          \
                         RamTypes.h              \
@@ -193,12 +211,10 @@ soufflepublic_HEADERS = \
                         SymbolMask.h            \
                         SymbolTable.h           \
                         Table.h                 \
-                        Trie.h                  \
                         UnionFind.h             \
                         Util.h                  \
                         WriteStream.h           \
                         WriteStreamCSV.h        \
-                        htmx86.h                \
                         json11.h                \
                         $(libz_sources)         \
                         $(sqlite_sources)       \
@@ -213,7 +229,7 @@ CLEANFILES = $(BUILT_SOURCES)  parser.cc scanner.cc parser.hh stack.hh
 
 # run Bison
 $(builddir)/parser.hh: $(srcdir)/parser.yy
-	$(BISON) -Wall -Werror -v -d -o parser.cc $(srcdir)/parser.yy
+	$(BISON) -Wall -Werror -Wno-error=deprecated -Wno-error=other -v -d -o parser.cc $(srcdir)/parser.yy
 
 # and FLEX
 $(builddir)/scanner.cc: $(srcdir)/scanner.ll
@@ -268,6 +284,12 @@ check_PROGRAMS += test/binary_relation_test
 test_binary_relation_test_CXXFLAGS = $(souffle_CPPFLAGS) -I @abs_top_srcdir@/src/test
 test_binary_relation_test_SOURCES = test/binary_relation_test.cpp
 test_binary_relation_test_LDADD = libsouffle.la
+
+# pnappa's good ol fashioned data structure tests (auxilliary structures to binrel, and potentially useful outside)
+check_PROGRAMS += test/eqrel_datastructure_test
+test_eqrel_datastructure_test_CXXFLAGS = $(souffle_CPPFLAGS) -I @abs_top_srcdir@/src/test
+test_eqrel_datastructure_test_SOURCES = test/eqrel_datastructure_test.cpp
+test_eqrel_datastructure_test_LDADD = libsouffle.la
 
 # compiled ram tuple test
 check_PROGRAMS += test/compiled_tuple_test
@@ -330,10 +352,10 @@ test_graph_utils_test_SOURCES = test/graph_utils_test.cpp
 test_graph_utils_test_LDADD = libsouffle.la
 
 # trie implementation
-check_PROGRAMS += test/trie_test
-test_trie_test_CXXFLAGS = $(souffle_bin_CPPFLAGS) -I @abs_top_srcdir@/src/test -DBUILDDIR='"@abs_top_builddir@/src/"'
-test_trie_test_SOURCES = test/trie_test.cpp
-test_trie_test_LDADD = libsouffle.la
+check_PROGRAMS += test/brie_test
+test_brie_test_CXXFLAGS = $(souffle_bin_CPPFLAGS) -I @abs_top_srcdir@/src/test -DBUILDDIR='"@abs_top_builddir@/src/"'
+test_brie_test_SOURCES = test/brie_test.cpp
+test_brie_test_LDADD = libsouffle.la
 
 # parallel utils implementation
 check_PROGRAMS += test/parallel_utils_test

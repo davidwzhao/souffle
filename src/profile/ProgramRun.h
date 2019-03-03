@@ -64,7 +64,7 @@ public:
         if (startTime == endTime) {
             return "--";
         }
-        return formatTime((endTime - startTime).count() / 1000000);
+        return formatTime(endTime - startTime);
     }
 
     std::chrono::microseconds getStarttime() const {
@@ -75,48 +75,48 @@ public:
         return endTime;
     }
 
-    double getTotalLoadtime() const {
-        double result = 0;
+    std::chrono::microseconds getTotalLoadtime() const {
+        std::chrono::microseconds result{0};
         for (auto& item : relationMap) {
             result += item.second->getLoadtime();
         }
         return result;
     }
 
-    double getTotalSavetime() const {
-        double result = 0;
+    std::chrono::microseconds getTotalSavetime() const {
+        std::chrono::microseconds result{0};
         for (auto& item : relationMap) {
             result += item.second->getSavetime();
         }
         return result;
     }
 
-    long getTotalSize() const {
-        long result = 0;
+    size_t getTotalSize() const {
+        size_t result = 0;
         for (auto& item : relationMap) {
             result += item.second->size();
         }
         return result;
     }
 
-    long getTotalRecursiveSize() const {
-        long result = 0;
+    size_t getTotalRecursiveSize() const {
+        size_t result = 0;
         for (auto& item : relationMap) {
             result += item.second->getTotalRecursiveRuleSize();
         }
         return result;
     }
 
-    double getTotalCopyTime() const {
-        double result = 0;
+    std::chrono::microseconds getTotalCopyTime() const {
+        std::chrono::microseconds result{0};
         for (auto& item : relationMap) {
             result += item.second->getCopyTime();
         }
         return result;
     }
 
-    double getTotalTime() const {
-        double result = 0;
+    std::chrono::microseconds getTotalTime() const {
+        std::chrono::microseconds result{0};
         for (auto& item : relationMap) {
             result += item.second->getRecTime();
         }
@@ -130,7 +130,8 @@ public:
         return nullptr;
     }
 
-    std::set<std::shared_ptr<Relation>> getRelationsAtTime(double start, double end) const {
+    std::set<std::shared_ptr<Relation>> getRelationsAtTime(
+            std::chrono::microseconds start, std::chrono::microseconds end) const {
         std::set<std::shared_ptr<Relation>> result;
         for (auto& cur : relationMap) {
             if (cur.second->getStarttime() <= end && cur.second->getEndtime() >= start) {
@@ -140,7 +141,7 @@ public:
         return result;
     }
 
-    inline std::string formatTime(double runtime) const {
+    inline std::string formatTime(std::chrono::microseconds runtime) const {
         return Tools::formatTime(runtime);
     }
 

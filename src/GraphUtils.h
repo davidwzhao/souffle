@@ -27,11 +27,6 @@ namespace souffle {
  */
 template <typename Vertex, typename Compare = std::less<Vertex>>
 class Graph {
-    // not a very efficient but simple graph representation
-    std::set<Vertex, Compare> _vertices;                        // all the vertices in the graph
-    std::map<Vertex, std::set<Vertex, Compare>> _successors;    // all edges forward directed
-    std::map<Vertex, std::set<Vertex, Compare>> _predecessors;  // all edges backward
-
 public:
     /**
      * Adds a new edge from the given vertex to the target vertex.
@@ -144,6 +139,11 @@ public:
     }
 
 private:
+    // not a very efficient but simple graph representation
+    std::set<Vertex, Compare> _vertices;                        // all the vertices in the graph
+    std::map<Vertex, std::set<Vertex, Compare>> _successors;    // all edges forward directed
+    std::map<Vertex, std::set<Vertex, Compare>> _predecessors;  // all edges backward
+
     /** The internal implementation of depth-first visits */
     template <typename Lambda>
     void visitDepthFirst(

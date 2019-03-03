@@ -48,6 +48,56 @@ inline std::vector<std::string> split(const std::string& s, char delim, int time
 }
 
 class ExplainProvenance {
+public:
+    ExplainProvenance(SouffleProgram& prog) : prog(prog) {}
+    virtual ~ExplainProvenance() = default;
+
+    virtual void setup() = 0;
+
+    virtual std::unique_ptr<TreeNode> explain(
+            std::string relName, std::vector<std::string> tuple, size_t depthLimit) = 0;
+
+    virtual std::unique_ptr<TreeNode> explainSubproof(
+            std::string relName, RamDomain label, size_t depthLimit) = 0;
+
+    virtual std::string getRule(std::string relName, size_t ruleNum) = 0;
+
+    virtual std::string measureRelation(std::string relName) = 0;
+
+    virtual void printRulesJSON(std::ostream& os) = 0;
+
+    virtual std::string getRelationOutput(const std::string& relName) {
+        auto rel = prog.getRelation(relName);
+        if (rel == nullptr) {
+            return "Relation " + relName + " not found\n";
+        }
+
+        // create symbol mask
+        SymbolMask symMask(rel->getArity());
+
+        for (size_t i = 0; i < rel->getArity(); i++) {
+            if (*(rel->getAttrType(i)) == 's') {
+                symMask.setSymbol(i);
+            }
+        }
+
+        // create IODirectives
+        IODirectives dir;
+        dir.setRelationName(relName);
+
+        // redirect cout to stringstream
+        std::stringstream out;
+        auto originalCoutBuf = std::cout.rdbuf(out.rdbuf());
+
+        // print relation
+        printRelationOutput(symMask, dir, *rel);
+
+        // restore original cout buffer
+        std::cout.rdbuf(originalCoutBuf);
+
+        return out.str();
+    }
+
 protected:
     SouffleProgram& prog;
 
@@ -100,56 +150,6 @@ protected:
 
     virtual void printRelationOutput(
             const SymbolMask& symMask, const IODirectives& ioDir, const Relation& rel) = 0;
-
-public:
-    ExplainProvenance(SouffleProgram& prog) : prog(prog) {}
-    virtual ~ExplainProvenance() = default;
-
-    virtual void setup() = 0;
-
-    virtual std::unique_ptr<TreeNode> explain(
-            std::string relName, std::vector<std::string> tuple, size_t depthLimit) = 0;
-
-    virtual std::unique_ptr<TreeNode> explainSubproof(
-            std::string relName, RamDomain label, size_t depthLimit) = 0;
-
-    virtual std::string getRule(std::string relName, size_t ruleNum) = 0;
-
-    virtual std::string measureRelation(std::string relName) = 0;
-
-    virtual void printRulesJSON(std::ostream& os) = 0;
-
-    virtual std::string getRelationOutput(const std::string& relName) {
-        auto rel = prog.getRelation(relName);
-        if (rel == nullptr) {
-            return "Relation " + relName + " not found\n";
-        }
-
-        // create symbol mask
-        SymbolMask symMask(rel->getArity());
-
-        for (size_t i = 0; i < rel->getArity(); i++) {
-            if (*(rel->getAttrType(i)) == 's') {
-                symMask.setSymbol(i);
-            }
-        }
-
-        // create IODirectives
-        IODirectives dir;
-        dir.setRelationName(relName);
-
-        // redirect cout to stringstream
-        std::stringstream out;
-        auto originalCoutBuf = std::cout.rdbuf(out.rdbuf());
-
-        // print relation
-        printRelationOutput(symMask, dir, *rel);
-
-        // restore original cout buffer
-        std::cout.rdbuf(originalCoutBuf);
-
-        return out.str();
-    }
 };
 
 }  // end of namespace souffle

@@ -6,7 +6,7 @@
 set -e
 set -x
 
-make install
+make -j2 install
 
 #generate a simple program
 A=".decl A()

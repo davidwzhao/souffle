@@ -26,12 +26,6 @@ namespace souffle {
 /* A simple table class, to be used as a base for others to extend from. */
 template <typename K, typename V>
 class BaseTable {
-private:
-    /* Default object made by empty constructor to return by reference. */
-    const V _default;
-    /* The raw data backing this table. */
-    std::map<K, V> _data;
-
 public:
     /* Empty constructor. */
     BaseTable() : _default(V()), _data(std::map<K, V>()) {}
@@ -86,6 +80,12 @@ public:
     void print(std::ostream& os) {
         os << _data << std::endl;
     }
+
+private:
+    /* Default object made by empty constructor to return by reference. */
+    const V _default;
+    /* The raw data backing this table. */
+    std::map<K, V> _data;
 };
 
 /* Struct to represent an option given to the main function by command line arguments. */
@@ -105,10 +105,6 @@ struct MainOption {
 
 /* The MainConfig class, used to handle the global configuration and the help text. */
 class MainConfig : public BaseTable<std::string, std::string> {
-private:
-    /* The help text, printed if there is an error in the command line arguments. */
-    std::string _help;
-
 public:
     /* Empty constructor, does nothing. */
     MainConfig() : BaseTable<std::string, std::string>() {}
@@ -121,15 +117,15 @@ public:
     const std::string& help() const {
         return _help;
     }
+
+private:
+    /* The help text, printed if there is an error in the command line arguments. */
+    std::string _help;
 };
 
 /* The global class. Currently used to provide a singleton instance of the global config. This class may be
  * used to isolate all globals. */
 class Global {
-private:
-    /* Private empty constructor, there is only one global instance. */
-    Global() = default;
-
 public:
     /* Deleted copy constructor. */
     Global(const Global&) = delete;
@@ -140,5 +136,9 @@ public:
         static MainConfig _config;
         return _config;
     }
+
+private:
+    /* Private empty constructor, there is only one global instance. */
+    Global() = default;
 };
 }  // namespace souffle

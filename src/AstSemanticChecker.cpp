@@ -18,7 +18,9 @@
 #include "AstArgument.h"
 #include "AstAttribute.h"
 #include "AstClause.h"
-#include "AstIODirective.h"
+#include "AstFunctorDeclaration.h"
+#include "AstGroundAnalysis.h"
+#include "AstIO.h"
 #include "AstLiteral.h"
 #include "AstNode.h"
 #include "AstProgram.h"
@@ -27,6 +29,7 @@
 #include "AstTranslationUnit.h"
 #include "AstType.h"
 #include "AstTypeAnalysis.h"
+#include "AstTypeEnvironmentAnalysis.h"
 #include "AstTypes.h"
 #include "AstUtils.h"
 #include "AstVisitor.h"
@@ -35,9 +38,11 @@
 #include "Global.h"
 #include "GraphUtils.h"
 #include "PrecedenceGraph.h"
+#include "RelationRepresentation.h"
 #include "SrcLocation.h"
 #include "TypeSystem.h"
 #include "Util.h"
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <iostream>
@@ -56,14 +61,17 @@ bool AstSemanticChecker::transform(AstTranslationUnit& translationUnit) {
     auto* typeAnalysis = translationUnit.getAnalysis<TypeAnalysis>();
     auto* precedenceGraph = translationUnit.getAnalysis<PrecedenceGraph>();
     auto* recursiveClauses = translationUnit.getAnalysis<RecursiveClauses>();
+    auto* ioTypes = translationUnit.getAnalysis<IOType>();
+
     checkProgram(translationUnit.getErrorReport(), *translationUnit.getProgram(), typeEnv, *typeAnalysis,
-            *precedenceGraph, *recursiveClauses);
+            *precedenceGraph, *recursiveClauses, *ioTypes);
     return false;
 }
 
 void AstSemanticChecker::checkProgram(ErrorReport& report, const AstProgram& program,
         const TypeEnvironment& typeEnv, const TypeAnalysis& typeAnalysis,
-        const PrecedenceGraph& precedenceGraph, const RecursiveClauses& recursiveClauses) {
+        const PrecedenceGraph& precedenceGraph, const RecursiveClauses& recursiveClauses,
+        const IOType& ioTypes) {
     // suppress warnings for given relations
     if (Global::config().has("suppress-warnings")) {
         std::vector<std::string> suppressedRelations =
@@ -98,11 +106,11 @@ void AstSemanticChecker::checkProgram(ErrorReport& report, const AstProgram& pro
     // -- conduct checks --
     // TODO: re-write to use visitors
     checkTypes(report, program);
-    checkRules(report, typeEnv, program, recursiveClauses);
+    checkRules(report, typeEnv, program, recursiveClauses, ioTypes);
     checkNamespaces(report, program);
     checkIODirectives(report, program);
     checkWitnessProblem(report, program);
-    checkInlining(report, program, precedenceGraph);
+    checkInlining(report, program, precedenceGraph, ioTypes);
 
     // get the list of components to be checked
     std::vector<const AstNode*> nodes;
@@ -112,7 +120,7 @@ void AstSemanticChecker::checkProgram(ErrorReport& report, const AstProgram& pro
         }
     }
 
-    // -- check grounded variables --
+    // -- check grounded variables and records --
     visitDepthFirst(nodes, [&](const AstClause& clause) {
         // only interested in rules
         if (clause.isFact()) {
@@ -127,6 +135,13 @@ void AstSemanticChecker::checkProgram(ErrorReport& report, const AstProgram& pro
         for (const AstVariable* cur : getVariables(clause)) {
             if (!isGrounded[cur] && reportedVars.insert(cur->getName()).second) {
                 report.addError("Ungrounded variable " + cur->getName(), cur->getSrcLoc());
+            }
+        }
+
+        // all records need to be grounded
+        for (const AstRecordInit* cur : getRecords(clause)) {
+            if (!isGrounded[cur]) {
+                report.addError("Ungrounded record", cur->getSrcLoc());
             }
         }
     });
@@ -189,94 +204,56 @@ void AstSemanticChecker::checkProgram(ErrorReport& report, const AstProgram& pro
         }
     });
 
-    // - unary functors -
-    visitDepthFirst(nodes, [&](const AstUnaryFunctor& fun) {
-        // check arg
-        auto arg = fun.getOperand();
-
-        // check appropriate use use of a numeric functor
+    // - intrinsic functors -
+    visitDepthFirst(nodes, [&](const AstIntrinsicFunctor& fun) {
+        // check type of result
         if (fun.isNumerical() && !isNumberType(typeAnalysis.getTypes(&fun))) {
             report.addError("Non-numeric use for numeric functor", fun.getSrcLoc());
         }
 
-        // check argument type of a numeric functor
-        if (fun.acceptsNumbers() && !isNumberType(typeAnalysis.getTypes(arg))) {
-            report.addError("Non-numeric argument for numeric functor", arg->getSrcLoc());
-        }
-
-        // check symbolic operators
         if (fun.isSymbolic() && !isSymbolType(typeAnalysis.getTypes(&fun))) {
             report.addError("Non-symbolic use for symbolic functor", fun.getSrcLoc());
         }
 
-        // check symbolic operands
-        if (fun.acceptsSymbols() && !isSymbolType(typeAnalysis.getTypes(arg))) {
-            report.addError("Non-symbolic argument for symbolic functor", arg->getSrcLoc());
+        // check types of arguments
+        for (size_t i = 0; i < fun.getArity(); i++) {
+            auto arg = fun.getArg(i);
+            if (fun.acceptsNumbers(i) && !isNumberType(typeAnalysis.getTypes(arg))) {
+                report.addError("Non-numeric argument for functor", arg->getSrcLoc());
+            }
+            if (fun.acceptsSymbols(i) && !isSymbolType(typeAnalysis.getTypes(arg))) {
+                report.addError("Non-symbolic argument for functor", arg->getSrcLoc());
+            }
         }
     });
 
-    // - binary functors -
-    visitDepthFirst(nodes, [&](const AstBinaryFunctor& fun) {
-        // check left and right side
-        auto lhs = fun.getLHS();
-        auto rhs = fun.getRHS();
-
-        // check numeric types of result, first and second argument
-        if (fun.isNumerical() && !isNumberType(typeAnalysis.getTypes(&fun))) {
-            report.addError("Non-numeric use for numeric functor", fun.getSrcLoc());
-        }
-        if (fun.acceptsNumbers(0) && !isNumberType(typeAnalysis.getTypes(lhs))) {
-            report.addError("Non-numeric first argument for functor", lhs->getSrcLoc());
-        }
-        if (fun.acceptsNumbers(1) && !isNumberType(typeAnalysis.getTypes(rhs))) {
-            report.addError("Non-numeric second argument for functor", rhs->getSrcLoc());
-        }
-
-        // check symbolic types of result, first and second argument
-        if (fun.isSymbolic() && !isSymbolType(typeAnalysis.getTypes(&fun))) {
-            report.addError("Non-symbolic use for symbolic functor", fun.getSrcLoc());
-        }
-        if (fun.acceptsSymbols(0) && !isSymbolType(typeAnalysis.getTypes(lhs))) {
-            report.addError("Non-symbolic first argument for functor", lhs->getSrcLoc());
-        }
-        if (fun.acceptsSymbols(1) && !isSymbolType(typeAnalysis.getTypes(rhs))) {
-            report.addError("Non-symbolic second argument for functor", rhs->getSrcLoc());
-        }
-    });
-
-    // - ternary functors -
-    visitDepthFirst(nodes, [&](const AstTernaryFunctor& fun) {
-        // check left and right side
-        auto a0 = fun.getArg(0);
-        auto a1 = fun.getArg(1);
-        auto a2 = fun.getArg(2);
-
-        // check numeric types of result, first and second argument
-        if (fun.isNumerical() && !isNumberType(typeAnalysis.getTypes(&fun))) {
-            report.addError("Non-numeric use for numeric functor", fun.getSrcLoc());
-        }
-        if (fun.acceptsNumbers(0) && !isNumberType(typeAnalysis.getTypes(a0))) {
-            report.addError("Non-numeric first argument for functor", a0->getSrcLoc());
-        }
-        if (fun.acceptsNumbers(1) && !isNumberType(typeAnalysis.getTypes(a1))) {
-            report.addError("Non-numeric second argument for functor", a1->getSrcLoc());
-        }
-        if (fun.acceptsNumbers(2) && !isNumberType(typeAnalysis.getTypes(a2))) {
-            report.addError("Non-numeric third argument for functor", a2->getSrcLoc());
-        }
-
-        // check symbolic types of result, first and second argument
-        if (fun.isSymbolic() && !isSymbolType(typeAnalysis.getTypes(&fun))) {
-            report.addError("Non-symbolic use for symbolic functor", fun.getSrcLoc());
-        }
-        if (fun.acceptsSymbols(0) && !isSymbolType(typeAnalysis.getTypes(a0))) {
-            report.addError("Non-symbolic first argument for functor", a0->getSrcLoc());
-        }
-        if (fun.acceptsSymbols(1) && !isSymbolType(typeAnalysis.getTypes(a1))) {
-            report.addError("Non-symbolic second argument for functor", a1->getSrcLoc());
-        }
-        if (fun.acceptsSymbols(2) && !isSymbolType(typeAnalysis.getTypes(a2))) {
-            report.addError("Non-symbolic third argument for functor", a2->getSrcLoc());
+    // - user-defined functors -
+    visitDepthFirst(nodes, [&](const AstUserDefinedFunctor& fun) {
+        const AstFunctorDeclaration* funDecl = program.getFunctorDeclaration(fun.getName());
+        if (funDecl == nullptr) {
+            report.addError("User-defined functor hasn't been declared", fun.getSrcLoc());
+        } else {
+            if (funDecl->getArgCount() != fun.getArgCount()) {
+                report.addError("Mismatching number of arguments of functor", fun.getSrcLoc());
+            }
+            // check return values of user-defined functor
+            if (funDecl->isNumerical() && !isNumberType(typeAnalysis.getTypes(&fun))) {
+                report.addError("Non-numeric use for numeric functor", fun.getSrcLoc());
+            }
+            if (funDecl->isSymbolic() && !isSymbolType(typeAnalysis.getTypes(&fun))) {
+                report.addError("Non-symbolic use for symbolic functor", fun.getSrcLoc());
+            }
+            for (size_t i = 0; i < fun.getArgCount(); i++) {
+                const AstArgument* arg = fun.getArg(i);
+                if (i < funDecl->getArgCount()) {
+                    if (funDecl->acceptsNumbers(i) && !isNumberType(typeAnalysis.getTypes(arg))) {
+                        report.addError("Non-numeric argument for functor", arg->getSrcLoc());
+                    }
+                    if (funDecl->acceptsSymbols(i) && !isSymbolType(typeAnalysis.getTypes(arg))) {
+                        report.addError("Non-symbolic argument for functor", arg->getSrcLoc());
+                    }
+                }
+            }
         }
     });
 
@@ -360,6 +337,7 @@ void AstSemanticChecker::checkAtom(ErrorReport& report, const AstProgram& progra
 }
 
 /* Check whether an unnamed variable occurs in an argument (expression) */
+// TODO (azreika): use a visitor instead
 static bool hasUnnamedVariable(const AstArgument* arg) {
     if (dynamic_cast<const AstUnnamedVariable*>(arg)) {
         return true;
@@ -373,15 +351,11 @@ static bool hasUnnamedVariable(const AstArgument* arg) {
     if (dynamic_cast<const AstCounter*>(arg)) {
         return false;
     }
-    if (const auto* uf = dynamic_cast<const AstUnaryFunctor*>(arg)) {
-        return hasUnnamedVariable(uf->getOperand());
+    if (const auto* inf = dynamic_cast<const AstIntrinsicFunctor*>(arg)) {
+        return any_of(inf->getArguments(), (bool (*)(const AstArgument*))hasUnnamedVariable);
     }
-    if (const auto* bf = dynamic_cast<const AstBinaryFunctor*>(arg)) {
-        return hasUnnamedVariable(bf->getLHS()) || hasUnnamedVariable(bf->getRHS());
-    }
-    if (const auto* tf = dynamic_cast<const AstTernaryFunctor*>(arg)) {
-        return hasUnnamedVariable(tf->getArg(0)) || hasUnnamedVariable(tf->getArg(1)) ||
-               hasUnnamedVariable(tf->getArg(2));
+    if (const auto* udf = dynamic_cast<const AstUserDefinedFunctor*>(arg)) {
+        return any_of(udf->getArguments(), (bool (*)(const AstArgument*))hasUnnamedVariable);
     }
     if (const auto* ri = dynamic_cast<const AstRecordInit*>(arg)) {
         return any_of(ri->getArguments(), (bool (*)(const AstArgument*))hasUnnamedVariable);
@@ -452,15 +426,14 @@ void AstSemanticChecker::checkArgument(
         ErrorReport& report, const AstProgram& program, const AstArgument& arg) {
     if (const auto* agg = dynamic_cast<const AstAggregator*>(&arg)) {
         checkAggregator(report, program, *agg);
-    } else if (const auto* unaryFunc = dynamic_cast<const AstUnaryFunctor*>(&arg)) {
-        checkArgument(report, program, *unaryFunc->getOperand());
-    } else if (const auto* binFunc = dynamic_cast<const AstBinaryFunctor*>(&arg)) {
-        checkArgument(report, program, *binFunc->getLHS());
-        checkArgument(report, program, *binFunc->getRHS());
-    } else if (const auto* ternFunc = dynamic_cast<const AstTernaryFunctor*>(&arg)) {
-        checkArgument(report, program, *ternFunc->getArg(0));
-        checkArgument(report, program, *ternFunc->getArg(1));
-        checkArgument(report, program, *ternFunc->getArg(2));
+    } else if (const auto* intrFunc = dynamic_cast<const AstIntrinsicFunctor*>(&arg)) {
+        for (size_t i = 0; i < intrFunc->getArity(); i++) {
+            checkArgument(report, program, *intrFunc->getArg(i));
+        }
+    } else if (const auto* userDefFunc = dynamic_cast<const AstUserDefinedFunctor*>(&arg)) {
+        for (size_t i = 0; i < userDefFunc->getArgCount(); i++) {
+            checkArgument(report, program, *userDefFunc->getArg(i));
+        }
     }
 }
 
@@ -468,37 +441,35 @@ static bool isConstantArithExpr(const AstArgument& argument) {
     if (dynamic_cast<const AstNumberConstant*>(&argument)) {
         return true;
     }
-    if (const auto* unOp = dynamic_cast<const AstUnaryFunctor*>(&argument)) {
-        return unOp->isNumerical() && isConstantArithExpr(*unOp->getOperand());
-    }
-    if (const auto* binOp = dynamic_cast<const AstBinaryFunctor*>(&argument)) {
-        return binOp->isNumerical() && isConstantArithExpr(*binOp->getLHS()) &&
-               isConstantArithExpr(*binOp->getRHS());
-    }
-    if (const auto* ternOp = dynamic_cast<const AstTernaryFunctor*>(&argument)) {
-        return ternOp->isNumerical() && isConstantArithExpr(*ternOp->getArg(0)) &&
-               isConstantArithExpr(*ternOp->getArg(1)) && isConstantArithExpr(*ternOp->getArg(2));
+    if (const auto* inf = dynamic_cast<const AstIntrinsicFunctor*>(&argument)) {
+        if (!inf->isNumerical()) {
+            return false;
+        }
+
+        for (size_t i = 0; i < inf->getArity(); i++) {
+            if (!isConstantArithExpr(*inf->getArg(i))) {
+                return false;
+            }
+        }
+
+        // numerical intrinsic functor with all-constant arguments
+        return true;
     }
     return false;
 }
 
+// TODO (azreika): refactor this (and isConstantArithExpr); confusing name/setup
 void AstSemanticChecker::checkConstant(ErrorReport& report, const AstArgument& argument) {
     if (const auto* var = dynamic_cast<const AstVariable*>(&argument)) {
         report.addError("Variable " + var->getName() + " in fact", var->getSrcLoc());
     } else if (dynamic_cast<const AstUnnamedVariable*>(&argument)) {
         report.addError("Underscore in fact", argument.getSrcLoc());
-    } else if (dynamic_cast<const AstUnaryFunctor*>(&argument)) {
+    } else if (dynamic_cast<const AstIntrinsicFunctor*>(&argument)) {
         if (!isConstantArithExpr(argument)) {
-            report.addError("Unary function in fact", argument.getSrcLoc());
+            report.addError("Function in fact", argument.getSrcLoc());
         }
-    } else if (dynamic_cast<const AstBinaryFunctor*>(&argument)) {
-        if (!isConstantArithExpr(argument)) {
-            report.addError("Binary function in fact", argument.getSrcLoc());
-        }
-    } else if (dynamic_cast<const AstTernaryFunctor*>(&argument)) {
-        if (!isConstantArithExpr(argument)) {
-            report.addError("Ternary function in fact", argument.getSrcLoc());
-        }
+    } else if (dynamic_cast<const AstUserDefinedFunctor*>(&argument)) {
+        report.addError("User-defined functor in fact", argument.getSrcLoc());
     } else if (dynamic_cast<const AstCounter*>(&argument)) {
         report.addError("Counter in fact", argument.getSrcLoc());
     } else if (dynamic_cast<const AstConstant*>(&argument)) {
@@ -595,7 +566,7 @@ void AstSemanticChecker::checkClause(ErrorReport& report, const AstProgram& prog
 }
 
 void AstSemanticChecker::checkRelationDeclaration(ErrorReport& report, const TypeEnvironment& typeEnv,
-        const AstProgram& program, const AstRelation& relation) {
+        const AstProgram& program, const AstRelation& relation, const IOType& ioTypes) {
     for (size_t i = 0; i < relation.getArity(); i++) {
         AstAttribute* attr = relation.getAttribute(i);
         AstTypeIdentifier typeName = attr->getTypeName();
@@ -623,7 +594,7 @@ void AstSemanticChecker::checkRelationDeclaration(ErrorReport& report, const Typ
                 // TODO (#467) remove the next line to enable subprogram compilation for record types
                 Global::config().unset("engine");
 
-                if (relation.isInput()) {
+                if (ioTypes.isInput(&relation)) {
                     report.addError(
                             "Input relations must not have record types. "
                             "Attribute " +
@@ -631,7 +602,7 @@ void AstSemanticChecker::checkRelationDeclaration(ErrorReport& report, const Typ
                                     toString(attr->getTypeName()),
                             attr->getSrcLoc());
                 }
-                if (relation.isOutput()) {
+                if (ioTypes.isOutput(&relation) && !ioTypes.isPrintSize(&relation)) {
                     report.addWarning(
                             "Record types in output relations are not printed verbatim: attribute " +
                                     attr->getAttributeName() + " has record type " +
@@ -644,8 +615,9 @@ void AstSemanticChecker::checkRelationDeclaration(ErrorReport& report, const Typ
 }
 
 void AstSemanticChecker::checkRelation(ErrorReport& report, const TypeEnvironment& typeEnv,
-        const AstProgram& program, const AstRelation& relation, const RecursiveClauses& recursiveClauses) {
-    if (relation.isEqRel()) {
+        const AstProgram& program, const AstRelation& relation, const RecursiveClauses& recursiveClauses,
+        const IOType& ioTypes) {
+    if (relation.getRepresentation() == RelationRepresentation::EQREL) {
         if (relation.getArity() == 2) {
             if (relation.getAttribute(0)->getTypeName() != relation.getAttribute(1)->getTypeName()) {
                 report.addError(
@@ -659,7 +631,7 @@ void AstSemanticChecker::checkRelation(ErrorReport& report, const TypeEnvironmen
     }
 
     // start with declaration
-    checkRelationDeclaration(report, typeEnv, program, relation);
+    checkRelationDeclaration(report, typeEnv, program, relation, ioTypes);
 
     // check clauses
     for (AstClause* c : relation.getClauses()) {
@@ -667,16 +639,16 @@ void AstSemanticChecker::checkRelation(ErrorReport& report, const TypeEnvironmen
     }
 
     // check whether this relation is empty
-    if (relation.clauseSize() == 0 && !relation.isInput() && !relation.isSuppressed()) {
+    if (relation.clauseSize() == 0 && !ioTypes.isInput(&relation) && !relation.isSuppressed()) {
         report.addWarning(
                 "No rules/facts defined for relation " + toString(relation.getName()), relation.getSrcLoc());
     }
 }
 
 void AstSemanticChecker::checkRules(ErrorReport& report, const TypeEnvironment& typeEnv,
-        const AstProgram& program, const RecursiveClauses& recursiveClauses) {
+        const AstProgram& program, const RecursiveClauses& recursiveClauses, const IOType& ioTypes) {
     for (AstRelation* cur : program.getRelations()) {
-        checkRelation(report, typeEnv, program, *cur, recursiveClauses);
+        checkRelation(report, typeEnv, program, *cur, recursiveClauses, ioTypes);
     }
 
     for (AstClause* cur : program.getOrphanClauses()) {
@@ -686,15 +658,80 @@ void AstSemanticChecker::checkRules(ErrorReport& report, const TypeEnvironment& 
 
 // ----- types --------
 
+// check if a union contains a number primitive
+static bool unionContainsNumber(const AstProgram& program, const AstUnionType& type) {
+    // check if any of the elements of the union are or contain a number primitive
+    for (const AstTypeIdentifier& elemTypeID : type.getTypes()) {
+        if (elemTypeID == "number") {
+            return true;
+        }
+        const AstType* elemType = program.getType(elemTypeID);
+        if (const auto* unionT = dynamic_cast<const AstUnionType*>(elemType)) {
+            if (unionContainsNumber(program, *unionT)) {
+                return true;
+            }
+            // if union does not contain a number, continue looking
+        }
+        if (const auto* primitive = dynamic_cast<const AstPrimitiveType*>(elemType)) {
+            if (primitive->isNumeric()) {
+                return true;
+            }
+            // if this primitive is not numeric, continue looking
+        }
+    }
+    // no elements returned true, so no numbers
+    return false;
+}
+
+// check if a union contains a symbol primitive
+static bool unionContainsSymbol(const AstProgram& program, const AstUnionType& type) {
+    // check if any of the elements of the union are or contain a symbol primitive
+    for (const AstTypeIdentifier& elemTypeID : type.getTypes()) {
+        if (elemTypeID == "symbol") {
+            return true;
+        }
+        const AstType* elemType = program.getType(elemTypeID);
+        if (const auto* unionT = dynamic_cast<const AstUnionType*>(elemType)) {
+            if (unionContainsSymbol(program, *unionT)) {
+                return true;
+            }
+            // if the union does not contain a symbol, continue looking
+        }
+        if (const auto* primitive = dynamic_cast<const AstPrimitiveType*>(elemType)) {
+            if (primitive->isSymbolic()) {
+                return true;
+            }
+            // if this primitive is not a symbol, continue looking
+        }
+    }
+    // no elements returned true, so no symbols
+    return false;
+}
+
 void AstSemanticChecker::checkUnionType(
         ErrorReport& report, const AstProgram& program, const AstUnionType& type) {
-    // check presence of all the element types
+    // check presence of all the element types and that all element types are based off a primitive
     for (const AstTypeIdentifier& sub : type.getTypes()) {
-        if (sub != "number" && sub != "symbol" && !program.getType(sub)) {
-            report.addError("Undefined type " + toString(sub) + " in definition of union type " +
-                                    toString(type.getName()),
-                    type.getSrcLoc());
+        if (sub != "number" && sub != "symbol") {
+            const AstType* subt = program.getType(sub);
+            if (!subt) {
+                report.addError("Undefined type " + toString(sub) + " in definition of union type " +
+                                        toString(type.getName()),
+                        type.getSrcLoc());
+            } else if (!dynamic_cast<const AstUnionType*>(subt) &&
+                       !dynamic_cast<const AstPrimitiveType*>(subt)) {
+                report.addError("Union type " + toString(type.getName()) +
+                                        " contains the non-primitive type " + toString(sub),
+                        type.getSrcLoc());
+            }
         }
+    }
+
+    // check all element types are based on the same primitive
+    if (unionContainsSymbol(program, type) && unionContainsNumber(program, type)) {
+        report.addError(
+                "Union type " + toString(type.getName()) + " contains a mixture of symbol and number types",
+                type.getSrcLoc());
     }
 }
 
@@ -740,7 +777,7 @@ void AstSemanticChecker::checkTypes(ErrorReport& report, const AstProgram& progr
 }
 
 void AstSemanticChecker::checkIODirectives(ErrorReport& report, const AstProgram& program) {
-    for (const auto& directive : program.getIODirectives()) {
+    auto checkIODirective = [&](const AstIO* directive) {
 #ifdef USE_MPI
         // TODO (lyndonhenry): should permit sqlite as an io directive for use with mpi
         auto it = directive->getIODirectiveMap().find("IO");
@@ -752,6 +789,12 @@ void AstSemanticChecker::checkIODirectives(ErrorReport& report, const AstProgram
         if (r == nullptr) {
             report.addError("Undefined relation " + toString(directive->getName()), directive->getSrcLoc());
         }
+    };
+    for (const auto& directive : program.getLoads()) {
+        checkIODirective(directive.get());
+    }
+    for (const auto& directive : program.getStores()) {
+        checkIODirective(directive.get());
     }
 }
 
@@ -989,26 +1032,19 @@ std::vector<AstRelationIdentifier> findInlineCycle(const PrecedenceGraph& preced
     return result;
 }
 
-void AstSemanticChecker::checkInlining(
-        ErrorReport& report, const AstProgram& program, const PrecedenceGraph& precedenceGraph) {
+void AstSemanticChecker::checkInlining(ErrorReport& report, const AstProgram& program,
+        const PrecedenceGraph& precedenceGraph, const IOType& ioTypes) {
     // Find all inlined relations
     AstRelationSet inlinedRelations;
-    visitDepthFirst(program, [&](const AstRelation& relation) {
-        if (relation.isInline()) {
-            inlinedRelations.insert(&relation);
-
-            // Inlined relations cannot be computed or input relations
-            if (relation.isComputed()) {
-                report.addError("Computed relation " + toString(relation.getName()) + " cannot be inlined",
-                        relation.getSrcLoc());
-            }
-
-            if (relation.isInput()) {
-                report.addError("Input relation " + toString(relation.getName()) + " cannot be inlined",
-                        relation.getSrcLoc());
+    for (const auto& relation : program.getRelations()) {
+        if (relation->isInline()) {
+            inlinedRelations.insert(relation);
+            if (ioTypes.isIO(relation)) {
+                report.addError("IO relation " + toString(relation->getName()) + " cannot be inlined",
+                        relation->getSrcLoc());
             }
         }
-    });
+    }
 
     // Check 1:
     // Let G' be the subgraph of the precedence graph G containing only those nodes

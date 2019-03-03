@@ -15,6 +15,7 @@
 #pragma once
 
 #include "IODirectives.h"
+#include "ParallelUtils.h"
 #include "SymbolMask.h"
 #include "SymbolTable.h"
 #include "WriteStream.h"
@@ -22,6 +23,7 @@
 #include "gzfstream.h"
 #endif
 
+#include <cassert>
 #include <fstream>
 #include <memory>
 #include <ostream>
@@ -44,7 +46,7 @@ public:
     WriteFileCSV(const SymbolMask& symbolMask, const SymbolTable& symbolTable,
             const IODirectives& ioDirectives, const bool provenance = false)
             : WriteStream(symbolMask, symbolTable, provenance), delimiter(getDelimiter(ioDirectives)),
-              file(ioDirectives.getFileName()) {
+              file(ioDirectives.getFileName(), std::ios::out | std::ios::binary) {
         if (ioDirectives.has("headers") && ioDirectives.get("headers") == "true") {
             file << ioDirectives.get("attributeNames") << std::endl;
         }
@@ -53,17 +55,14 @@ public:
     ~WriteFileCSV() override = default;
 
 protected:
+    const std::string delimiter;
+    std::ofstream file;
+
+    void writeNullary() override {
+        file << "()\n";
+    }
+
     void writeNextTuple(const RamDomain* tuple) override {
-        size_t arity = symbolMask.getArity();
-        if (isProvenance) {
-            arity -= 2;
-        }
-
-        if (arity == 0) {
-            file << "()\n";
-            return;
-        }
-
         if (symbolMask.isSymbol(0)) {
             file << symbolTable.unsafeResolve(tuple[0]);
         } else {
@@ -79,10 +78,6 @@ protected:
         }
         file << "\n";
     }
-
-protected:
-    const std::string delimiter;
-    std::ofstream file;
 };
 
 #ifdef USE_LIBZ
@@ -91,7 +86,7 @@ public:
     WriteGZipFileCSV(const SymbolMask& symbolMask, const SymbolTable& symbolTable,
             const IODirectives& ioDirectives, const bool provenance = false)
             : WriteStream(symbolMask, symbolTable, provenance), delimiter(getDelimiter(ioDirectives)),
-              file(ioDirectives.getFileName()) {
+              file(ioDirectives.getFileName(), std::ios::out | std::ios::binary) {
         if (ioDirectives.has("headers") && ioDirectives.get("headers") == "true") {
             file << ioDirectives.get("attributeNames") << std::endl;
         }
@@ -100,19 +95,11 @@ public:
     ~WriteGZipFileCSV() override = default;
 
 protected:
+    void writeNullary() override {
+        file << "()\n";
+    }
+
     void writeNextTuple(const RamDomain* tuple) override {
-        size_t arity = symbolMask.getArity();
-
-        // do not print last two provenance columns if provenance
-        if (isProvenance) {
-            arity -= 2;
-        }
-
-        if (arity == 0) {
-            file << "()\n";
-            return;
-        }
-
         if (symbolMask.isSymbol(0)) {
             file << symbolTable.unsafeResolve(tuple[0]);
         } else {
@@ -151,18 +138,11 @@ public:
     }
 
 protected:
+    void writeNullary() override {
+        std::cout << "()\n";
+    }
+
     void writeNextTuple(const RamDomain* tuple) override {
-        size_t arity = symbolMask.getArity();
-
-        if (isProvenance) {
-            arity -= 2;
-        }
-
-        if (arity == 0) {
-            std::cout << "()\n";
-            return;
-        }
-
         if (symbolMask.isSymbol(0)) {
             std::cout << symbolTable.unsafeResolve(tuple[0]);
         } else {
@@ -180,6 +160,31 @@ protected:
     }
 
     const std::string delimiter;
+};
+
+class WriteCoutPrintSize : public WriteStream {
+public:
+    WriteCoutPrintSize(const IODirectives& ioDirectives)
+            : WriteStream({}, {}, false, true), lease(souffle::getOutputLock().acquire()) {
+        std::cout << ioDirectives.getRelationName() << "\t";
+    }
+
+    ~WriteCoutPrintSize() override = default;
+
+protected:
+    void writeNullary() override {
+        assert(false && "attempting to iterate over a print size operation");
+    }
+
+    void writeNextTuple(const RamDomain* /* tuple */) override {
+        assert(false && "attempting to iterate over a print size operation");
+    }
+
+    void writeSize(std::size_t size) override {
+        std::cout << size << "\n";
+    }
+
+    Lock::Lease lease;
 };
 
 class WriteFileCSVFactory : public WriteStreamFactory {
@@ -211,6 +216,20 @@ public:
         return name;
     }
     ~WriteCoutCSVFactory() override = default;
+};
+
+class WriteCoutPrintSizeFactory : public WriteStreamFactory {
+public:
+    std::unique_ptr<WriteStream> getWriter(const SymbolMask& /* symbolMask */,
+            const SymbolTable& /* symbolTable */, const IODirectives& ioDirectives,
+            const bool /* provenance */) override {
+        return std::make_unique<WriteCoutPrintSize>(ioDirectives);
+    }
+    const std::string& getName() const override {
+        static const std::string name = "stdoutprintsize";
+        return name;
+    }
+    ~WriteCoutPrintSizeFactory() override = default;
 };
 
 } /* namespace souffle */

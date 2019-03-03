@@ -11,6 +11,7 @@
 #include "CellInterface.h"
 #include "StringUtils.h"
 
+#include <chrono>
 #include <iostream>
 #include <string>
 #include <utility>
@@ -25,6 +26,31 @@ class Cell : public CellInterface {
 public:
     Cell(T value) : value(value){};
     ~Cell() override = default;
+};
+
+template <>
+class Cell<std::chrono::microseconds> : public CellInterface {
+    const std::chrono::microseconds value;
+
+public:
+    Cell(std::chrono::microseconds value) : value(value){};
+    double getDoubleVal() const override {
+        return value.count() / 1000000.0;
+    }
+    long getLongVal() const override {
+        std::cerr << "getting long on time cell\n";
+        throw this;
+    }
+    std::string getStringVal() const override {
+        std::cerr << "getting string on time cell\n";
+        throw this;
+    }
+    std::string toString(int precision) const override {
+        return Tools::formatTime(value);
+    }
+    std::chrono::microseconds getTimeVal() const override {
+        return value;
+    }
 };
 
 template <>
@@ -44,8 +70,12 @@ public:
         std::cerr << "getting string on double cell\n";
         throw this;
     }
+    std::chrono::microseconds getTimeVal() const override {
+        std::cerr << "getting time on double cell\n";
+        throw this;
+    }
     std::string toString(int precision) const override {
-        return Tools::formatTime(value);
+        return Tools::formatNum(value);
     }
 };
 
@@ -65,6 +95,10 @@ public:
     }
     std::string getStringVal() const override {
         return value;
+    }
+    std::chrono::microseconds getTimeVal() const override {
+        std::cerr << "getting time on double cell\n";
+        throw this;
     }
     std::string toString(int precision) const override {
         return Tools::cleanString(value);
@@ -88,6 +122,10 @@ public:
     long getLongVal() const override {
         return value;
     }
+    std::chrono::microseconds getTimeVal() const override {
+        std::cerr << "getting time on long cell\n";
+        throw this;
+    }
     std::string toString(int precision) const override {
         return Tools::formatNum(precision, value);
     };
@@ -107,6 +145,10 @@ public:
     }
     std::string getStringVal() const override {
         std::cerr << "getting string on void cell\n";
+        throw this;
+    }
+    std::chrono::microseconds getTimeVal() const override {
+        std::cerr << "getting time on void cell\n";
         throw this;
     }
     std::string toString(int precision) const override {

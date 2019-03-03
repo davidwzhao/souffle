@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include "BlockList.h"
-#include "Util.h"
+#include "LambdaBTree.h"
+#include "PiggyList.h"
 
 #include <atomic>
 #include <exception>
@@ -30,57 +30,50 @@
 
 namespace souffle {
 
-using rank_t = uint32_t;
-using parent_t = uint32_t;
+// branch predictor hacks
+#define unlikely(x) __builtin_expect((x), 0)
+#define likely(x) __builtin_expect((x), 1)
 
-// number of bits each are (sizeof(rank_t) == sizeof(parent_t))
-constexpr uint8_t split_size = 32u;
+using rank_t = uint8_t;
+/* technically uint56_t, but, doesn't exist. Just be careful about storing > 2^56 elements. */
+using parent_t = uint64_t;
+
+// number of bits that the rank is
+constexpr uint8_t split_size = 8u;
+
+// block_t stores parent in the upper half, rank in the lower half
+using block_t = uint64_t;
+// block_t & rank_mask extracts the rank
 constexpr block_t rank_mask = (1ul << split_size) - 1;
 
 /**
  * Structure that emulates a Disjoint Set, i.e. a data structure that supports efficient union-find operations
  */
 class DisjointSet {
-    /* store blocks of atomics */
-    BlockList<std::atomic<block_t>> a_blocks;
+    template <typename TupleType>
+    friend class EquivalenceRelation;
 
-    // read/write mutex for inserting new nodes
-    mutable souffle::shared_mutex nodeLock;
-
-    /* whether the generated iterator needs to be updated */
-    std::atomic<bool> isStale;
-    std::atomic<bool> mapStale;
-
-    /* a map which keeps representatives and their nodes in the disjoint set */
-    mutable souffle::shared_mutex mapLock;
-    std::unordered_map<parent_t, BlockList<parent_t>> repToSubords;
+    PiggyList<std::atomic<block_t>> a_blocks;
 
 public:
-    DisjointSet() : isStale(true), mapStale(true){};
+    DisjointSet() = default;
 
-    // Not a thread safe operation
-    DisjointSet& operator=(const DisjointSet& old) {
-        if (this == &old) return *this;
+    // copy ctor
+    DisjointSet(DisjointSet& other) = delete;
+    // move ctor
+    DisjointSet(DisjointSet&& other) = delete;
 
-        a_blocks = old.a_blocks;
-        repToSubords = old.repToSubords;
-        isStale.store(old.isStale.load());
-        mapStale.store(old.mapStale.load());
+    // copy assign ctor
+    DisjointSet& operator=(DisjointSet& ds) = delete;
+    // move assign ctor
+    DisjointSet& operator=(DisjointSet&& ds) = delete;
 
-        return *this;
-    }
-
-    inline size_t size() const {
+    /**
+     * Return the number of elements in this disjoint set (not the number of pairs)
+     */
+    inline size_t size() {
         auto sz = a_blocks.size();
         return sz;
-    };
-
-    inline bool staleList() const {
-        return isStale;
-    };
-
-    inline bool staleMap() const {
-        return mapStale;
     };
 
     /**
@@ -90,7 +83,6 @@ public:
      */
     inline std::atomic<block_t>& get(parent_t node) const {
         auto& ret = a_blocks.get(node);
-
         return ret;
     };
 
@@ -100,38 +92,20 @@ public:
      * @param x the node to find the parent of, whilst flattening its set-tree
      * @return The parent of x
      */
-    parent_t findNode(parent_t x, bool isStrong = true) {
-        // If x is its own parent return immediately
-        if (x == b2p(get(x))) {
-            return x;
-        }
+    parent_t findNode(parent_t x) {
+        // while x's parent is not itself
+        while (x != b2p(get(x))) {
+            block_t xState = get(x);
+            // yield x's parent's parent
+            parent_t newParent = b2p(get(b2p(xState)));
+            // construct block out of the original rank and the new parent
+            block_t newState = pr2b(newParent, b2r(xState));
 
-        isStale.store(true);
-        mapStale.store(true);
-
-        block_t xState = get(x);
-        parent_t newParent = findNode(b2p(xState));
-        block_t newState = pr2b(newParent, b2r(xState));
-
-        if (isStrong)
             this->get(x).compare_exchange_strong(xState, newState);
-        else
-            this->get(x).compare_exchange_weak(xState, newState);
 
-        return newParent;
-    }
-
-    /**
-     * Read only version of findNode
-     * i.e. it doesn't compress the tree when searching - it only finds the top representative
-     * @param x the node to find the rep of
-     * @return the representative that is found
-     */
-    parent_t readOnlyFindNode(parent_t x) const {
-        block_t ii = get(x);
-        parent_t p = b2p(ii);
-        if (x == p) return x;
-        return readOnlyFindNode(p);
+            x = newParent;
+        }
+        return x;
     }
 
 private:
@@ -144,11 +118,7 @@ private:
      * @return Whether the update succeeded (fails if another root update/union has been perfomed in the
      * interim)
      */
-    bool updateRoot(
-            const parent_t x, const rank_t oldrank, const parent_t y, const rank_t newrank, bool isStrong) {
-        isStale.store(true);
-        mapStale.store(true);
-
+    bool updateRoot(const parent_t x, const rank_t oldrank, const parent_t y, const rank_t newrank) {
         block_t oldState = get(x);
         parent_t nextN = b2p(oldState);
         rank_t rankN = b2r(oldState);
@@ -157,141 +127,16 @@ private:
         // set the parent and rank of the new record
         block_t newVal = pr2b(y, newrank);
 
-        if (isStrong) return this->get(x).compare_exchange_strong(oldState, newVal);
-        return this->get(x).compare_exchange_weak(oldState, newVal);
+        return this->get(x).compare_exchange_strong(oldState, newVal);
     }
 
 public:
-    /** iterator stuff */
-    class iterator : public std::iterator<std::forward_iterator_tag, parent_t> {
-        DisjointSet* ds;
-
-        /* iterator object to iterate over the rep, children parings */
-        std::unordered_map<parent_t, BlockList<parent_t>>::iterator repIter;
-        /* iterator for iterating over elements within a single disjoint set */
-        BlockList<parent_t>::iterator memberIterator;
-
-        enum iterType { iterSubReps, iterReps };
-        // what type of iterator this is
-        iterType cType;
-
-    private:
-        void advance() {
-            switch (cType) {
-                case iterSubReps:
-                    ++memberIterator;
-                    break;
-                case iterReps:
-                    ++repIter;
-                    break;
-                default:
-                    throw "invalid iterator type";
-            }
-        }
-
-        parent_t yield() const {
-            if (ds->staleList() || ds->staleMap()) throw "iterator modification exception";
-
-            switch (cType) {
-                case iterSubReps:
-                    return *memberIterator;
-                case iterReps:
-                    return (*repIter).first;
-                default:
-                    throw "invalid iterator type";
-            }
-        }
-
-    public:
-        /* iterate over all nodes with this node as the representative */
-        iterator(DisjointSet* ds, parent_t representative)
-                : ds(ds), memberIterator(ds->repToSubords[representative].begin()), cType(iterSubReps){};
-        iterator(DisjointSet* ds, parent_t representative, bool)
-                : ds(ds), memberIterator(ds->repToSubords[representative].end()), cType(iterSubReps){};
-        /* iterator over all representatives */
-        iterator(DisjointSet* ds, bool isRepIter)
-                : ds(ds), repIter(ds->repToSubords.begin()), cType(iterReps){};
-        iterator(DisjointSet* ds, bool isRepIter, bool)
-                : ds(ds), repIter(ds->repToSubords.end()), cType(iterReps){};
-
-        iterator& operator++(int) {
-            advance();
-            return *this;
-        }
-
-        iterator operator++() {
-            iterator ret(*this);
-            advance();
-            return ret;
-        }
-
-        parent_t operator*() {
-            return yield();
-        }
-
-        const parent_t operator*() const {
-            return yield();
-        }
-
-        friend bool operator==(const iterator& x, const iterator& y) {
-            switch (x.cType) {
-                case iterSubReps:
-                    return y.cType == iterSubReps && x.memberIterator == y.memberIterator;
-
-                case iterReps:
-                    return y.cType == iterReps && x.repIter == y.repIter;
-
-                default:
-                    throw "invalid iterator type";
-            }
-        };
-
-        friend bool operator!=(const iterator& x, const iterator& y) {
-            return !(x == y);
-        };
-    };
-
-public:
-    // iterating over all nodes
-    //    iterator begin();
-    //    iterator end();
-
-    // iterator over all representatives
-    iterator beginReps() {
-        this->genMap();
-        return iterator(this, true);
-    };
-    iterator endReps() {
-        this->genMap();
-        return iterator(this, true, true);
-    };
-
-    // iterator over all nodes with this as their representative
-    iterator begin(parent_t rep) {
-        this->genMap();
-        return iterator(this, rep);
-    };
-    iterator end(parent_t rep) {
-        this->genMap();
-        return iterator(this, rep, true);
-    };
-
     /**
      * Clears the DisjointSet of all nodes
      * Invalidates all iterators
      */
     void clear() {
-        // Warning! Not threadsafe..
-
-        nodeLock.lock();
-
-        isStale = true;
-        mapStale = true;
-
-        repToSubords.clear();
         a_blocks.clear();
-
-        nodeLock.unlock();
     }
 
     /**
@@ -302,8 +147,8 @@ public:
      */
     bool sameSet(parent_t x, parent_t y) {
         while (true) {
-            x = findNode(x, false);
-            y = findNode(y, false);
+            x = findNode(x);
+            y = findNode(y);
             if (x == y) return true;
             // if x's parent is itself, they are not the same set
             if (b2p(get(x)) == x) return false;
@@ -317,14 +162,11 @@ public:
      */
     void unionNodes(parent_t x, parent_t y) {
         while (true) {
-            x = findNode(x, false);
-            y = findNode(y, false);
+            x = findNode(x);
+            y = findNode(y);
 
             // no need to union if both already in same set
             if (x == y) return;
-
-            isStale.store(true);
-            mapStale.store(true);
 
             rank_t xrank = b2r(get(x));
             rank_t yrank = b2r(get(y));
@@ -336,22 +178,10 @@ public:
             }
             // join the trees together
             // perhaps we can optimise the use of compare_exchange_strong here, as we're in a pessimistic loop
-            if (!updateRoot(x, xrank, y, yrank, true)) continue;
-            if (xrank == yrank) updateRoot(y, yrank, y, yrank + 1, false);
+            if (!updateRoot(x, xrank, y, yrank)) continue;
+            // make sure that the ranks are orderable
+            if (xrank == yrank) updateRoot(y, yrank, y, yrank + 1);
             break;
-        }
-    }
-
-    /**
-     * Performs a find operation on every node s.t. all nodes have a direct ref to their set's representative
-     * This is only performed if necessary.
-     */
-    void findAll() {
-        if (isStale) {
-            // TODO: check whether we should use strong=false/true in findNode args
-            for (parent_t i = 0; i < size(); ++i) findNode(i);
-
-            isStale.store(false);
         }
     }
 
@@ -360,66 +190,15 @@ public:
      * @return the newly created block
      */
     inline block_t makeNode() {
-        nodeLock.lock();
+        // make node and find out where we've added it
+        size_t nodeDetails = a_blocks.createNode();
 
-        isStale.store(true);
-        mapStale.store(true);
+        a_blocks.get(nodeDetails).store(pr2b(nodeDetails, 0));
 
-        // its parent is itself (size indicates the position in the listData structure)
-        auto xpar = (parent_t)a_blocks.size();
-        rank_t xrank = 0;
-
-        block_t x = pr2b(xpar, xrank);
-
-        a_blocks.add(x);
-
-        isStale.store(true);
-        mapStale.store(true);
-
-        nodeLock.unlock();
-
-        return x;
+        return a_blocks.get(nodeDetails).load();
     };
 
     /**
-     * Generate representative->group map for all elements in the disjoint set
-     * Keys of the map are the representatives
-     * Values are the representative's children
-     */
-    void genMap() {
-        if (mapStale) {
-            mapLock.lock();
-
-            if (!mapStale) {
-                mapLock.unlock();
-                return;
-            }
-
-            findAll();
-
-            mapStale.store(false);
-            repToSubords.clear();
-
-            for (parent_t i = 0; i < size(); ++i) {
-                repToSubords[b2p(this->get(i))].add(i);
-            }
-
-            mapLock.unlock();
-        }
-    }
-
-    size_t numInSet(parent_t rep) {
-        // we may not have an up to date map underneath
-        genMap();
-
-        mapLock.lock_shared();
-        auto sz = repToSubords.at(rep).size();
-        mapLock.unlock_shared();
-
-        return sz;
-    };
-
-    /**Ï
      * Extract parent from block
      * @param inblock the block to be masked
      * @return The parent_t contained in the upper half of block_t
@@ -448,165 +227,90 @@ public:
     };
 };
 
+template <typename StorePair>
+struct EqrelMapComparator {
+    int operator()(const StorePair& a, const StorePair& b) {
+        if (a.first < b.first)
+            return -1;
+        else if (b.first < a.first)
+            return 1;
+        else
+            return 0;
+    }
+
+    bool less(const StorePair& a, const StorePair& b) {
+        return operator()(a, b) < 0;
+    }
+
+    bool equal(const StorePair& a, const StorePair& b) {
+        return operator()(a, b) == 0;
+    }
+};
+
 template <typename SparseDomain>
 class SparseDisjointSet {
-    // lock on write operations - STL containers only support 1 writer at all times
-    // mutable std::mutex modLock;
-    // read/write lock on sparseToDenseMap & denseToSparseMap
-    mutable souffle::shared_mutex mapsLock;
-
     DisjointSet ds;
 
-    // values stored in here to those in the dense disjoint set
-    std::unordered_map<SparseDomain, parent_t> sparseToDenseMap;
-    std::vector<SparseDomain> denseToSparseMap;
+    template <typename TupleType>
+    friend class EquivalenceRelation;
 
-private:
+    using PairStore = std::pair<SparseDomain, parent_t>;
+    using SparseMap =
+            LambdaBTreeSet<PairStore, std::function<parent_t(PairStore&)>, EqrelMapComparator<PairStore>>;
+    using DenseMap = RandomInsertPiggyList<SparseDomain>;
+
+    typename SparseMap::operation_hints last_ins;
+
+    SparseMap sparseToDenseMap;
+    // mapping from union-find val to souffle, union-find encoded as index
+    DenseMap denseToSparseMap;
+
+public:
     /**
      * Retrieve dense encoding, adding it in if non-existent
      * @param in the sparse value
      * @return the corresponding dense value
      */
     parent_t toDense(const SparseDomain in) {
-        mapsLock.lock_shared();
-        auto it = sparseToDenseMap.find(in);
-
-        // use the pre-existing value
-        if (it != sparseToDenseMap.end()) {
-            auto ret = it->second;
-            mapsLock.unlock_shared();
-            return ret;
-        }
-        mapsLock.unlock_shared();
-
-        // create node in conversion
-        mapsLock.lock();
-
-        it = sparseToDenseMap.find(in);
-        // use the pre-existing value (as perhaps, it may have been written twice)
-        if (it != sparseToDenseMap.end()) {
-            auto ret = it->second;
-            mapsLock.unlock();
-            return ret;
-        }
-
-        size_t j = denseToSparseMap.size();
-        // check if we create a dense value outside of the bounds that can be stored
-        if (j > std::numeric_limits<parent_t>::max()) throw std::runtime_error("out of bounds dense value");
-        auto jClipped = static_cast<parent_t>(j);
-
-        // we create the node
-        ds.makeNode();
-        denseToSparseMap.push_back(in);
-        sparseToDenseMap[in] = jClipped;
-
-        mapsLock.unlock();
-
-        return jClipped;
+        // insert into the mapping - if the key doesn't exist (in), the function will be called
+        // and a dense value will be created for it
+        PairStore p = {in, -1};
+        return sparseToDenseMap.insert(p, [&](PairStore& p) {
+            parent_t c2 = DisjointSet::b2p(this->ds.makeNode());
+            this->denseToSparseMap.insertAt(c2, p.first);
+            p.second = c2;
+            return c2;
+        });
     }
 
 public:
-    // warning! not thread safe, do not perform copy operations
-    SparseDisjointSet& operator=(const SparseDisjointSet& old) {
-        if (&old == this) return *this;
+    SparseDisjointSet() = default;
 
-        ds = old.ds;
-        sparseToDenseMap = old.sparseToDenseMap;
-        denseToSparseMap = old.denseToSparseMap;
+    // copy ctor
+    SparseDisjointSet(SparseDisjointSet& other) = delete;
 
-        return *this;
-    }
+    // move ctor
+    SparseDisjointSet(SparseDisjointSet&& other) = delete;
 
-    /** iterator for the class - is assumed not to be thread safe
-     * (as modifications to the underlying class will invalidate anyway)
-     */
-    class iterator : public std::iterator<std::forward_iterator_tag, SparseDomain> {
-        SparseDisjointSet* sds;
-        // we offload all iteration jobs to the underlying disjoint set's iterable
+    // copy assign ctor
+    SparseDisjointSet& operator=(SparseDisjointSet& other) = delete;
 
-        // and simply convert upon dereference
-        DisjointSet::iterator maskIter;
-
-    private:
-        SparseDomain yield() const {
-            return sds->toSparse(*maskIter);
-        }
-
-    public:
-        // iterate over all nodes in representative's disjoint set
-        iterator(SparseDisjointSet* sds, const SparseDomain rep)
-                : sds(sds), maskIter(sds->ds.begin(sds->toDense(rep))){};
-        // end() equivalent
-        iterator(SparseDisjointSet* sds, const SparseDomain rep, bool)
-                : sds(sds), maskIter(sds->ds.end(sds->toDense(rep))){};
-
-        // iterate over all representatives
-        iterator(SparseDisjointSet* sds, bool isRepIter) : sds(sds), maskIter(sds->ds.beginReps()){};
-        // end() equiv
-        iterator(SparseDisjointSet* sds, bool isRepIter, bool) : sds(sds), maskIter(sds->ds.endReps()){};
-
-        iterator& operator++(int) {
-            ++maskIter;
-            return *this;
-        }
-
-        iterator operator++() {
-            iterator ret(*this);
-            ++maskIter;
-            return ret;
-        }
-
-        const SparseDomain operator*() const {
-            return yield();
-        }
-
-        SparseDomain operator*() {
-            return yield();
-        }
-
-        friend bool operator==(const iterator& x, const iterator& y) {
-            return x.sds == y.sds && x.maskIter == y.maskIter;
-        };
-
-        friend bool operator!=(const iterator& x, const iterator& y) {
-            return !(x == y);
-        };
-    };
-
-    iterator begin(const SparseDomain rep) {
-        return iterator(this, rep);
-    };
-    iterator end(const SparseDomain rep) {
-        return iterator(this, rep, true);
-    };
-
-    iterator beginReps() {
-        return iterator(this, true);
-    };
-    iterator endReps() {
-        return iterator(this, true, true);
-    };
+    // move assign ctor
+    SparseDisjointSet& operator=(SparseDisjointSet&& other) = delete;
 
     /**
      * For the given dense value, return the associated sparse value
+     *   Undefined behaviour if dense value not in set
      * @param in the supplied dense value
      * @return the sparse value from the denseToSparseMap
      */
     inline const SparseDomain toSparse(const parent_t in) const {
-        mapsLock.lock_shared();
-        auto ret = denseToSparseMap.at(in);
-        mapsLock.unlock_shared();
-
-        return ret;
+        return denseToSparseMap.get(in);
     };
 
     /* a wrapper to enable checking in the sparse set - however also adds them if not already existing */
     inline bool sameSet(SparseDomain x, SparseDomain y) {
         return ds.sameSet(toDense(x), toDense(y));
-    };
-    /* simply a wrapper to findNode, that does not affect the structure of the disjoint set */
-    inline SparseDomain readOnlyFindNode(SparseDomain x) {
-        return toSparse(ds.readOnlyFindNode(toDense(x)));
     };
     /* finds the node in the underlying disjoint set, adding the node if non-existent */
     inline SparseDomain findNode(SparseDomain x) {
@@ -621,39 +325,24 @@ public:
         return ds.size();
     };
 
-    // TODO: documentation
+    /**
+     * Remove all elements from this disjoint set
+     */
     void clear() {
-        // we should clear this first, as we want to reduce how many locks are blocking at one given moment
         ds.clear();
-
-        mapsLock.lock();
         sparseToDenseMap.clear();
         denseToSparseMap.clear();
-        mapsLock.unlock();
-    }
-
-    /**
-     * Gets the number of the items in the underlying dense set (mapping from sparse->dense)
-     * @param in the node which we count the size of it's representative map
-     * @return the size of the disjoint set
-     */
-    inline std::size_t sizeOfRepresentativeSet(SparseDomain in) {
-        parent_t inD = toDense(in);
-        return ds.numInSet(ds.readOnlyFindNode(inD));
     }
 
     /* wrapper for node creation */
     inline void makeNode(SparseDomain val) {
+        // dense has the behaviour of creating if not exists.
         toDense(val);
     };
 
     /* whether we the supplied node exists */
     inline bool nodeExists(const SparseDomain val) const {
-        mapsLock.lock_shared();
-        bool result = sparseToDenseMap.find(val) != sparseToDenseMap.end();
-        mapsLock.unlock_shared();
-
-        return result;
+        return sparseToDenseMap.contains({val, -1});
     };
 
     inline bool contains(SparseDomain v1, SparseDomain v2) {

@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <string>
 
 namespace souffle {
@@ -22,6 +23,8 @@ public:
     virtual long getLongVal() const = 0;
 
     virtual std::string getStringVal() const = 0;
+
+    virtual std::chrono::microseconds getTimeVal() const = 0;
 
     virtual ~CellInterface() = default;
 };

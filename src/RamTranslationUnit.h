@@ -25,6 +25,7 @@
 
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 
 namespace souffle {
@@ -34,6 +35,7 @@ namespace souffle {
  */
 class RamTranslationUnit {
 private:
+    /** cached analyses */
     mutable std::map<std::string, std::unique_ptr<RamAnalysis>> analyses;
 
     /* Program RAM */
@@ -45,6 +47,8 @@ private:
     ErrorReport& errorReport;
 
     DebugReport& debugReport;
+
+    mutable std::mutex analysisLock;
 
 public:
     RamTranslationUnit(std::unique_ptr<RamProgram> program, SymbolTable& sym, ErrorReport& e, DebugReport& d)
@@ -58,17 +62,19 @@ public:
         auto it = analyses.find(name);
         if (it == analyses.end()) {
             // analysis does not exist yet, create instance and run it.
-            analyses[name] = std::make_unique<Analysis>();
-            analyses[name]->run(*this);
+            auto analysis = std::make_unique<Analysis>();
+            analysis->run(*this);
+            // Check it hasn't been created by someone else, and insert if not
+            std::lock_guard<std::mutex> guard(analysisLock);
+            it = analyses.find(name);
+            if (it == analyses.end()) {
+                analyses[name] = std::move(analysis);
+            }
         }
         return dynamic_cast<Analysis*>(analyses[name].get());
     }
 
-    std::unique_ptr<RamProgram> getProg() {
-        return std::move(program);
-    }
-
-    const RamProgram* getProgram() {
+    const RamProgram* getProgram() const {
         return program.get();
     }
 
@@ -76,7 +82,7 @@ public:
         return *program.get();
     }
 
-    RamProgram* getProgram() const {
+    RamProgram* getProgram() {
         return program.get();
     }
 

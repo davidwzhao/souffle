@@ -19,9 +19,9 @@
 #include "AstAnalysis.h"
 #include "TypeSystem.h"
 #include <cassert>
-#include <iosfwd>
 #include <map>
 #include <memory>
+#include <sstream>
 #include <utility>
 #include <vector>
 
@@ -32,47 +32,7 @@ class AstClause;
 class AstProgram;
 class AstTranslationUnit;
 
-/**
- * Analyse the given clause and computes for each contained argument
- * whether it is a constant value or not.
- *
- * @param clause the clause to be analyzed
- * @return a map mapping each contained argument to a boolean indicating
- *      whether the argument represents a constant value or not
- */
-std::map<const AstArgument*, bool> getConstTerms(const AstClause& clause);
-
-/**
- * Analyse the given clause and computes for each contained argument
- * whether it is a grounded value or not.
- *
- * @param clause the clause to be analyzed
- * @return a map mapping each contained argument to a boolean indicating
- *      whether the argument represents a grounded value or not
- */
-std::map<const AstArgument*, bool> getGroundedTerms(const AstClause& clause);
-
-class TypeEnvironmentAnalysis : public AstAnalysis {
-private:
-    TypeEnvironment env;
-
-    void updateTypeEnvironment(const AstProgram& program);
-
-public:
-    static constexpr const char* name = "type-environment";
-
-    void run(const AstTranslationUnit& translationUnit) override;
-
-    const TypeEnvironment& getTypeEnvironment() {
-        return env;
-    }
-};
-
 class TypeAnalysis : public AstAnalysis {
-private:
-    std::map<const AstArgument*, TypeSet> argumentTypes;
-    std::vector<std::unique_ptr<AstClause>> annotatedClauses;
-
 public:
     static constexpr const char* name = "type-analysis";
 
@@ -100,7 +60,12 @@ public:
      * @return a map mapping each contained argument to a a set of types
      */
     static std::map<const AstArgument*, TypeSet> analyseTypes(const TypeEnvironment& env,
-            const AstClause& clause, const AstProgram* program, bool verbose = false);
+            const AstClause& clause, const AstProgram* program, std::ostream* logs = nullptr);
+
+private:
+    std::map<const AstArgument*, TypeSet> argumentTypes;
+    std::vector<std::unique_ptr<AstClause>> annotatedClauses;
+    std::stringstream analysisLogs;
 };
 
 }  // end of namespace souffle

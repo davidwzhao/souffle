@@ -23,6 +23,7 @@
 #include "RamTypes.h"
 #include "Table.h"
 #include "Util.h"
+#include <cassert>
 #include <iostream>
 #include <iterator>
 #include <mutex>
@@ -31,7 +32,6 @@
 #include <type_traits>
 #include <unordered_set>
 #include <vector>
-#include <assert.h>
 
 namespace souffle {
 
@@ -881,6 +881,11 @@ public:
     template <typename Setup, typename... Idxs>
     void extend(const Relation<Setup, arity, Idxs...>& other) {
         data.extend(other.getData());
+    }
+
+    template <typename... Idxs>
+    void insertAll(const Relation<souffle::ram::EqRel, arity, Idxs...>& other) {
+        data.insertAll(other.getData());
     }
 
     template <typename Setup, typename... Idxs>

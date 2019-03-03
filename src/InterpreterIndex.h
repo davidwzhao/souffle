@@ -30,9 +30,6 @@ namespace souffle {
  * A class describing the sorting order of tuples within an index.
  */
 class InterpreterIndexOrder {
-    // the order of columns along which fields should be sorted by an index
-    std::vector<unsigned char> columns;
-
 public:
     // -- constructors --
 
@@ -130,11 +127,13 @@ public:
         order.print(out);
         return out;
     }
+    // the order of columns along which fields should be sorted by an index
+    std::vector<unsigned char> columns;
 };
 
 /* B-Tree indexes as default implementation for indexes */
 class InterpreterIndex {
-protected:
+public:
     /* lexicographical comparison operation on two tuple pointers */
     struct comparator {
         const InterpreterIndexOrder& order;
@@ -174,14 +173,8 @@ protected:
     /* btree for storing tuple pointers with a given lexicographical order */
     using index_set = btree_multiset<const RamDomain*, comparator, std::allocator<const RamDomain*>, 512>;
 
-public:
     using iterator = index_set::iterator;
 
-private:
-    const InterpreterIndexOrder theOrder;  // retain the index order used to construct an object of this class
-    index_set set;                         // set storing tuple pointers of table
-
-public:
     InterpreterIndex(InterpreterIndexOrder order)
             : theOrder(std::move(order)), set(comparator(theOrder), comparator(theOrder)) {}
 
@@ -235,10 +228,11 @@ public:
         return std::pair<iterator, iterator>(set.lower_bound(low), set.upper_bound(high));
     }
 
-    // TODO: remove this temporary method
-    iterator indexEnd() const {
-        return set.end();
-    }
+private:
+    // retain the index order used to construct an object of this class
+    const InterpreterIndexOrder theOrder;
+    // set storing tuple pointers of table
+    index_set set;
 };
 
 }  // end of namespace souffle

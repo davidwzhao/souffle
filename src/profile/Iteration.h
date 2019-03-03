@@ -9,6 +9,7 @@
 #pragma once
 
 #include "Rule.h"
+#include <chrono>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -23,10 +24,10 @@ namespace profile {
  */
 class Iteration {
 private:
-    double starttime = 0;
-    double endtime = 0;
+    std::chrono::microseconds starttime{};
+    std::chrono::microseconds endtime{};
     size_t numTuples = 0;
-    double copytime = 0;
+    std::chrono::microseconds copytime{};
     std::string locator = "";
 
     std::unordered_map<std::string, std::shared_ptr<Rule>> rules;
@@ -45,7 +46,7 @@ public:
     std::string toString() const {
         std::ostringstream output;
 
-        output << getRuntime() << "," << numTuples << "," << copytime << ",";
+        output << getRuntime().count() << "," << numTuples << "," << copytime.count() << ",";
         output << " recRule:";
         for (auto& rul : rules) {
             output << rul.second->toString();
@@ -54,15 +55,15 @@ public:
         return output.str();
     }
 
-    double getRuntime() const {
+    std::chrono::microseconds getRuntime() const {
         return endtime - starttime;
     }
 
-    double getStarttime() const {
+    std::chrono::microseconds getStarttime() const {
         return starttime;
     }
 
-    double getEndtime() const {
+    std::chrono::microseconds getEndtime() const {
         return endtime;
     }
 
@@ -74,19 +75,19 @@ public:
         this->numTuples = numTuples;
     }
 
-    double getCopytime() const {
+    std::chrono::microseconds getCopytime() const {
         return copytime;
     }
 
-    void setCopytime(double copy_time) {
+    void setCopytime(std::chrono::microseconds copy_time) {
         this->copytime = copy_time;
     }
 
-    void setStarttime(double time) {
+    void setStarttime(std::chrono::microseconds time) {
         starttime = time;
     }
 
-    void setEndtime(double time) {
+    void setEndtime(std::chrono::microseconds time) {
         endtime = time;
     }
 

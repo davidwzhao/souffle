@@ -10,432 +10,38 @@
  *
  * @file AstTypeAnalysis.cpp
  *
- * A collection of type analyses operating on AST constructs.
+ * Implements a collection of type analyses operating on AST constructs.
  *
  ***********************************************************************/
 
 #include "AstTypeAnalysis.h"
 #include "AstArgument.h"
 #include "AstAttribute.h"
+#include "AstClause.h"
+#include "AstConstraintAnalysis.h"
+#include "AstFunctorDeclaration.h"
 #include "AstLiteral.h"
 #include "AstNode.h"
 #include "AstProgram.h"
 #include "AstRelation.h"
 #include "AstTranslationUnit.h"
 #include "AstType.h"
+#include "AstTypeEnvironmentAnalysis.h"
 #include "AstUtils.h"
 #include "AstVisitor.h"
-#include "BinaryConstraintOps.h"
 #include "Constraints.h"
 #include "Global.h"
+#include "TypeSystem.h"
 #include "Util.h"
-#include <cstddef>
-#include <iostream>
+#include <cassert>
+#include <map>
 #include <memory>
 #include <set>
+#include <sstream>
 #include <string>
-#include <typeinfo>
 #include <utility>
 
 namespace souffle {
-
-namespace {
-
-// -----------------------------------------------------------------------------
-//                        AST Constraint Analysis Infrastructure
-// -----------------------------------------------------------------------------
-
-/**
- * A variable type to be utilized by AST constraint analysis. Each such variable is
- * associated with an AstArgument which's property it is describing.
- *
- * @tparam PropertySpace the property space associated to the analysis
- */
-template <typename PropertySpace>
-struct AstConstraintAnalysisVar : public Variable<const AstArgument*, PropertySpace> {
-    explicit AstConstraintAnalysisVar(const AstArgument* arg)
-            : Variable<const AstArgument*, PropertySpace>(arg) {}
-    explicit AstConstraintAnalysisVar(const AstArgument& arg)
-            : Variable<const AstArgument*, PropertySpace>(&arg) {}
-
-    /** adds print support */
-    void print(std::ostream& out) const override {
-        out << "var(" << *(this->id) << ")";
-    }
-};
-
-/**
- * A base class for AstConstraintAnalysis collecting constraints for an analysis
- * by visiting every node of a given AST. The collected constraints are
- * then utilized to obtain the desired analysis result.
- *
- * @tparam AnalysisVar the type of variable (and included property space)
- *      to be utilized by this analysis.
- */
-template <typename AnalysisVar>
-class AstConstraintAnalysis : public AstVisitor<void> {
-    using value_type = typename AnalysisVar::property_space::value_type;
-
-    /** The list of constraints making underlying this analysis */
-    Problem<AnalysisVar> constraints;
-
-    /** A map mapping variables to unique instances to facilitate the unification of variables */
-    std::map<std::string, AnalysisVar> variables;
-
-protected:
-    // a few type definitions
-    using constraint_type = std::shared_ptr<Constraint<AnalysisVar>>;
-    using solution_type = std::map<const AstArgument*, value_type>;
-
-    /**
-     * A utility function mapping an AstArgument to its associated analysis variable.
-     *
-     * @param arg the AST argument to be mapped
-     * @return the analysis variable representing its associated value
-     */
-    AnalysisVar getVar(const AstArgument& arg) {
-        const auto* var = dynamic_cast<const AstVariable*>(&arg);
-        if (!var) {
-            // no mapping required
-            return AnalysisVar(arg);
-        }
-
-        // filter through map => always take the same variable
-        auto res = variables.insert(std::make_pair(var->getName(), AnalysisVar(var)));
-        return res.first->second;
-    }
-
-    /**
-     * A utility function mapping an AstArgument to its associated analysis variable.
-     *
-     * @param arg the AST argument to be mapped
-     * @return the analysis variable representing its associated value
-     */
-    AnalysisVar getVar(const AstArgument* arg) {
-        return getVar(*arg);
-    }
-
-    /** Adds another constraint to the internally maintained list of constraints */
-    void addConstraint(const constraint_type& constraint) {
-        constraints.add(constraint);
-    }
-
-public:
-    /**
-     * Runs this constraint analysis on the given clause.
-     *
-     * @param clause the close to be analysed
-     * @param debug a flag enabling the printing of debug information
-     * @return an assignment mapping a property to each argument in the given clause
-     */
-    solution_type analyse(const AstClause& clause, bool debug = false) {
-        // collect constraints
-        visitDepthFirstPreOrder(clause, *this);
-
-        // solve constraints
-        auto ass = constraints.solve();
-
-        // print debug information if desired
-        if (debug) {
-            std::cout << "Clause: " << clause << "\n";
-            std::cout << "Problem:\n" << constraints << "\n";
-            std::cout << "Solution:\n" << ass << "\n";
-        }
-
-        // convert assignment to result
-        solution_type res;
-        visitDepthFirst(clause, [&](const AstArgument& cur) { res[&cur] = ass[getVar(cur)]; });
-        return res;
-    }
-};
-
-}  // end namespace
-
-namespace {
-
-// -----------------------------------------------------------------------------
-//                        Boolean Disjunct Lattice
-// -----------------------------------------------------------------------------
-
-/**
- * The disjunct meet operator, aka boolean or.
- */
-struct bool_or {
-    bool operator()(bool& a, bool b) const {
-        bool t = a;
-        a = a || b;
-        return t != a;
-    }
-};
-
-/**
- * A factory producing the value false.
- */
-struct false_factory {
-    bool operator()() const {
-        return false;
-    }
-};
-
-/**
- * The definition of a lattice utilizing the boolean values {true} and {false} as
- * its value set and the || operation as its meet operation. Correspondingly,
- * the bottom value is {false} and the top value {true}.
- */
-struct bool_disjunct_lattic : public property_space<bool, bool_or, false_factory> {};
-
-/** A base type for analysis based on the boolean disjunct lattice */
-using BoolDisjunctVar = AstConstraintAnalysisVar<bool_disjunct_lattic>;
-
-/** A base type for constraints on the boolean disjunct lattice */
-using BoolDisjunctConstraint = std::shared_ptr<Constraint<BoolDisjunctVar>>;
-
-/**
- * A constraint factory for a constraint ensuring that the value assigned to the
- * given variable is (at least) {true}
- */
-BoolDisjunctConstraint isTrue(const BoolDisjunctVar& var) {
-    struct C : public Constraint<BoolDisjunctVar> {
-        BoolDisjunctVar var;
-        C(BoolDisjunctVar var) : var(std::move(var)) {}
-        bool update(Assignment<BoolDisjunctVar>& ass) const override {
-            auto res = !ass[var];
-            ass[var] = true;
-            return res;
-        }
-        void print(std::ostream& out) const override {
-            out << var << " is true";
-        }
-    };
-    return std::make_shared<C>(var);
-}
-
-/**
- * A constraint factory for a constraint ensuring the constraint
- *
- *                              a ⇒ b
- *
- * Hence, whenever a is mapped to {true}, so is b.
- */
-BoolDisjunctConstraint imply(const BoolDisjunctVar& a, const BoolDisjunctVar& b) {
-    return sub(a, b, "⇒");
-}
-
-/**
- * A constraint factory for a constraint ensuring the constraint
- *
- *               vars[0] ∧ vars[1] ∧ ... ∧ vars[n] ⇒ res
- *
- * Hence, whenever all variables vars[i] are mapped to true, so is res.
- */
-BoolDisjunctConstraint imply(const std::vector<BoolDisjunctVar>& vars, const BoolDisjunctVar& res) {
-    struct C : public Constraint<BoolDisjunctVar> {
-        BoolDisjunctVar res;
-        std::vector<BoolDisjunctVar> vars;
-
-        C(BoolDisjunctVar res, std::vector<BoolDisjunctVar> vars)
-                : res(std::move(res)), vars(std::move(vars)) {}
-
-        bool update(Assignment<BoolDisjunctVar>& ass) const override {
-            bool r = ass[res];
-            if (r) {
-                return false;
-            }
-
-            for (const auto& cur : vars) {
-                if (!ass[cur]) {
-                    return false;
-                }
-            }
-
-            ass[res] = true;
-            return true;
-        }
-
-        void print(std::ostream& out) const override {
-            out << join(vars, " ∧ ") << " ⇒ " << res;
-        }
-    };
-
-    return std::make_shared<C>(res, vars);
-}
-}  // namespace
-
-std::map<const AstArgument*, bool> getConstTerms(const AstClause& clause) {
-    // define analysis ..
-    struct Analysis : public AstConstraintAnalysis<BoolDisjunctVar> {
-        // #1 - constants are constant
-        void visitConstant(const AstConstant& cur) override {
-            // this is a constant value
-            addConstraint(isTrue(getVar(cur)));
-        }
-
-        // #2 - binary relations may propagate const
-        void visitBinaryConstraint(const AstBinaryConstraint& cur) override {
-            // only target equality
-            if (cur.getOperator() != BinaryConstraintOp::EQ) {
-                return;
-            }
-
-            // if equal, link right and left side
-            auto lhs = getVar(cur.getLHS());
-            auto rhs = getVar(cur.getRHS());
-
-            addConstraint(imply(lhs, rhs));
-            addConstraint(imply(rhs, lhs));
-        }
-
-        // #3 - const is propagated via unary functors
-        void visitUnaryFunctor(const AstUnaryFunctor& cur) override {
-            auto fun = getVar(cur);
-            auto op = getVar(cur.getOperand());
-
-            addConstraint(imply(op, fun));
-        }
-
-        // #4 - const is propagated via binary functors
-        void visitBinaryFunctor(const AstBinaryFunctor& cur) override {
-            auto fun = getVar(cur);
-            auto lhs = getVar(cur.getLHS());
-            auto rhs = getVar(cur.getRHS());
-
-            addConstraint(imply({lhs, rhs}, fun));
-            addConstraint(imply({fun, lhs}, rhs));
-            addConstraint(imply({fun, rhs}, lhs));
-        }
-
-        // #5 - const is propagated via ternary functors
-        void visitTernaryFunctor(const AstTernaryFunctor& cur) override {
-            auto fun = getVar(cur);
-            auto a0 = getVar(cur.getArg(0));
-            auto a1 = getVar(cur.getArg(1));
-            auto a2 = getVar(cur.getArg(2));
-
-            addConstraint(imply({a0, a1, a2}, fun));
-        }
-
-        // #6 - if pack nodes and its components
-        void visitRecordInit(const AstRecordInit& init) override {
-            auto pack = getVar(init);
-
-            std::vector<BoolDisjunctVar> subs;
-            for (const auto& cur : init.getArguments()) {
-                subs.push_back(getVar(cur));
-            }
-
-            // link vars in both directions
-            addConstraint(imply(subs, pack));
-            for (const auto& c : subs) {
-                addConstraint(imply(pack, c));
-            }
-        }
-    };
-
-    // run analysis on given clause
-    return Analysis().analyse(clause);
-}
-
-std::map<const AstArgument*, bool> getGroundedTerms(const AstClause& clause) {
-    // define analysis ..
-    struct Analysis : public AstConstraintAnalysis<BoolDisjunctVar> {
-        std::set<const AstAtom*> ignore;
-
-        // #1 - atoms are producing grounded variables
-        void visitAtom(const AstAtom& cur) override {
-            // some atoms need to be skipped (head or negation)
-            if (ignore.find(&cur) != ignore.end()) {
-                return;
-            }
-
-            // all arguments are grounded
-            for (const auto& arg : cur.getArguments()) {
-                addConstraint(isTrue(getVar(arg)));
-            }
-        }
-
-        // #2 - negations need to be skipped
-        void visitNegation(const AstNegation& cur) override {
-            // add nested atom to black-list
-            ignore.insert(cur.getAtom());
-        }
-
-        // #3 - also skip head
-        void visitClause(const AstClause& clause) override {
-            // ignore head
-            ignore.insert(clause.getHead());
-        }
-
-        // #4 - binary equality relations propagates groundness
-        void visitBinaryConstraint(const AstBinaryConstraint& cur) override {
-            // only target equality
-            if (cur.getOperator() != BinaryConstraintOp::EQ) {
-                return;
-            }
-
-            // if equal, link right and left side
-            auto lhs = getVar(cur.getLHS());
-            auto rhs = getVar(cur.getRHS());
-
-            addConstraint(imply(lhs, rhs));
-            addConstraint(imply(rhs, lhs));
-        }
-
-        // #5 - record init nodes
-        void visitRecordInit(const AstRecordInit& init) override {
-            auto cur = getVar(init);
-
-            std::vector<BoolDisjunctVar> vars;
-
-            // if record is grounded, so are all its arguments
-            for (const auto& arg : init.getArguments()) {
-                auto arg_var = getVar(arg);
-                addConstraint(imply(cur, arg_var));
-                vars.push_back(arg_var);
-            }
-
-            // if all arguments are grounded, so is the record
-            addConstraint(imply(vars, cur));
-        }
-
-        // #6 - constants are also sources of grounded values
-        void visitConstant(const AstConstant& c) override {
-            addConstraint(isTrue(getVar(c)));
-        }
-
-        // #7 - aggregators are grounding values
-        void visitAggregator(const AstAggregator& c) override {
-            addConstraint(isTrue(getVar(c)));
-        }
-
-        // #8 - functors with grounded values are grounded values
-        void visitUnaryFunctor(const AstUnaryFunctor& cur) override {
-            auto fun = getVar(cur);
-            auto arg = getVar(cur.getOperand());
-
-            addConstraint(imply(arg, fun));
-        }
-
-        void visitBinaryFunctor(const AstBinaryFunctor& cur) override {
-            auto fun = getVar(cur);
-            auto lhs = getVar(cur.getLHS());
-            auto rhs = getVar(cur.getRHS());
-
-            addConstraint(imply({lhs, rhs}, fun));
-        }
-
-        void visitTernaryFunctor(const AstTernaryFunctor& cur) override {
-            auto fun = getVar(cur);
-            auto a0 = getVar(cur.getArg(0));
-            auto a1 = getVar(cur.getArg(1));
-            auto a2 = getVar(cur.getArg(2));
-
-            addConstraint(imply({a0, a1, a2}, fun));
-        }
-    };
-
-    // run analysis on given clause
-    return Analysis().analyse(clause);
-}
 
 namespace {
 
@@ -585,58 +191,6 @@ TypeConstraint isSupertypeOf(const TypeVar& a, const Type& b) {
     return std::make_shared<C>(a, b);
 }
 
-/**
- * A constraint factory ensuring that all the types associated to the variable
- * a are subtypes of the least common super types of types associated to the variables {vars}.
- */
-// TypeConstraint isSubtypeOfSuperType(const TypeVar& a, const std::vector<TypeVar>& vars) {
-//    // TODO: this function is not used, so maybe it should be deleted
-//    assert(!vars.empty() && "Unsupported for no variables!");
-
-//    // if there is only one variable => chose easy way
-//    if (vars.size() == 1u) {
-//        return isSubtypeOf(a, vars[0]);
-//    }
-
-//    struct C : public Constraint<TypeVar> {
-//        TypeVar a;
-//        std::vector<TypeVar> vars;
-
-//        C(const TypeVar& a, const std::vector<TypeVar>& vars) : a(a), vars(vars) {}
-
-//        virtual bool update(Assignment<TypeVar>& ass) const {
-//            // get common super types of given variables
-//            TypeSet limit = ass[a];
-//            for (const TypeVar& cur : vars) {
-//                limit = getLeastCommonSupertypes(limit, ass[cur]);
-//            }
-
-//            // compute new value
-//            TypeSet res = getGreatestCommonSubtypes(ass[a], limit);
-
-//            // get current value of variable a
-//            TypeSet& s = ass[a];
-
-//            // check whether there was a change
-//            if (res == s) {
-//                return false;
-//            }
-//            s = res;
-//            return true;
-//        }
-
-//        virtual void print(std::ostream& out) const {
-//            if (vars.size() == 1) {
-//                out << a << " <: " << vars[0];
-//                return;
-//            }
-//            out << a << " <: super(" << join(vars, ",") << ")";
-//        }
-//    };
-
-//    return std::make_shared<C>(a, vars);
-//}
-
 TypeConstraint isSubtypeOfComponent(const TypeVar& a, const TypeVar& b, int index) {
     struct C : public Constraint<TypeVar> {
         TypeVar a;
@@ -706,86 +260,6 @@ TypeConstraint isSubtypeOfComponent(const TypeVar& a, const TypeVar& b, int inde
 }
 }  // namespace
 
-void TypeEnvironmentAnalysis::run(const AstTranslationUnit& translationUnit) {
-    updateTypeEnvironment(*translationUnit.getProgram());
-}
-
-/**
- * A utility function utilized by the finishParsing member function to update a type environment
- * out of a given list of types in the AST
- *
- * @param types the types specified in the input file, contained in the AST
- * @param env the type environment to be updated
- */
-void TypeEnvironmentAnalysis::updateTypeEnvironment(const AstProgram& program) {
-    // build up new type system based on defined types
-
-    // create all type symbols in a first step
-    for (const auto& cur : program.getTypes()) {
-        // support faulty codes with multiple definitions
-        if (env.isType(cur->getName())) {
-            continue;
-        }
-
-        // create type within type environment
-        if (auto* t = dynamic_cast<const AstPrimitiveType*>(cur)) {
-            if (t->isNumeric()) {
-                env.createNumericType(cur->getName());
-            } else {
-                env.createSymbolType(cur->getName());
-            }
-        } else if (dynamic_cast<const AstUnionType*>(cur)) {
-            // initialize the union
-            env.createUnionType(cur->getName());
-        } else if (dynamic_cast<const AstRecordType*>(cur)) {
-            // initialize the record
-            env.createRecordType(cur->getName());
-        } else {
-            std::cout << "Unsupported type construct: " << typeid(cur).name() << "\n";
-            assert(false && "Unsupported Type Construct!");
-        }
-    }
-
-    // link symbols in a second step
-    for (const auto& cur : program.getTypes()) {
-        Type* type = env.getModifiableType(cur->getName());
-        assert(type && "It should be there!");
-
-        if (dynamic_cast<const AstPrimitiveType*>(cur)) {
-            // nothing to do here
-        } else if (auto* t = dynamic_cast<const AstUnionType*>(cur)) {
-            // get type as union type
-            auto* ut = dynamic_cast<UnionType*>(type);
-            if (!ut) {
-                continue;  // support faulty input
-            }
-
-            // add element types
-            for (const auto& cur : t->getTypes()) {
-                if (env.isType(cur)) {
-                    ut->add(env.getType(cur));
-                }
-            }
-        } else if (auto* t = dynamic_cast<const AstRecordType*>(cur)) {
-            // get type as record type
-            auto* rt = dynamic_cast<RecordType*>(type);
-            if (!rt) {
-                continue;  // support faulty input
-            }
-
-            // add fields
-            for (const auto& f : t->getFields()) {
-                if (env.isType(f.type)) {
-                    rt->add(f.name, env.getType(f.type));
-                }
-            }
-        } else {
-            std::cout << "Unsupported type construct: " << typeid(cur).name() << "\n";
-            assert(false && "Unsupported Type Construct!");
-        }
-    }
-}
-
 /* Return a new clause with type-annotated variables */
 AstClause* createAnnotatedClause(
         const AstClause* clause, const std::map<const AstArgument*, TypeSet> argumentTypes) {
@@ -851,31 +325,44 @@ AstClause* createAnnotatedClause(
 }
 
 void TypeAnalysis::run(const AstTranslationUnit& translationUnit) {
+    // Check if debugging information is being generated and note where logs should be sent
+    std::ostream* debugStream = nullptr;
+    if (!Global::config().get("debug-report").empty()) {
+        debugStream = &analysisLogs;
+    }
     auto* typeEnvAnalysis = translationUnit.getAnalysis<TypeEnvironmentAnalysis>();
     for (const AstRelation* rel : translationUnit.getProgram()->getRelations()) {
         for (const AstClause* clause : rel->getClauses()) {
             // Perform the type analysis
-            std::map<const AstArgument*, TypeSet> clauseArgumentTypes = analyseTypes(
-                    typeEnvAnalysis->getTypeEnvironment(), *clause, translationUnit.getProgram());
+            std::map<const AstArgument*, TypeSet> clauseArgumentTypes =
+                    analyseTypes(typeEnvAnalysis->getTypeEnvironment(), *clause, translationUnit.getProgram(),
+                            debugStream);
             argumentTypes.insert(clauseArgumentTypes.begin(), clauseArgumentTypes.end());
 
-            if (!Global::config().get("debug-report").empty()) {
+            if (debugStream != nullptr) {
                 // Store an annotated clause for printing purposes
                 AstClause* annotatedClause = createAnnotatedClause(clause, clauseArgumentTypes);
-                annotatedClauses.push_back(std::unique_ptr<AstClause>(annotatedClause));
+                annotatedClauses.emplace_back(annotatedClause);
             }
         }
     }
 }
 
 void TypeAnalysis::print(std::ostream& os) const {
-    for (const auto& curr : annotatedClauses) {
-        os << *curr << std::endl;
+    os << "-- Analysis logs --" << std::endl;
+    os << analysisLogs.str() << std::endl;
+    os << "-- Result --" << std::endl;
+    for (const auto& cur : annotatedClauses) {
+        os << *cur << std::endl;
     }
 }
 
+/**
+ * Generic type analysis framework for clauses
+ */
+
 std::map<const AstArgument*, TypeSet> TypeAnalysis::analyseTypes(
-        const TypeEnvironment& env, const AstClause& clause, const AstProgram* program, bool verbose) {
+        const TypeEnvironment& env, const AstClause& clause, const AstProgram* program, std::ostream* logs) {
     struct Analysis : public AstConstraintAnalysis<TypeVar> {
         const TypeEnvironment& env;
         const AstProgram* program;
@@ -911,7 +398,7 @@ std::map<const AstArgument*, TypeSet> TypeAnalysis::analyseTypes(
             }
         }
 
-        // #2 - negations need to be skipped
+        // negations need to be skipped
         void visitNegation(const AstNegation& cur) override {
             // add nested atom to black-list
             negated.insert(cur.getAtom());
@@ -937,35 +424,11 @@ std::map<const AstArgument*, TypeSet> TypeAnalysis::analyseTypes(
             addConstraint(isSubtypeOf(rhs, lhs));
         }
 
-        // unary functor
-        void visitUnaryFunctor(const AstUnaryFunctor& fun) override {
-            auto out = getVar(fun);
-            auto in = getVar(fun.getOperand());
-
-            // add a constraint for the return type of the unary functor
-            if (fun.isNumerical()) {
-                addConstraint(isSubtypeOf(out, env.getNumberType()));
-            }
-            if (fun.isSymbolic()) {
-                addConstraint(isSubtypeOf(out, env.getSymbolType()));
-            }
-
-            // add a constraint for the argument type of the unary functor
-            if (fun.acceptsNumbers()) {
-                addConstraint(isSubtypeOf(in, env.getNumberType()));
-            }
-            if (fun.acceptsSymbols()) {
-                addConstraint(isSubtypeOf(in, env.getSymbolType()));
-            }
-        }
-
-        // binary functor
-        void visitBinaryFunctor(const AstBinaryFunctor& fun) override {
+        // intrinsic functor
+        void visitIntrinsicFunctor(const AstIntrinsicFunctor& fun) override {
             auto cur = getVar(fun);
-            auto lhs = getVar(fun.getLHS());
-            auto rhs = getVar(fun.getRHS());
 
-            // add a constraint for the return type of the binary functor
+            // add a constraint for the return type of the functor
             if (fun.isNumerical()) {
                 addConstraint(isSubtypeOf(cur, env.getNumberType()));
             }
@@ -973,61 +436,50 @@ std::map<const AstArgument*, TypeSet> TypeAnalysis::analyseTypes(
                 addConstraint(isSubtypeOf(cur, env.getSymbolType()));
             }
 
-            // add a constraint for the first argument of the binary functor
-            if (fun.acceptsNumbers(0)) {
-                addConstraint(isSubtypeOf(lhs, env.getNumberType()));
-            }
-            if (fun.acceptsSymbols(0)) {
-                addConstraint(isSubtypeOf(lhs, env.getSymbolType()));
-            }
-
-            // add a constraint for the second argument of the binary functor
-            if (fun.acceptsNumbers(1)) {
-                addConstraint(isSubtypeOf(rhs, env.getNumberType()));
-            }
-            if (fun.acceptsSymbols(1)) {
-                addConstraint(isSubtypeOf(rhs, env.getSymbolType()));
+            // add a constraint for each argument of the functor
+            for (size_t i = 0; i < fun.getArity(); i++) {
+                auto arg = getVar(fun.getArg(i));
+                if (fun.acceptsNumbers(i)) {
+                    addConstraint(isSubtypeOf(arg, env.getNumberType()));
+                }
+                if (fun.acceptsSymbols(i)) {
+                    addConstraint(isSubtypeOf(arg, env.getSymbolType()));
+                }
             }
         }
 
-        // ternary functor
-        void visitTernaryFunctor(const AstTernaryFunctor& fun) override {
+        // user-defined functors
+        void visitUserDefinedFunctor(const AstUserDefinedFunctor& fun) override {
             auto cur = getVar(fun);
 
-            auto a0 = getVar(fun.getArg(0));
-            auto a1 = getVar(fun.getArg(1));
-            auto a2 = getVar(fun.getArg(2));
+            // get functor declaration
+            const AstFunctorDeclaration* funDecl = program->getFunctorDeclaration(fun.getName());
+            // check whether functor declaration exists
+            if (funDecl != nullptr) {
+                // add a constraint for the return type
+                if (funDecl->isNumerical()) {
+                    addConstraint(isSubtypeOf(cur, env.getNumberType()));
+                }
+                if (funDecl->isSymbolic()) {
+                    addConstraint(isSubtypeOf(cur, env.getSymbolType()));
+                }
 
-            // add a constraint for the return type of the ternary functor
-            if (fun.isNumerical()) {
-                addConstraint(isSubtypeOf(cur, env.getNumberType()));
-            }
-            if (fun.isSymbolic()) {
-                addConstraint(isSubtypeOf(cur, env.getSymbolType()));
-            }
+                // add constraints for arguments
+                for (size_t i = 0; i < fun.getArgCount(); i++) {
+                    auto arg = getVar(fun.getArg(i));
 
-            // add a constraint for the first argument of the ternary functor
-            if (fun.acceptsNumbers(0)) {
-                addConstraint(isSubtypeOf(a0, env.getNumberType()));
-            }
-            if (fun.acceptsSymbols(0)) {
-                addConstraint(isSubtypeOf(a0, env.getSymbolType()));
-            }
-
-            // add a constraint for the second argument of the ternary functor
-            if (fun.acceptsNumbers(1)) {
-                addConstraint(isSubtypeOf(a1, env.getNumberType()));
-            }
-            if (fun.acceptsSymbols(1)) {
-                addConstraint(isSubtypeOf(a1, env.getSymbolType()));
-            }
-
-            // add a constraint for the third argument of the ternary functor
-            if (fun.acceptsNumbers(2)) {
-                addConstraint(isSubtypeOf(a2, env.getNumberType()));
-            }
-            if (fun.acceptsSymbols(2)) {
-                addConstraint(isSubtypeOf(a2, env.getSymbolType()));
+                    // check that usage does not exceed
+                    // number of arguments in declaration
+                    if (i < funDecl->getArgCount()) {
+                        // add constraints for the i-th argument
+                        if (funDecl->acceptsNumbers(i)) {
+                            addConstraint(isSubtypeOf(arg, env.getNumberType()));
+                        }
+                        if (funDecl->acceptsSymbols(i)) {
+                            addConstraint(isSubtypeOf(arg, env.getSymbolType()));
+                        }
+                    }
+                }
             }
         }
 
@@ -1061,7 +513,7 @@ std::map<const AstArgument*, TypeSet> TypeAnalysis::analyseTypes(
     };
 
     // run analysis
-    return Analysis(env, program).analyse(clause, verbose);
+    return Analysis(env, program).analyse(clause, logs);
 }
 
 }  // end of namespace souffle

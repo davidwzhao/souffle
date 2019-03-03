@@ -175,11 +175,10 @@ std::vector<T*> toPtrVector(const std::vector<std::shared_ptr<T>>& v) {
  */
 template <typename X, typename Y>
 void movePtrVector(std::vector<std::unique_ptr<X>>& source, std::vector<std::unique_ptr<Y>>& destination) {
-    while (!source.empty()) {
-        auto it = source.begin();
-        destination.push_back(std::move(std::make_unique<Y>(std::move(*it))));
-        source.erase(it);
+    for (auto& cur : source) {
+        destination.emplace_back(cur.release());
     }
+    source.clear();
 }
 
 /**
@@ -991,7 +990,7 @@ inline long duration_in_ns(const time_point& start, const time_point& end) {
 inline bool existFile(const std::string& name) {
     struct stat buffer = {};
     if (stat(name.c_str(), &buffer) == 0) {
-        if ((buffer.st_mode & S_IFREG) != 0) {
+        if ((buffer.st_mode & S_IFMT) != 0) {
             return true;
         }
     }
@@ -1125,7 +1124,7 @@ inline std::string baseName(const std::string& filename) {
  * File name, with extension removed.
  */
 inline std::string simpleName(const std::string& path) {
-    std::string name = path;
+    std::string name = baseName(path);
     const size_t lastDot = name.find_last_of('.');
     // file has no extension
     if (lastDot == std::string::npos) return name;
@@ -1318,12 +1317,12 @@ class LRUCache {
     std::array<std::size_t, size> priv;  // < predecessor of element i
     std::array<std::size_t, size> post;  // < successor of element i
 
-    std::size_t first;  // < index of the first element
-    std::size_t last;   // < index of the last element
+    std::size_t first{0};        // < index of the first element
+    std::size_t last{size - 1};  // < index of the last element
 
 public:
     // creates a new, empty cache
-    LRUCache(const T& val = T()) : entries(), first(0), last(size - 1) {
+    LRUCache(const T& val = T()) {
         for (unsigned i = 0; i < size; i++) {
             entries[i] = val;
             priv[i] = i - 1;

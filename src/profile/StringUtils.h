@@ -12,6 +12,7 @@
 #include "Row.h"
 #include "Table.h"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
@@ -34,6 +35,12 @@ namespace Tools {
 static const std::string arr[] = {"K", "M", "B", "t", "q", "Q", "s", "S", "o", "n", "d", "U"};
 static const std::vector<std::string> abbreviations(arr, arr + sizeof(arr) / sizeof(arr[0]));
 
+inline std::string formatNum(double amount) {
+    std::stringstream ss;
+    ss << amount;
+    return ss.str();
+}
+
 inline std::string formatNum(int precision, int64_t amount) {
     // assumes number is < 999*10^12
     if (amount == 0) {
@@ -46,13 +53,13 @@ inline std::string formatNum(int precision, int64_t amount) {
 
     std::string result;
 
+    if (amount < 1000) {
+        return std::to_string(amount);
+    }
+
     for (size_t i = 0; i < abbreviations.size(); ++i) {
         if (amount > std::pow(1000, i + 2)) {
             continue;
-        }
-
-        if (i == 0) {
-            return std::to_string(amount);
         }
 
         double r = amount / std::pow(1000, i + 1);
@@ -126,12 +133,8 @@ inline std::string formatMemory(uint64_t kbytes) {
     return std::to_string(kbytes / (1024 * 1024 * 1024)) + "TB";
 }
 
-inline std::string formatTime(double number) {
-    if (std::isnan(number) || std::isinf(number)) {
-        return "-";
-    }
-
-    uint64_t sec = std::lrint(number);
+inline std::string formatTime(std::chrono::microseconds number) {
+    uint64_t sec = number.count() / 1000000;
     if (sec >= 100) {
         uint64_t min = std::floor(sec / 60);
         if (min >= 100) {
@@ -144,23 +147,23 @@ inline std::string formatTime(double number) {
         }
         if (min < 10) {
             // temp should always be 1 digit long
-            uint64_t temp = std::floor((sec - (min * 60.0)) * 10.0 / 6.0);  // x*10/6 instead of x/60*100
+            uint64_t temp = std::floor((sec - (min * 60.0)) * 10.0 / 6.0);
             return std::to_string(min) + "." + std::to_string(temp).substr(0, 1) + "m";
         }
         return std::to_string(min) + "m";
     } else if (sec >= 10) {
         return std::to_string(sec) + "s";
-    } else if (number >= 1.0) {
-        std::string temp = std::to_string(std::lrint(number * 100));
+    } else if (number.count() >= 1000000) {
+        std::string temp = std::to_string(number.count() / 100);
         return temp.substr(0, 1) + "." + temp.substr(1, 2) + "s";
-    } else if (std::lrint(number * 1000) >= 100.0) {
-        std::string temp = std::to_string(std::round(number * 1000));
+    } else if (number.count() >= 100000) {
+        std::string temp = std::to_string(number.count() / 1000);
         return "." + temp.substr(0, 3) + "s";
-    } else if (std::lrint(number * 1000) >= 10.0) {
-        std::string temp = std::to_string(std::round(number * 1000));
+    } else if (number.count() >= 10000) {
+        std::string temp = std::to_string(number.count() / 1000);
         return ".0" + temp.substr(0, 2) + "s";
-    } else if (number >= .001) {
-        std::string temp = std::to_string(std::round(number * 1000));
+    } else if (number.count() >= 1000) {
+        std::string temp = std::to_string(number.count() / 1000);
         return ".00" + temp.substr(0, 1) + "s";
     }
 

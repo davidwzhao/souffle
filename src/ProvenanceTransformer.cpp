@@ -25,7 +25,9 @@
 #include "AstTransforms.h"
 #include "AstTranslationUnit.h"
 #include "AstType.h"
-#include "BinaryFunctorOps.h"
+#include "BinaryConstraintOps.h"
+#include "FunctorOps.h"
+#include "RelationRepresentation.h"
 #include "Util.h"
 #include <cassert>
 #include <cstddef>
@@ -77,19 +79,26 @@ std::unique_ptr<AstRelation> makeInfoRelation(
     for (size_t i = 0; i < originalClause.getBodyLiterals().size(); i++) {
         auto lit = originalClause.getBodyLiterals()[i];
         const AstAtom* atom = lit->getAtom();
+
+        // add an attribute for atoms and binary constraints
+        if (atom != nullptr || dynamic_cast<AstBinaryConstraint*>(lit) != nullptr) {
+            infoRelation->addAttribute(std::make_unique<AstAttribute>(
+                    std::string("rel_") + std::to_string(i), AstTypeIdentifier("symbol")));
+        }
+
         if (atom != nullptr) {
             std::string relName = identifierToString(atom->getName());
 
-            infoRelation->addAttribute(std::make_unique<AstAttribute>(
-                    std::string("rel_") + std::to_string(i), AstTypeIdentifier("symbol")));
-
-            if (dynamic_cast<AstAtom*>(lit)) {
+            if (dynamic_cast<AstAtom*>(lit) != nullptr) {
                 infoClauseHead->addArgument(
                         std::make_unique<AstStringConstant>(translationUnit.getSymbolTable(), relName));
-            } else if (dynamic_cast<AstNegation*>(lit)) {
+            } else if (dynamic_cast<AstNegation*>(lit) != nullptr) {
                 infoClauseHead->addArgument(std::make_unique<AstStringConstant>(
                         translationUnit.getSymbolTable(), ("!" + relName)));
             }
+        } else if (auto con = dynamic_cast<AstBinaryConstraint*>(lit)) {
+            infoClauseHead->addArgument(std::make_unique<AstStringConstant>(
+                    translationUnit.getSymbolTable(), (toBinaryConstraintSymbol(con->getOperator()))));
         }
     }
 
@@ -110,7 +119,8 @@ std::unique_ptr<AstRelation> makeInfoRelation(
 
 /** Transform eqrel relations to explicitly define equivalence relations */
 void transformEqrelRelation(AstRelation& rel) {
-    assert(rel.isEqRel() && "attempting to transform non-eqrel relation");
+    assert(rel.getRepresentation() == RelationRepresentation::EQREL &&
+            "attempting to transform non-eqrel relation");
     assert(rel.getArity() == 2 && "eqrel relation not binary");
 
     rel.setQualifier(rel.getQualifier() - EQREL_RELATION);
@@ -176,25 +186,40 @@ bool ProvenanceTransformer::transform(AstTranslationUnit& translationUnit) {
         }
 
         if (levels.size() == 1) {
-            return static_cast<AstArgument*>(new AstBinaryFunctor(BinaryOp::ADD,
+            return static_cast<AstArgument*>(new AstIntrinsicFunctor(FunctorOp::ADD,
                     std::unique_ptr<AstArgument>(levels[0]), std::make_unique<AstNumberConstant>(1)));
         }
 
-        auto currentMax = new AstBinaryFunctor(BinaryOp::MAX, std::unique_ptr<AstArgument>(levels[0]),
+        auto currentMax = new AstIntrinsicFunctor(FunctorOp::MAX, std::unique_ptr<AstArgument>(levels[0]),
                 std::unique_ptr<AstArgument>(levels[1]));
 
         for (size_t i = 2; i < levels.size(); i++) {
-            currentMax = new AstBinaryFunctor(BinaryOp::MAX, std::unique_ptr<AstArgument>(currentMax),
+            currentMax = new AstIntrinsicFunctor(FunctorOp::MAX, std::unique_ptr<AstArgument>(currentMax),
                     std::unique_ptr<AstArgument>(levels[i]));
         }
 
-        return static_cast<AstArgument*>(new AstBinaryFunctor(BinaryOp::ADD,
+        return static_cast<AstArgument*>(new AstIntrinsicFunctor(FunctorOp::ADD,
                 std::unique_ptr<AstArgument>(currentMax), std::make_unique<AstNumberConstant>(1)));
     };
 
     for (auto relation : program->getRelations()) {
-        if (relation->isEqRel()) {
+        if (relation->getRepresentation() == RelationRepresentation::EQREL) {
             transformEqrelRelation(*relation);
+        }
+
+        // generate info relations for each clause
+        // do this before all other transformations so that we record
+        // the original rule without any instrumentation
+        size_t clauseNum = 1;
+        for (auto clause : relation->getClauses()) {
+            if (!clause->isFact()) {
+                clause->setClauseNum(clauseNum);
+
+                // add info relation
+                program->addRelation(makeInfoRelation(*clause, translationUnit));
+
+                clauseNum++;
+            }
         }
 
         relation->addAttribute(
@@ -202,11 +227,7 @@ bool ProvenanceTransformer::transform(AstTranslationUnit& translationUnit) {
         relation->addAttribute(
                 std::make_unique<AstAttribute>(std::string("@level_number"), AstTypeIdentifier("number")));
 
-        // record clause number
-        size_t clauseNum = 1;
         for (auto clause : relation->getClauses()) {
-            clause->setClauseNum(clauseNum);
-
             // mapper to add two provenance columns to atoms
             struct M : public AstNodeMapper {
                 using AstNodeMapper::operator();
@@ -253,13 +274,8 @@ bool ProvenanceTransformer::transform(AstTranslationUnit& translationUnit) {
                 }
 
                 // add two provenance columns to head lit
-                clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(clauseNum));
+                clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(clause->getClauseNum()));
                 clause->getHead()->addArgument(std::unique_ptr<AstArgument>(getNextLevelNumber(bodyLevels)));
-
-                clauseNum++;
-
-                // add info relation
-                program->addRelation(makeInfoRelation(*clause, translationUnit));
             }
         }
     }

@@ -32,11 +32,6 @@ namespace souffle {
  *
  */
 class AstRelationIdentifier {
-    /**
-     * The list of names forming this identifier.
-     */
-    std::vector<std::string> names;
-
 public:
     // -- constructors --
 
@@ -97,6 +92,10 @@ public:
         id.print(out);
         return out;
     }
+
+public:
+    /** The list of names forming this identifier. */
+    std::vector<std::string> names;
 };
 
 /**

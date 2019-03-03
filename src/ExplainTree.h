@@ -16,19 +16,18 @@
 
 #pragma once
 
+#include "Util.h"
+#include <cassert>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
+#include <string.h>
 
 namespace souffle {
 
 class ScreenBuffer {
-private:
-    uint32_t width;   // width of the screen buffer
-    uint32_t height;  // height of the screen buffer
-    char* buffer;     // screen contents
-
 public:
     // constructor
     ScreenBuffer(uint32_t w, uint32_t h) : width(w), height(h), buffer(nullptr) {
@@ -68,6 +67,11 @@ public:
             }
         }
     }
+
+private:
+    uint32_t width;   // width of the screen buffer
+    uint32_t height;  // height of the screen buffer
+    char* buffer;     // screen contents
 };
 
 /***
@@ -75,14 +79,6 @@ public:
  *
  */
 class TreeNode {
-protected:
-    std::string txt;      // text of tree node
-    uint32_t width = 0;   // width of node (including sub-trees)
-    uint32_t height = 0;  // height of node (including sub-trees)
-    int xpos = 0;         // x-position of text
-    int ypos = 0;         // y-position of text
-    uint32_t size = 0;
-
 public:
     TreeNode(std::string t = "") : txt(std::move(t)) {}
     virtual ~TreeNode() = default;
@@ -112,16 +108,20 @@ public:
     }
 
     virtual void printJSON(std::ostream& os, int pos) = 0;
+
+protected:
+    std::string txt;      // text of tree node
+    uint32_t width = 0;   // width of node (including sub-trees)
+    uint32_t height = 0;  // height of node (including sub-trees)
+    int xpos = 0;         // x-position of text
+    int ypos = 0;         // y-position of text
+    uint32_t size = 0;
 };
 
 /***
  * Concrete class
  */
 class InnerNode : public TreeNode {
-private:
-    std::vector<std::unique_ptr<TreeNode>> children;
-    std::string label;
-
 public:
     InnerNode(const std::string& nodeText = "", std::string label = "")
             : TreeNode(nodeText), label(std::move(label)) {}
@@ -185,6 +185,10 @@ public:
         os << tab << "]\n";
         os << tab << "}";
     }
+
+private:
+    std::vector<std::unique_ptr<TreeNode>> children;
+    std::string label;
 };
 
 /***

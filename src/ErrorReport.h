@@ -29,11 +29,6 @@
 namespace souffle {
 
 class DiagnosticMessage {
-private:
-    std::string message;
-    bool hasLoc;
-    SrcLocation location;
-
 public:
     DiagnosticMessage(std::string message, SrcLocation location)
             : message(std::move(message)), hasLoc(true), location(std::move(location)) {}
@@ -65,18 +60,17 @@ public:
         diagnosticMessage.print(out);
         return out;
     }
+
+private:
+    std::string message;
+    bool hasLoc;
+    SrcLocation location;
 };
 
 class Diagnostic {
 public:
     enum Type { ERROR, WARNING };
 
-private:
-    Type type;
-    DiagnosticMessage primaryMessage;
-    std::vector<DiagnosticMessage> additionalMessages;
-
-public:
     Diagnostic(Type type, DiagnosticMessage primaryMessage, std::vector<DiagnosticMessage> additionalMessages)
             : type(type), primaryMessage(std::move(primaryMessage)),
               additionalMessages(std::move(additionalMessages)) {}
@@ -142,12 +136,14 @@ public:
 
         return false;
     }
+
+private:
+    Type type;
+    DiagnosticMessage primaryMessage;
+    std::vector<DiagnosticMessage> additionalMessages;
 };
 
 class ErrorReport {
-    std::set<Diagnostic> diagnostics;
-    bool nowarn;
-
 public:
     ErrorReport(bool nowarn = false) : nowarn(nowarn) {}
 
@@ -194,6 +190,10 @@ public:
         report.print(out);
         return out;
     }
+
+private:
+    std::set<Diagnostic> diagnostics;
+    bool nowarn;
 };
 
 }  // end of namespace souffle

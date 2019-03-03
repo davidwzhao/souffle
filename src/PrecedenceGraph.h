@@ -19,10 +19,14 @@
 #pragma once
 
 #include "AstAnalysis.h"
+#include "AstIOTypeAnalysis.h"
 #include "AstRelation.h"
 #include "GraphUtils.h"
+#include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <set>
 #include <stack>
@@ -38,10 +42,6 @@ class AstTranslationUnit;
  * Analysis pass computing the precedence graph of the relations of the datalog progam.
  */
 class PrecedenceGraph : public AstAnalysis {
-private:
-    /** Adjacency list of precedence graph (determined by the dependencies of the relations) */
-    Graph<const AstRelation*, AstNameComparison> backingGraph;
-
 public:
     static constexpr const char* name = "precedence-graph";
 
@@ -53,6 +53,10 @@ public:
     const Graph<const AstRelation*, AstNameComparison>& graph() const {
         return backingGraph;
     }
+
+private:
+    /** Adjacency list of precedence graph (determined by the dependencies of the relations) */
+    Graph<const AstRelation*, AstNameComparison> backingGraph;
 };
 
 /**
@@ -60,11 +64,6 @@ public:
  * of the output relations.
  */
 class RedundantRelations : public AstAnalysis {
-private:
-    PrecedenceGraph* precedenceGraph = nullptr;
-
-    std::set<const AstRelation*> redundantRelations;
-
 public:
     static constexpr const char* name = "redundant-relations";
 
@@ -75,18 +74,17 @@ public:
     const std::set<const AstRelation*>& getRedundantRelations() const {
         return redundantRelations;
     }
+
+private:
+    PrecedenceGraph* precedenceGraph = nullptr;
+
+    std::set<const AstRelation*> redundantRelations;
 };
 
 /**
  * Analysis pass identifying clauses which are recursive.
  */
 class RecursiveClauses : public AstAnalysis {
-private:
-    std::set<const AstClause*> recursiveClauses;
-
-    /** Determines whether the given clause is recursive within the given program */
-    bool computeIsRecursive(const AstClause& clause, const AstTranslationUnit& translationUnit) const;
-
 public:
     static constexpr const char* name = "recursive-clauses";
 
@@ -97,6 +95,12 @@ public:
     bool recursive(const AstClause* clause) const {
         return recursiveClauses.count(clause);
     }
+
+private:
+    std::set<const AstClause*> recursiveClauses;
+
+    /** Determines whether the given clause is recursive within the given program */
+    bool computeIsRecursive(const AstClause& clause, const AstTranslationUnit& translationUnit) const;
 };
 
 /**
@@ -121,6 +125,8 @@ private:
     /** Recursive scR method for computing SCC */
     void scR(const AstRelation* relation, std::map<const AstRelation*, size_t>& preOrder, size_t& counter,
             std::stack<const AstRelation*>& S, std::stack<const AstRelation*>& P, size_t& numSCCs);
+
+    IOType* ioType = nullptr;
 
 public:
     static constexpr const char* name = "scc-graph";
@@ -179,7 +185,7 @@ public:
         std::set<const AstRelation*> externOutPreds;
         for (const auto& relation : getInternalRelations(scc)) {
             for (const auto& predecessor : precedenceGraph->graph().predecessors(relation)) {
-                if (relationToScc.at(predecessor) != scc && predecessor->isOutput()) {
+                if (relationToScc.at(predecessor) != scc && ioType->isOutput(predecessor)) {
                     externOutPreds.insert(predecessor);
                 }
             }
@@ -192,7 +198,7 @@ public:
         std::set<const AstRelation*> externNonOutPreds;
         for (const auto& relation : getInternalRelations(scc)) {
             for (const auto& predecessor : precedenceGraph->graph().predecessors(relation)) {
-                if (relationToScc.at(predecessor) != scc && !predecessor->isOutput()) {
+                if (relationToScc.at(predecessor) != scc && !ioType->isOutput(predecessor)) {
                     externNonOutPreds.insert(predecessor);
                 }
             }
@@ -217,7 +223,7 @@ public:
     const std::set<const AstRelation*> getInternalOutputRelations(const size_t scc) const {
         std::set<const AstRelation*> internOuts;
         for (const auto& relation : getInternalRelations(scc)) {
-            if (relation->isOutput()) {
+            if (ioType->isOutput(relation)) {
                 internOuts.insert(relation);
             }
         }
@@ -243,7 +249,7 @@ public:
             const size_t scc) const {
         std::set<const AstRelation*> internNonOutsWithExternSuccs;
         for (const auto& relation : getInternalRelations(scc)) {
-            if (!relation->isOutput()) {
+            if (!ioType->isOutput(relation)) {
                 for (const auto& successor : precedenceGraph->graph().successors(relation)) {
                     if (relationToScc.at(successor) != scc) {
                         internNonOutsWithExternSuccs.insert(relation);
@@ -259,7 +265,7 @@ public:
     const std::set<const AstRelation*> getInternalInputRelations(const size_t scc) const {
         std::set<const AstRelation*> internIns;
         for (const auto& relation : getInternalRelations(scc)) {
-            if (relation->isInput()) {
+            if (ioType->isInput(relation)) {
                 internIns.insert(relation);
             }
         }

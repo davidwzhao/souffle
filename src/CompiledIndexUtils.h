@@ -18,11 +18,11 @@
 #pragma once
 
 #include "BTree.h"
-#include "BinaryRelation.h"
+#include "Brie.h"
 #include "CompiledTuple.h"
+#include "EquivalenceRelation.h"
 #include "IterUtils.h"
 #include "RamTypes.h"
-#include "Trie.h"
 #include "Util.h"
 #include <cassert>
 #include <iterator>
@@ -1006,7 +1006,7 @@ template <typename Index>
 class DisjointSetIndex {
     using tuple_type = typename ram::Tuple<RamDomain, 2>;
 
-    using data_type = BinaryRelation<tuple_type>;
+    using data_type = EquivalenceRelation<tuple_type>;
 
     data_type data;
 
@@ -1031,7 +1031,7 @@ public:
      */
     bool contains(const tuple_type& tuple, operation_hints& ctxt) const {
         // TODO pnappa: optimisations would include ctxt for .contains()
-        // doesn't appear to make much sense for BinaryRelation, but future optmisations may be made here
+        // doesn't appear to make much sense for Equivalence, but future optmisations may be made here
         return data.contains(tuple[0], tuple[1]);
     }
 
@@ -1147,18 +1147,6 @@ public:
         }
 
         return ret;
-    }
-
-    /**
-     * Find the requested tuple in the data structure, and generate an iterator that begins at that point
-     * @param key the tuple to search for
-     * @param ctxt the context hint to provide help in finding this position
-     * @return an iterator that begins at that position.. and I'm pretty sure if the tuple does not exist,
-     * then an iterator == this->end()
-     */
-    iterator find(const tuple_type& key, operation_hints& ctxt) const {
-        // TODO: utilise the ctxt for this
-        return iterator(data.find(orderIn(key)));
     }
 
     template <typename SubIndex>

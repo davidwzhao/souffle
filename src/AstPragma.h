@@ -33,14 +33,6 @@ class AstTranslationUnit;
  * @brief Representation of a global option
  */
 class AstPragma : public AstNode {
-protected:
-    /** An internal function to determine equality to another node */
-    bool equal(const AstNode& node) const override {
-        assert(nullptr != dynamic_cast<const AstPragma*>(&node));
-        const auto& other = static_cast<const AstPragma&>(node);
-        return other.key == key && other.value == value;
-    }
-
 public:
     ~AstPragma() override = default;
 
@@ -85,16 +77,24 @@ public:
 
     /** Value */
     std::string value;
+
+protected:
+    /** An internal function to determine equality to another node */
+    bool equal(const AstNode& node) const override {
+        assert(nullptr != dynamic_cast<const AstPragma*>(&node));
+        const auto& other = static_cast<const AstPragma&>(node);
+        return other.key == key && other.value == value;
+    }
 };
 
 class AstPragmaChecker : public AstTransformer {
-private:
-    bool transform(AstTranslationUnit&) override;
-
 public:
     std::string getName() const override {
         return "AstPragmaChecker";
     }
+
+private:
+    bool transform(AstTranslationUnit&) override;
 };
 
 }  // end of namespace souffle

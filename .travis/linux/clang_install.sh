@@ -8,7 +8,7 @@ set -x
 # Install libomp
 sudo add-apt-repository -y "deb http://ftp.us.debian.org/debian unstable main contrib non-free"
 sudo apt-get -qq update
-sudo apt-get -y --force-yes install libomp-dev
+sudo apt-get -y --force-yes install libomp-dev libffi-dev
 
 
 # While we are using a sudo-enabled build, let's also enable coredumps

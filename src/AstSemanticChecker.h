@@ -32,6 +32,7 @@ class AstRelation;
 class AstTranslationUnit;
 class AstType;
 class AstUnionType;
+class IOType;
 class ErrorReport;
 class PrecedenceGraph;
 class RecursiveClauses;
@@ -39,12 +40,19 @@ class TypeAnalysis;
 class TypeEnvironment;
 
 class AstSemanticChecker : public AstTransformer {
+public:
+    ~AstSemanticChecker() override = default;
+
+    std::string getName() const override {
+        return "AstSemanticChecker";
+    }
+
 private:
     bool transform(AstTranslationUnit& translationUnit) override;
 
     static void checkProgram(ErrorReport& report, const AstProgram& program, const TypeEnvironment& typeEnv,
             const TypeAnalysis& typeAnalysis, const PrecedenceGraph& precedenceGraph,
-            const RecursiveClauses& recursiveClauses);
+            const RecursiveClauses& recursiveClauses, const IOType& ioTypes);
 
     static void checkAtom(ErrorReport& report, const AstProgram& program, const AstAtom& atom);
     static void checkLiteral(ErrorReport& report, const AstProgram& program, const AstLiteral& literal);
@@ -56,11 +64,11 @@ private:
     static void checkClause(ErrorReport& report, const AstProgram& program, const AstClause& clause,
             const RecursiveClauses& recursiveClauses);
     static void checkRelationDeclaration(ErrorReport& report, const TypeEnvironment& typeEnv,
-            const AstProgram& program, const AstRelation& relation);
+            const AstProgram& program, const AstRelation& relation, const IOType& ioTypes);
     static void checkRelation(ErrorReport& report, const TypeEnvironment& typeEnv, const AstProgram& program,
-            const AstRelation& relation, const RecursiveClauses& recursiveClauses);
+            const AstRelation& relation, const RecursiveClauses& recursiveClauses, const IOType& ioTypes);
     static void checkRules(ErrorReport& report, const TypeEnvironment& typeEnv, const AstProgram& program,
-            const RecursiveClauses& recursiveClauses);
+            const RecursiveClauses& recursiveClauses, const IOType& ioTypes);
 
     static void checkUnionType(ErrorReport& report, const AstProgram& program, const AstUnionType& type);
     static void checkRecordType(ErrorReport& report, const AstProgram& program, const AstRecordType& type);
@@ -70,25 +78,18 @@ private:
     static void checkNamespaces(ErrorReport& report, const AstProgram& program);
     static void checkIODirectives(ErrorReport& report, const AstProgram& program);
     static void checkWitnessProblem(ErrorReport& report, const AstProgram& program);
-    static void checkInlining(
-            ErrorReport& report, const AstProgram& program, const PrecedenceGraph& precedenceGraph);
-
-public:
-    ~AstSemanticChecker() override = default;
-
-    std::string getName() const override {
-        return "AstSemanticChecker";
-    }
+    static void checkInlining(ErrorReport& report, const AstProgram& program,
+            const PrecedenceGraph& precedenceGraph, const IOType& ioTypes);
 };
 
 class AstExecutionPlanChecker : public AstTransformer {
-private:
-    bool transform(AstTranslationUnit& translationUnit) override;
-
 public:
     std::string getName() const override {
         return "AstExecutionPlanChecker";
     }
+
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
 };
 
 }  // end of namespace souffle

@@ -14,10 +14,20 @@
  *
  ***********************************************************************/
 
+#include "AstArgument.h"
+#include "AstClause.h"
+#include "AstLiteral.h"
 #include "AstProgram.h"
+#include "AstRelation.h"
+#include "AstRelationIdentifier.h"
 #include "AstTransforms.h"
+#include "AstTranslationUnit.h"
 #include "AstVisitor.h"
+#include <map>
+#include <memory>
 #include <stack>
+#include <string>
+#include <vector>
 
 namespace souffle {
 

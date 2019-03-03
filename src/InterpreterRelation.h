@@ -31,27 +31,6 @@ namespace souffle {
  * Interpreter Relation
  */
 class InterpreterRelation {
-private:
-    /** Arity of relation */
-    const size_t arity;
-
-    /** Size of blocks containing tuples */
-    static const int BLOCK_SIZE = 1024;
-
-    /** Number of tuples in relation */
-    size_t num_tuples;
-
-    std::deque<std::unique_ptr<RamDomain[]>> blockList;
-
-    /** List of indices */
-    mutable std::map<InterpreterIndexOrder, std::unique_ptr<InterpreterIndex>> indices;
-
-    /** Total index for existence checks */
-    mutable InterpreterIndex* totalIndex;
-
-    /** Lock for parallel execution */
-    mutable Lock lock;
-
 public:
     InterpreterRelation(size_t relArity) : arity(relArity), num_tuples(0), totalIndex(nullptr) {}
 
@@ -109,13 +88,6 @@ public:
 
         // increment relation size
         num_tuples++;
-    }
-
-    /** Insert tuple via arguments */
-    template <typename... Args>
-    void insert(RamDomain first, Args... rest) {
-        RamDomain tuple[] = {first, RamDomain(rest)...};
-        insert(tuple);
     }
 
     /** Merge another relation into this relation */
@@ -230,10 +202,6 @@ public:
 
     /** Iterator for relation */
     class iterator : public std::iterator<std::forward_iterator_tag, RamDomain*> {
-        const InterpreterRelation* const relation = nullptr;
-        size_t index = 0;
-        RamDomain* tuple = nullptr;
-
     public:
         iterator() = default;
 
@@ -273,6 +241,11 @@ public:
             tuple = &relation->blockList[blockIndex][tupleIndex];
             return *this;
         }
+
+    private:
+        const InterpreterRelation* const relation = nullptr;
+        size_t index = 0;
+        RamDomain* tuple = nullptr;
     };
 
     /** get iterator begin of relation */
@@ -302,6 +275,27 @@ public:
 
     /** Extend relation */
     virtual void extend(const InterpreterRelation& rel) {}
+
+private:
+    /** Arity of relation */
+    const size_t arity;
+
+    /** Size of blocks containing tuples */
+    static const int BLOCK_SIZE = 1024;
+
+    /** Number of tuples in relation */
+    size_t num_tuples;
+
+    std::deque<std::unique_ptr<RamDomain[]>> blockList;
+
+    /** List of indices */
+    mutable std::map<InterpreterIndexOrder, std::unique_ptr<InterpreterIndex>> indices;
+
+    /** Total index for existence checks */
+    mutable InterpreterIndex* totalIndex;
+
+    /** Lock for parallel execution */
+    mutable Lock lock;
 };
 
 /**

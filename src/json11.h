@@ -509,10 +509,10 @@ struct Statics {
     const std::shared_ptr<JsonValue> null = make_shared<JsonNull>();
     const std::shared_ptr<JsonValue> t = make_shared<JsonBoolean>(true);
     const std::shared_ptr<JsonValue> f = make_shared<JsonBoolean>(false);
-    const string empty_string;
-    const vector<Json> empty_vector;
-    const map<string, Json> empty_map;
-    Statics() {}
+    const string empty_string{};
+    const vector<Json> empty_vector{};
+    const map<string, Json> empty_map{};
+    Statics() = default;
 };
 
 static const Statics& statics() {

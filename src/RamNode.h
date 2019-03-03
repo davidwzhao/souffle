@@ -28,34 +28,36 @@ namespace souffle {
 class RamNodeMapper;
 
 enum RamNodeType {
-    // relation
+    // Relations
     RN_Relation,
-    RN_RelationRef,
+    RN_RelationReference,
 
-    // values
+    // Values
     RN_ElementAccess,
     RN_Number,
-    RN_UnaryOperator,
-    RN_BinaryOperator,
-    RN_TernaryOperator,
+    RN_IntrinsicOperator,
+    RN_UserDefinedOperator,
     RN_AutoIncrement,
     RN_Pack,
     RN_Argument,
 
-    // conditions
-    RN_NotExists,
-    RN_ProvenanceNotExists,
-    RN_Empty,
-    RN_And,
-    RN_BinaryRelation,
+    // Conditions
+    RN_ExistenceCheck,
+    RN_ProvenanceExistenceCheck,
+    RN_EmptinessCheck,
+    RN_Conjunction,
+    RN_Negation,
+    RN_Constraint,
 
-    // operations
+    // Operations
     RN_Project,
     RN_Lookup,
     RN_Scan,
+    RN_IndexScan,
     RN_Aggregate,
+    RN_Filter,
 
-    // statements
+    // Statements
     RN_Create,
     RN_Fact,
     RN_Load,
@@ -63,14 +65,13 @@ enum RamNodeType {
     RN_Insert,
     RN_Clear,
     RN_Drop,
-    RN_PrintSize,
     RN_LogSize,
     RN_Return,
 
     RN_Merge,
     RN_Swap,
 
-    // control flow
+    // Control-flow
     RN_Program,
     RN_Sequence,
     RN_Loop,
@@ -88,7 +89,6 @@ enum RamNodeType {
     RN_Notify,
     RN_Wait,
 #endif
-
 };
 
 /**

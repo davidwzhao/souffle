@@ -36,7 +36,7 @@ AstAggregator* AstAggregator::clone() const {
     auto res = new AstAggregator(fun);
     res->expr = (expr) ? std::unique_ptr<AstArgument>(expr->clone()) : nullptr;
     for (const auto& cur : body) {
-        res->body.push_back(std::unique_ptr<AstLiteral>(cur->clone()));
+        res->body.emplace_back(cur->clone());
     }
     res->setSrcLoc(getSrcLoc());
     return res;

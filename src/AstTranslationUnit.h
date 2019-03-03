@@ -34,22 +34,6 @@ namespace souffle {
  */
 
 class AstTranslationUnit {
-private:
-    /** cached analyses */
-    mutable std::map<std::string, std::unique_ptr<AstAnalysis>> analyses;
-
-    /** AST program */
-    std::unique_ptr<AstProgram> program;
-
-    /** Symbol table of AST program */
-    SymbolTable& symbolTable;
-
-    /** Error report capturing errors while compiling */
-    ErrorReport& errorReport;
-
-    /** HTML debug report */
-    DebugReport& debugReport;
-
 public:
     AstTranslationUnit(std::unique_ptr<AstProgram> program, SymbolTable& s, ErrorReport& e, DebugReport& d,
             bool nowarn = false)
@@ -114,6 +98,22 @@ public:
     const DebugReport& getDebugReport() const {
         return debugReport;
     }
+
+private:
+    /** cached analyses */
+    mutable std::map<std::string, std::unique_ptr<AstAnalysis>> analyses;
+
+    /** AST program */
+    std::unique_ptr<AstProgram> program;
+
+    /** Symbol table of AST program */
+    SymbolTable& symbolTable;
+
+    /** Error report capturing errors while compiling */
+    ErrorReport& errorReport;
+
+    /** HTML debug report */
+    DebugReport& debugReport;
 };
 
 }  // end of namespace souffle

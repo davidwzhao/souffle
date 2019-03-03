@@ -32,6 +32,13 @@ class ErrorReport;
 class TypeBinding;
 
 class AstComponentChecker : public AstTransformer {
+public:
+    ~AstComponentChecker() override = default;
+
+    std::string getName() const override {
+        return "AstComponentChecker";
+    }
+
 private:
     bool transform(AstTranslationUnit& translationUnit) override;
 
@@ -49,12 +56,6 @@ private:
     static void checkComponents(
             ErrorReport& report, const AstProgram& program, const ComponentLookup& componentLookup);
     static void checkComponentNamespaces(ErrorReport& report, const AstProgram& program);
-
-public:
-    ~AstComponentChecker() override = default;
-
-    std::string getName() const override {
-        return "AstComponentChecker";
-    }
 };
+
 }  // namespace souffle

@@ -131,11 +131,6 @@ struct Variable {
     /** exports the property space */
     using property_space = PropertySpace;
 
-protected:
-    /** the underlying value giving this variable its identity */
-    Id id;
-
-public:
     Variable(Id id) : id(std::move(id)) {}
     virtual ~Variable() = default;
 
@@ -170,6 +165,10 @@ public:
         var.print(out);
         return out;
     }
+
+protected:
+    /** the underlying value giving this variable its identity */
+    Id id;
 };
 
 //----------------------------------------------------------------------
@@ -183,8 +182,6 @@ public:
  */
 template <typename Var>
 class Constraint {
-    using property_space = typename Var::property_space;
-
 public:
     /** A virtual destructor */
     virtual ~Constraint() = default;

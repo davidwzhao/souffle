@@ -56,13 +56,55 @@ std::string htmlBodyTop = R"___(
     <div id="Top" class="tabcontent" style="margin-left: auto;margin-right: auto;">
         <h3>Top</h3>
         <div id="top-stats"></div>
-        <div id="top-config"></div>
+        <h3>Slowest relations to compute</h1>
+        <div class="table_wrapper">
+            <table id='top_rel_table'>
+                <thead>
+                <tr>
+                    <th data-sort-method="text">Name</th>
+                    <th data-sort-method="text">ID</th>
+                    <th data-sort-method="time">Total Time</th>
+                    <th data-sort-method="time">Non Rec Time</th>
+                    <th data-sort-method="time">Rec Time</th>
+                    <th data-sort-method="time">Copy Time</th>
+                    <th data-sort-method="number">Tuples</th>
+                    <th data-sort-method="number">Reads</th>
+                    <th data-sort-method="number">% of Time</th>
+                    <th data-sort-method="number">% of Tuples</th>
+                    <th data-sort-method="text">Source</th>
+                </tr>
+                </thead>
+                <tbody id="top_rel_table_body">
+                </tbody>
+            </table>
+        </div>
+        <h3>Slowest rules to compute</h1>
+        <div class="table_wrapper">
+            <table id='top_rul_table'>
+                <thead>
+                <tr>
+                    <th data-sort-method="text">Name</th>
+                    <th data-sort-method="text">ID</th>
+                    <th data-sort-method="time">Total Time</th>
+                    <th data-sort-method="time">Non Rec Time</th>
+                    <th data-sort-method="time">Rec Time</th>
+                    <th data-sort-method="number">Tuples</th>
+                    <th data-sort-method="number">% of Time</th>
+                    <th data-sort-method="number">% of Tuples</th>
+                    <th data-sort-method="text">Source</th>
+                </tr>
+                </thead>
+                <tbody id="top_rul_table_body">
+                </tbody>
+            </table>
+        </div>
         <div id="top-graphs">
-            <h1>CPU time</h1>
+            <h3>CPU time</h1>
             <div class="ct-chart-cpu"></div>
-            <h1>Maximum Resident Set Size</h1>
+            <h3>Maximum Resident Set Size</h1>
             <div class="ct-chart-rss"></div>
         </div>
+        <div id="top-config"></div>
     </div>
     <div id="Relations" class="tabcontent">
         <h3>Relations table</h3>
@@ -79,6 +121,7 @@ std::string htmlBodyTop = R"___(
                 <th data-sort-method="time">Rec Time</th>
                 <th data-sort-method="time">Copy Time</th>
                 <th data-sort-method="number">Tuples</th>
+                <th data-sort-method="number">Reads</th>
                 <th data-sort-method="number">% of Time</th>
                 <th data-sort-method="number">% of Tuples</th>
                 <th data-sort-method="text">Source</th>
@@ -100,11 +143,9 @@ std::string htmlBodyTop = R"___(
                     <th data-sort-method="time">Total Time</th>
                     <th data-sort-method="time">Non Rec Time</th>
                     <th data-sort-method="time">Rec Time</th>
-                    <th data-sort-method="time">Copy Time</th>
                     <th data-sort-method="number">Tuples</th>
                     <th data-sort-method="number">% of Time</th>
                     <th data-sort-method="number">% of Tuples</th>
-                    <th data-sort-method="number">R/W ratio</th>
                     <th data-sort-method="text" style="width:20%;">Source</th>
                 </tr>
                 </thead>
@@ -128,7 +169,6 @@ std::string htmlBodyTop = R"___(
                 <th data-sort-method="time">Total Time</th>
                 <th data-sort-method="time">Non Rec Time</th>
                 <th data-sort-method="time">Rec Time</th>
-                <th data-sort-method="time">Copy Time</th>
                 <th data-sort-method="number">Tuples</th>
                 <th data-sort-method="number">% of Time</th>
                 <th data-sort-method="number">% of Tuples</th>
@@ -151,7 +191,6 @@ std::string htmlBodyTop = R"___(
                     <th data-sort-method="time">Total Time</th>
                     <th data-sort-method="time">Non Rec Time</th>
                     <th data-sort-method="time">Rec Time</th>
-                    <th data-sort-method="time">Copy Time</th>
                     <th data-sort-method="number">Tuples</th>
                     <th data-sort-method="number">Ver</th>
                     <th data-sort-method="number">% of Time</th>

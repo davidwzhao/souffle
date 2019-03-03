@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <set>
 #include <sstream>
 #include <string>
@@ -45,12 +46,12 @@ public:
  */
 class Rule {
 protected:
-    std::string name;
-    double starttime = 0;
-    double endtime = 0;
-    long numTuples = 0;
+    const std::string name;
+    std::chrono::microseconds starttime{};
+    std::chrono::microseconds endtime{};
+    long numTuples{0};
     std::string identifier;
-    std::string locator = "";
+    std::string locator{};
     std::set<Atom> atoms;
 
 private:
@@ -67,15 +68,15 @@ public:
         return identifier;
     }
 
-    double getRuntime() const {
+    std::chrono::microseconds getRuntime() const {
         return endtime - starttime;
     }
 
-    double getStarttime() const {
+    std::chrono::microseconds getStarttime() const {
         return starttime;
     }
 
-    double getEndtime() const {
+    std::chrono::microseconds getEndtime() const {
         return endtime;
     }
 
@@ -83,11 +84,11 @@ public:
         return numTuples;
     }
 
-    void setStarttime(double time) {
+    void setStarttime(std::chrono::microseconds time) {
         starttime = time;
     }
 
-    void setEndtime(double time) {
+    void setEndtime(std::chrono::microseconds time) {
         endtime = time;
     }
 
@@ -141,7 +142,7 @@ public:
         } else {
             output << "{" << name << ":";
         }
-        output << "[" << getRuntime() << "," << numTuples << "]}";
+        output << "[" << getRuntime().count() << "," << numTuples << "]}";
         return output.str();
     }
 };

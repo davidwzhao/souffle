@@ -17,14 +17,16 @@
 
 #include "AstProfileUse.h"
 #include "AstRelationIdentifier.h"
-#include "AstTranslationUnit.h"
 #include "Global.h"
 #include "profile/ProgramRun.h"
 #include "profile/Reader.h"
 #include "profile/Relation.h"
+#include <limits>
 #include <string>
 
 namespace souffle {
+
+class AstTranslationUnit;
 
 /**
  * Run analysis, i.e., retrieve profile information
@@ -55,7 +57,7 @@ size_t AstProfileUse::getRelationSize(const AstRelationIdentifier& rel) {
     if (const auto* profRel = programRun->getRelation(rel.getName())) {
         return profRel->size();
     } else {
-        return INT_MAX;
+        return std::numeric_limits<size_t>::max();
     }
 }
 

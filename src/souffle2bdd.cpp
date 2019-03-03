@@ -21,6 +21,7 @@
 #include "AstAttribute.h"
 #include "AstClause.h"
 #include "AstComponentChecker.h"
+#include "AstIOTypeAnalysis.h"
 #include "AstLiteral.h"
 #include "AstNode.h"
 #include "AstPragma.h"
@@ -32,10 +33,10 @@
 #include "AstTranslationUnit.h"
 #include "AstVisitor.h"
 #include "BinaryConstraintOps.h"
-#include "BinaryFunctorOps.h"
 #include "ComponentModel.h"
 #include "DebugReport.h"
 #include "ErrorReport.h"
+#include "FunctorOps.h"
 #include "Global.h"
 #include "ParserDriver.h"
 #include "RamTypes.h"
@@ -79,13 +80,16 @@ class BddBddBTranslator : private AstVisitor<void, std::ostream&> {
     // literals aggregated to be added to the end of a rule while converting
     std::vector<std::string> extra_literals;
 
+    const IOType* ioTypes;
+
     int varCounter = 0;
 
 public:
     BddBddBTranslator() = default;
 
-    void convert(std::ostream& out, const AstProgram& program) {
-        visit(program, out);
+    void convert(std::ostream& out, const AstTranslationUnit& tu) {
+        ioTypes = tu.getAnalysis<IOType>();
+        visit(*tu.getProgram(), out);
     }
 
 private:
@@ -143,10 +147,10 @@ private:
         });
         out << ")";
 
-        if (rel.isInput()) {
+        if (ioTypes->isInput(&rel)) {
             out << " inputtuples";
         }
-        if (rel.isOutput()) {
+        if (ioTypes->isOutput(&rel)) {
             out << " outputtuples";
         }
 
@@ -233,17 +237,16 @@ private:
         std::stringstream binding;
         binding << var << "=";
 
-        // process unary operators
-        if (dynamic_cast<const AstUnaryFunctor*>(&fun)) {
-            // binary functors are not supported
-            throw UnsupportedConstructException("Unsupported function: " + toString(fun));
-        } else if (const auto* binary = dynamic_cast<const AstBinaryFunctor*>(&fun)) {
-            visit(*binary->getLHS(), binding);
-            binding << getSymbolForBinaryOp(binary->getFunction());
-            visit(*binary->getRHS(), binding);
+        // only intrinsic binary operators supported
+        const auto* inf = dynamic_cast<const AstIntrinsicFunctor*>(&fun);
+        if (inf != nullptr && inf->getArity() == 2) {
+            visit(*inf->getArg(0), binding);
+            binding << getSymbolForFunctorOp(inf->getFunction());
+            visit(*inf->getArg(1), binding);
         } else {
-            assert(false && "Unsupported functor!");
+            throw UnsupportedConstructException("Unsupported function: " + toString(fun));
         }
+
         extra_literals.push_back(binding.str());
     }
 
@@ -267,7 +270,7 @@ private:
 
 /** Convert a Souffle program to a bddbddb program */
 void toBddbddb(std::ostream& out, const AstTranslationUnit& translationUnit) {
-    BddBddBTranslator().convert(out, *translationUnit.getProgram());
+    BddBddBTranslator().convert(out, translationUnit);
 }
 
 int main(int argc, char** argv) {
@@ -277,45 +280,33 @@ int main(int argc, char** argv) {
     /* have all to do with command line arguments in its own scope, as these are accessible through the global
      * configuration only */
     {
-        Global::config().processArgs(argc, argv,
-                []() {
-                    std::stringstream header;
-                    header << "============================================================================"
-                           << std::endl;
-                    header << "souffle2bdd -- translating souffle to bddbddb programs." << std::endl;
-                    header << "Usage: souffle2bdd [OPTION] FILE." << std::endl;
-                    header << "----------------------------------------------------------------------------"
-                           << std::endl;
-                    header << "Options:" << std::endl;
-                    return header.str();
-                }(),
-                []() {
-                    std::stringstream footer;
-                    footer << "----------------------------------------------------------------------------"
-                           << std::endl;
-                    footer << "Version: " << PACKAGE_VERSION << "" << std::endl;
-                    footer << "----------------------------------------------------------------------------"
-                           << std::endl;
-                    footer << "Copyright (c) 2016-18 The Souffle Developers." << std::endl;
-                    footer << "Copyright (c) 2013-16 Oracle and/or its affiliates." << std::endl;
-                    footer << "All rights reserved." << std::endl;
-                    footer << "============================================================================"
-                           << std::endl;
-                    return footer.str();
-                }(),
-                // command line options, the environment will be filled with the arguments passed to them, or
-                // the empty string if they take none
-                []() {
-                    MainOption opts[] = {// main option, the datalog program itself, key is always empty
-                            {"", 0, "", "", false, ""},
-                            {"include-dir", 'I', "DIR", ".", true, "Specify directory for include files."},
-                            {"output", 'o', "FILE", "", false, "Generate bddbddb Datalog program"},
-                            {"debug-report", 'r', "FILE", "", false, "Write HTML debug report to <FILE>."},
-                            {"no-warn", 'w', "", "", false, "Disable warnings."},
-                            {"verbose", 'v', "", "", false, "Verbose output."},
-                            {"help", 'h', "", "", false, "Display this help message."}};
-                    return std::vector<MainOption>(std::begin(opts), std::end(opts));
-                }());
+        std::stringstream header;
+        header << "============================================================================" << std::endl;
+        header << "souffle2bdd -- translating souffle to bddbddb programs." << std::endl;
+        header << "Usage: souffle2bdd [OPTION] FILE." << std::endl;
+        header << "----------------------------------------------------------------------------" << std::endl;
+        header << "Options:" << std::endl;
+
+        std::stringstream footer;
+        footer << "----------------------------------------------------------------------------" << std::endl;
+        footer << "Version: " << PACKAGE_VERSION << "" << std::endl;
+        footer << "----------------------------------------------------------------------------" << std::endl;
+        footer << "Copyright (c) 2016-18 The Souffle Developers." << std::endl;
+        footer << "Copyright (c) 2013-16 Oracle and/or its affiliates." << std::endl;
+        footer << "All rights reserved." << std::endl;
+        footer << "============================================================================" << std::endl;
+
+        // command line options, the environment will be filled with the arguments passed to them, or
+        // the empty string if they take none
+        // main option, the datalog program itself, has an empty key
+        std::vector<MainOption> opts{{"", 0, "", "", false, ""},
+                {"include-dir", 'I', "DIR", ".", true, "Specify directory for include files."},
+                {"output", 'o', "FILE", "", false, "Generate bddbddb Datalog program"},
+                {"debug-report", 'r', "FILE", "", false, "Write HTML debug report to <FILE>."},
+                {"no-warn", 'w', "", "", false, "Disable warnings."},
+                {"verbose", 'v', "", "", false, "Verbose output."},
+                {"help", 'h', "", "", false, "Display this help message."}};
+        Global::config().processArgs(argc, argv, header.str(), footer.str(), opts);
 
         // ------ command line arguments -------------
 

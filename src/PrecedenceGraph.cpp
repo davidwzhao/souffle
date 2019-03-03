@@ -18,6 +18,7 @@
 
 #include "PrecedenceGraph.h"
 #include "AstClause.h"
+#include "AstIOTypeAnalysis.h"
 #include "AstLiteral.h"
 #include "AstProgram.h"
 #include "AstRelation.h"
@@ -77,12 +78,12 @@ void RedundantRelations::run(const AstTranslationUnit& translationUnit) {
 
     std::set<const AstRelation*> work;
     std::set<const AstRelation*> notRedundant;
+    IOType* ioType = translationUnit.getAnalysis<IOType>();
 
     const std::vector<AstRelation*>& relations = translationUnit.getProgram()->getRelations();
-
     /* Add all output relations to the work set */
     for (const AstRelation* r : relations) {
-        if (r->isComputed()) {
+        if (ioType->isOutput(r)) {
             work.insert(r);
         }
     }
@@ -182,6 +183,7 @@ bool RecursiveClauses::computeIsRecursive(
 
 void SCCGraph::run(const AstTranslationUnit& translationUnit) {
     precedenceGraph = translationUnit.getAnalysis<PrecedenceGraph>();
+    ioType = translationUnit.getAnalysis<IOType>();
     sccToRelation.clear();
     relationToScc.clear();
     predecessors.clear();

@@ -16,9 +16,11 @@
 
 #pragma once
 
+#include "BinaryConstraintOps.h"
 #include "ExplainProvenance.h"
 #include "Util.h"
 
+#include <algorithm>
 #include <chrono>
 #include <map>
 #include <memory>
@@ -29,61 +31,6 @@
 namespace souffle {
 
 class ExplainProvenanceSLD : public ExplainProvenance {
-private:
-    std::map<std::pair<std::string, size_t>, std::vector<std::string>> info;
-    std::map<std::pair<std::string, size_t>, std::string> rules;
-    std::vector<std::vector<RamDomain>> subproofs;
-
-    std::pair<int, int> findTuple(const std::string& relName, std::vector<RamDomain> tup) {
-        auto rel = prog.getRelation(relName);
-
-        if (rel == nullptr) {
-            return std::make_pair(-1, -1);
-        }
-
-        // find correct tuple
-        for (auto& tuple : *rel) {
-            bool match = true;
-            std::vector<RamDomain> currentTuple;
-
-            for (size_t i = 0; i < rel->getArity() - 2; i++) {
-                RamDomain n;
-                if (*rel->getAttrType(i) == 's') {
-                    std::string s;
-                    tuple >> s;
-                    n = prog.getSymbolTable().lookupExisting(s);
-                } else {
-                    tuple >> n;
-                }
-
-                currentTuple.push_back(n);
-
-                if (n != tup[i]) {
-                    match = false;
-                    break;
-                }
-            }
-
-            if (match) {
-                RamDomain ruleNum;
-                tuple >> ruleNum;
-
-                RamDomain levelNum;
-                tuple >> levelNum;
-
-                return std::make_pair(ruleNum, levelNum);
-            }
-        }
-
-        // if no tuple exists
-        return std::make_pair(-1, -1);
-    }
-
-    void printRelationOutput(
-            const SymbolMask& symMask, const IODirectives& ioDir, const Relation& rel) override {
-        WriteCoutCSVFactory().getWriter(symMask, prog.getSymbolTable(), ioDir, true)->writeAll(rel);
-    }
-
 public:
     ExplainProvenanceSLD(SouffleProgram& prog) : ExplainProvenance(prog) {
         setup();
@@ -115,8 +62,8 @@ public:
                 std::string rule;
                 tuple >> rule;
 
-                info.insert({std::make_pair(name.substr(0, name.find("-@info")), ruleNum), bodyRels});
-                rules.insert({std::make_pair(name.substr(0, name.find("-@info")), ruleNum), rule});
+                info.insert({std::make_pair(name.substr(0, name.find(".@info")), ruleNum), bodyRels});
+                rules.insert({std::make_pair(name.substr(0, name.find(".@info")), ruleNum), rule});
             }
         }
     }
@@ -168,6 +115,10 @@ public:
         // recursively get nodes for subproofs
         size_t tupleCurInd = 0;
         for (std::string bodyRel : info[std::make_pair(relName, ruleNum)]) {
+            // check whether the current atom is a constraint
+            bool isConstraint =
+                    std::find(constraintList.begin(), constraintList.end(), bodyRel) != constraintList.end();
+
             // handle negated atom names
             auto bodyRelAtomName = bodyRel;
             if (bodyRel[0] == '!') {
@@ -175,7 +126,14 @@ public:
             }
 
             // traverse subroutine return
-            size_t arity = prog.getRelation(bodyRelAtomName)->getArity();
+            size_t arity;
+            if (isConstraint) {
+                // we only handle binary constraints, and assume arity is 4 to account for hidden provenance
+                // annotations
+                arity = 4;
+            } else {
+                arity = prog.getRelation(bodyRelAtomName)->getArity();
+            }
             auto tupleEnd = tupleCurInd + arity;
 
             // store current tuple and error
@@ -190,12 +148,27 @@ public:
             int subproofRuleNum = ret[tupleCurInd];
             int subproofLevelNum = ret[tupleCurInd + 1];
 
+            // for a negation, display the corresponding tuple and do not recurse
             if (bodyRel[0] == '!') {
                 std::stringstream joinedTuple;
                 joinedTuple << join(numsToArgs(bodyRelAtomName, subproofTuple, &subproofTupleError), ", ");
                 auto joinedTupleStr = joinedTuple.str();
                 internalNode->add_child(std::make_unique<LeafNode>(bodyRel + "(" + joinedTupleStr + ")"));
                 internalNode->setSize(internalNode->getSize() + 1);
+                // for a binary constraint, display the corresponding values and do not recurse
+            } else if (isConstraint) {
+                std::stringstream joinedConstraint;
+
+                if (isNumericBinaryConstraintOp(toBinaryConstraintOp(bodyRel))) {
+                    joinedConstraint << subproofTuple[0] << " " << bodyRel << " " << subproofTuple[1];
+                } else {
+                    joinedConstraint << bodyRel << "(\"" << prog.getSymbolTable().resolve(subproofTuple[0])
+                                     << "\", \"" << prog.getSymbolTable().resolve(subproofTuple[1]) << "\")";
+                }
+
+                internalNode->add_child(std::make_unique<LeafNode>(joinedConstraint.str()));
+                internalNode->setSize(internalNode->getSize() + 1);
+                // otherwise, for a normal tuple, recurse
             } else {
                 auto child =
                         explain(bodyRel, subproofTuple, subproofRuleNum, subproofLevelNum, depthLimit - 1);
@@ -332,6 +305,63 @@ public:
                << stringify(cur.second) << "\"}";
         }
         os << "\n]\n";
+    }
+
+private:
+    std::map<std::pair<std::string, size_t>, std::vector<std::string>> info;
+    std::map<std::pair<std::string, size_t>, std::string> rules;
+    std::vector<std::vector<RamDomain>> subproofs;
+    std::vector<std::string> constraintList = {
+            "=", "!=", "<", "<=", ">=", ">", "match", "contains", "not_match", "not_contains"};
+
+    std::pair<int, int> findTuple(const std::string& relName, std::vector<RamDomain> tup) {
+        auto rel = prog.getRelation(relName);
+
+        if (rel == nullptr) {
+            return std::make_pair(-1, -1);
+        }
+
+        // find correct tuple
+        for (auto& tuple : *rel) {
+            bool match = true;
+            std::vector<RamDomain> currentTuple;
+
+            for (size_t i = 0; i < rel->getArity() - 2; i++) {
+                RamDomain n;
+                if (*rel->getAttrType(i) == 's') {
+                    std::string s;
+                    tuple >> s;
+                    n = prog.getSymbolTable().lookupExisting(s);
+                } else {
+                    tuple >> n;
+                }
+
+                currentTuple.push_back(n);
+
+                if (n != tup[i]) {
+                    match = false;
+                    break;
+                }
+            }
+
+            if (match) {
+                RamDomain ruleNum;
+                tuple >> ruleNum;
+
+                RamDomain levelNum;
+                tuple >> levelNum;
+
+                return std::make_pair(ruleNum, levelNum);
+            }
+        }
+
+        // if no tuple exists
+        return std::make_pair(-1, -1);
+    }
+
+    void printRelationOutput(
+            const SymbolMask& symMask, const IODirectives& ioDir, const Relation& rel) override {
+        WriteCoutCSVFactory().getWriter(symMask, prog.getSymbolTable(), ioDir, true)->writeAll(rel);
     }
 };
 

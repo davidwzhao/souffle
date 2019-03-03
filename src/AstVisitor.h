@@ -77,9 +77,8 @@ struct AstVisitor : public ast_visitor_tag {
         // arguments
         FORWARD(Variable)
         FORWARD(UnnamedVariable)
-        FORWARD(UnaryFunctor)
-        FORWARD(BinaryFunctor)
-        FORWARD(TernaryFunctor)
+        FORWARD(IntrinsicFunctor)
+        FORWARD(UserDefinedFunctor)
         FORWARD(Counter)
         FORWARD(NumberConstant)
         FORWARD(StringConstant)
@@ -87,10 +86,12 @@ struct AstVisitor : public ast_visitor_tag {
         FORWARD(TypeCast)
         FORWARD(RecordInit)
         FORWARD(Aggregator)
+        FORWARD(SubroutineArgument)
 
         // literals
         FORWARD(Atom)
         FORWARD(Negation)
+        FORWARD(ProvenanceNegation)
         FORWARD(BooleanConstraint)
         FORWARD(BinaryConstraint)
 
@@ -103,7 +104,8 @@ struct AstVisitor : public ast_visitor_tag {
         FORWARD(Attribute);
         FORWARD(Clause);
         FORWARD(Relation);
-        FORWARD(IODirective);
+        FORWARD(Load);
+        FORWARD(Store);
         FORWARD(Program);
         FORWARD(Pragma);
 
@@ -134,15 +136,15 @@ protected:
     LINK(Counter, Argument)
     LINK(TypeCast, Argument)
     LINK(RecordInit, Argument)
+    LINK(SubroutineArgument, Argument)
 
     LINK(NumberConstant, Constant)
     LINK(StringConstant, Constant)
     LINK(NullConstant, Constant)
     LINK(Constant, Argument)
 
-    LINK(UnaryFunctor, Functor)
-    LINK(BinaryFunctor, Functor)
-    LINK(TernaryFunctor, Functor)
+    LINK(IntrinsicFunctor, Functor)
+    LINK(UserDefinedFunctor, Functor)
     LINK(Functor, Argument)
 
     LINK(Aggregator, Argument)
@@ -152,6 +154,7 @@ protected:
     // literals
     LINK(Atom, Literal)
     LINK(Negation, Literal)
+    LINK(ProvenanceNegation, Literal)
     LINK(Literal, Node);
 
     LINK(BooleanConstraint, Constraint)
@@ -167,7 +170,8 @@ protected:
     LINK(Program, Node);
     LINK(Attribute, Node);
     LINK(Clause, Node);
-    LINK(IODirective, Node);
+    LINK(Load, Node);
+    LINK(Store, Node);
     LINK(Relation, Node);
     LINK(Pragma, Node);
 

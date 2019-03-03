@@ -10,6 +10,7 @@
 
 #include "Iteration.h"
 #include "Rule.h"
+#include <chrono>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -26,10 +27,10 @@ namespace profile {
 class Relation {
 private:
     const std::string name;
-    double starttime = 0;
-    double endtime = 0;
-    double loadtime = 0;
-    double savetime = 0;
+    std::chrono::microseconds starttime{};
+    std::chrono::microseconds endtime{};
+    std::chrono::microseconds loadtime{};
+    std::chrono::microseconds savetime{};
     long nonRecTuples = 0;
     size_t preMaxRSS = 0;
     size_t postMaxRSS = 0;
@@ -37,6 +38,7 @@ private:
     std::string locator;
     int ruleId = 0;
     int recursiveId = 0;
+    size_t tuplesRead = 0;
 
     std::vector<std::shared_ptr<Iteration>> iterations;
 
@@ -65,36 +67,36 @@ public:
         return "C" + id.substr(1) + "." + std::to_string(++recursiveId);
     }
 
-    double getLoadtime() const {
+    std::chrono::microseconds getLoadtime() const {
         return loadtime;
     }
 
-    double getSavetime() const {
+    std::chrono::microseconds getSavetime() const {
         return savetime;
     }
 
-    double getStarttime() const {
+    std::chrono::microseconds getStarttime() const {
         return starttime;
     }
 
-    double getEndtime() const {
+    std::chrono::microseconds getEndtime() const {
         return endtime;
     }
 
-    double getNonRecTime() const {
+    std::chrono::microseconds getNonRecTime() const {
         return endtime - starttime;
     }
 
-    double getRecTime() const {
-        double result = 0;
+    std::chrono::microseconds getRecTime() const {
+        std::chrono::microseconds result{};
         for (auto& iter : iterations) {
-            result += iter->getRuntime();
+            result = iter->getRuntime();
         }
         return result;
     }
 
-    double getCopyTime() const {
-        double result = 0;
+    std::chrono::microseconds getCopyTime() const {
+        std::chrono::microseconds result{};
         for (auto& iter : iterations) {
             result += iter->getCopytime();
         }
@@ -123,19 +125,19 @@ public:
         return result;
     }
 
-    void setLoadtime(double loadtime) {
+    void setLoadtime(std::chrono::microseconds loadtime) {
         this->loadtime = loadtime;
     }
 
-    void setSavetime(double savetime) {
+    void setSavetime(std::chrono::microseconds savetime) {
         this->savetime = savetime;
     }
 
-    void setStarttime(double time) {
+    void setStarttime(std::chrono::microseconds time) {
         starttime = time;
     }
 
-    void setEndtime(double time) {
+    void setEndtime(std::chrono::microseconds time) {
         endtime = time;
     }
 
@@ -157,7 +159,7 @@ public:
 
     std::string toString() const {
         std::ostringstream output;
-        output << "{\n\"" << name << "\":[" << getNonRecTime() << "," << nonRecTuples
+        output << "{\n\"" << name << "\":[" << getNonRecTime().count() << "," << nonRecTuples
                << "],\n\n\"onRecRules\":[\n";
         for (auto& rul : ruleMap) {
             output << rul.second->toString();
@@ -212,7 +214,7 @@ public:
         if (endtime < iteration->getEndtime()) {
             endtime = iteration->getEndtime();
         }
-        if (starttime == 0 || starttime > iteration->getStarttime()) {
+        if (starttime.count() == 0 || starttime > iteration->getStarttime()) {
             starttime = iteration->getStarttime();
         }
     }
@@ -235,6 +237,14 @@ public:
 
     void setReady(bool ready) {
         this->ready = ready;
+    }
+
+    size_t getReads() const {
+        return tuplesRead;
+    }
+
+    void addReads(size_t tuplesRead) {
+        this->tuplesRead += tuplesRead;
     }
 };
 

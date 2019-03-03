@@ -15,26 +15,30 @@
  ***********************************************************************/
 
 #include "Interpreter.h"
+#include "BTree.h"
 #include "BinaryConstraintOps.h"
-#include "BinaryFunctorOps.h"
+#include "FunctorOps.h"
 #include "Global.h"
 #include "IODirectives.h"
 #include "IOSystem.h"
 #include "InterpreterIndex.h"
 #include "InterpreterRecords.h"
-#include "LogStatement.h"
 #include "Logger.h"
 #include "ParallelUtils.h"
 #include "ProfileEvent.h"
+#include "RamExistenceCheckAnalysis.h"
+#include "RamIndexScanKeys.h"
 #include "RamNode.h"
 #include "RamOperation.h"
+#include "RamOperationDepth.h"
+#include "RamProgram.h"
+#include "RamProvenanceExistenceCheckAnalysis.h"
 #include "RamValue.h"
 #include "RamVisitor.h"
 #include "ReadStream.h"
 #include "SignalHandler.h"
 #include "SymbolTable.h"
-#include "TernaryFunctorOps.h"
-#include "UnaryFunctorOps.h"
+#include "Util.h"
 #include "WriteStream.h"
 #include <algorithm>
 #include <cmath>
@@ -42,12 +46,15 @@
 #include <cstdlib>
 #include <exception>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <memory>
 #include <regex>
+#include <sstream>
 #include <stdexcept>
 #include <typeinfo>
 #include <utility>
+#include <ffi.h>
 
 namespace souffle {
 
@@ -73,102 +80,89 @@ RamDomain Interpreter::evalVal(const RamValue& value, const InterpreterContext& 
             return interpreter.incCounter();
         }
 
-        // unary operators
-        RamDomain visitUnaryOperator(const RamUnaryOperator& op) override {
-            RamDomain arg = visit(op.getValue());
+        // intrinsic functors
+        RamDomain visitIntrinsicOperator(const RamIntrinsicOperator& op) override {
+            const auto& args = op.getArguments();
+
             switch (op.getOperator()) {
-                case UnaryOp::NEG:
-                    return -arg;
-                case UnaryOp::BNOT:
-                    return ~arg;
-                case UnaryOp::LNOT:
-                    return !arg;
-                case UnaryOp::ORD:
-                    return arg;
-                case UnaryOp::STRLEN:
-                    return interpreter.getSymbolTable().resolve(arg).size();
-                case UnaryOp::TONUMBER: {
+                /** Unary Functor Operators */
+                case FunctorOp::ORD:
+                    return visit(args[0]);
+                case FunctorOp::STRLEN:
+                    return interpreter.getSymbolTable().resolve(visit(args[0])).size();
+                case FunctorOp::NEG:
+                    return -visit(args[0]);
+                case FunctorOp::BNOT:
+                    return ~visit(args[0]);
+                case FunctorOp::LNOT:
+                    return !visit(args[0]);
+                case FunctorOp::TONUMBER: {
                     RamDomain result = 0;
                     try {
-                        result = stord(interpreter.getSymbolTable().resolve(arg));
+                        result = stord(interpreter.getSymbolTable().resolve(visit(args[0])));
                     } catch (...) {
                         std::cerr << "error: wrong string provided by to_number(\"";
-                        std::cerr << interpreter.getSymbolTable().resolve(arg);
+                        std::cerr << interpreter.getSymbolTable().resolve(visit(args[0]));
                         std::cerr << "\") functor.\n";
                         raise(SIGFPE);
                     }
                     return result;
                 }
-                case UnaryOp::TOSTRING:
-                    return interpreter.getSymbolTable().lookup(std::to_string(arg));
-                default:
-                    assert(false && "unsupported operator");
-                    return 0;
-            }
-        }
+                case FunctorOp::TOSTRING:
+                    return interpreter.getSymbolTable().lookup(std::to_string(visit(args[0])));
 
-        // binary functors
-        RamDomain visitBinaryOperator(const RamBinaryOperator& op) override {
-            RamDomain lhs = visit(op.getLHS());
-            RamDomain rhs = visit(op.getRHS());
-            switch (op.getOperator()) {
-                case BinaryOp::ADD: {
-                    return lhs + rhs;
+                /** Binary Functor Operators */
+                case FunctorOp::ADD: {
+                    return visit(args[0]) + visit(args[1]);
                 }
-                case BinaryOp::SUB: {
-                    return lhs - rhs;
+                case FunctorOp::SUB: {
+                    return visit(args[0]) - visit(args[1]);
                 }
-                case BinaryOp::MUL: {
-                    return lhs * rhs;
+                case FunctorOp::MUL: {
+                    return visit(args[0]) * visit(args[1]);
                 }
-                case BinaryOp::DIV: {
-                    return lhs / rhs;
+                case FunctorOp::DIV: {
+                    return visit(args[0]) / visit(args[1]);
                 }
-                case BinaryOp::EXP: {
-                    return std::pow(lhs, rhs);
+                case FunctorOp::EXP: {
+                    return std::pow(visit(args[0]), visit(args[1]));
                 }
-                case BinaryOp::MOD: {
-                    return lhs % rhs;
+                case FunctorOp::MOD: {
+                    return visit(args[0]) % visit(args[1]);
                 }
-                case BinaryOp::BAND: {
-                    return lhs & rhs;
+                case FunctorOp::BAND: {
+                    return visit(args[0]) & visit(args[1]);
                 }
-                case BinaryOp::BOR: {
-                    return lhs | rhs;
+                case FunctorOp::BOR: {
+                    return visit(args[0]) | visit(args[1]);
                 }
-                case BinaryOp::BXOR: {
-                    return lhs ^ rhs;
+                case FunctorOp::BXOR: {
+                    return visit(args[0]) ^ visit(args[1]);
                 }
-                case BinaryOp::LAND: {
-                    return lhs && rhs;
+                case FunctorOp::LAND: {
+                    return visit(args[0]) && visit(args[1]);
                 }
-                case BinaryOp::LOR: {
-                    return lhs || rhs;
+                case FunctorOp::LOR: {
+                    return visit(args[0]) || visit(args[1]);
                 }
-                case BinaryOp::MAX: {
-                    return std::max(lhs, rhs);
+                case FunctorOp::MAX: {
+                    return std::max(visit(args[0]), visit(args[1]));
                 }
-                case BinaryOp::MIN: {
-                    return std::min(lhs, rhs);
+                case FunctorOp::MIN: {
+                    return std::min(visit(args[0]), visit(args[1]));
                 }
-                case BinaryOp::CAT: {
-                    return interpreter.getSymbolTable().lookup(interpreter.getSymbolTable().resolve(lhs) +
-                                                               interpreter.getSymbolTable().resolve(rhs));
+                case FunctorOp::CAT: {
+                    return interpreter.getSymbolTable().lookup(
+                            interpreter.getSymbolTable().resolve(visit(args[0])) +
+                            interpreter.getSymbolTable().resolve(visit(args[1])));
                 }
-                default:
-                    assert(false && "unsupported operator");
-                    return 0;
-            }
-        }
 
-        // ternary operators
-        RamDomain visitTernaryOperator(const RamTernaryOperator& op) override {
-            switch (op.getOperator()) {
-                case TernaryOp::SUBSTR: {
-                    auto symbol = visit(op.getArg(0));
+                /** Ternary Functor Operators */
+                case FunctorOp::SUBSTR: {
+                    auto symbol = visit(args[0]);
                     const std::string& str = interpreter.getSymbolTable().resolve(symbol);
-                    auto idx = visit(op.getArg(1));
-                    auto len = visit(op.getArg(2));
+                    auto idx = visit(args[1]);
+                    auto len = visit(args[2]);
                     std::string sub_str;
                     try {
                         sub_str = str.substr(idx, len);
@@ -178,15 +172,82 @@ RamDomain Interpreter::evalVal(const RamValue& value, const InterpreterContext& 
                     }
                     return interpreter.getSymbolTable().lookup(sub_str);
                 }
-                default:
+
+                /** Undefined */
+                default: {
                     assert(false && "unsupported operator");
                     return 0;
+                }
             }
+        }
+
+        RamDomain visitUserDefinedOperator(const RamUserDefinedOperator& op) override {
+            // get name and type
+            const std::string& name = op.getName();
+            const std::string& type = op.getType();
+
+            // load DLL (if not done yet)
+            void* handle = interpreter.loadDLL();
+            void (*fn)() = (void (*)())dlsym(handle, name.c_str());
+            if (fn == nullptr) {
+                std::cerr << "Cannot find user-defined operator " << name << " in " << SOUFFLE_DLL
+                          << std::endl;
+                exit(1);
+            }
+
+            // prepare dynamic call environment
+            size_t arity = op.getArgCount();
+            ffi_cif cif;
+            ffi_type* args[arity];
+            void* values[arity];
+            RamDomain intVal[arity];
+            const char* strVal[arity];
+            ffi_arg rc;
+
+            /* Initialize arguments for ffi-call */
+            for (size_t i = 0; i < arity; i++) {
+                RamDomain arg = visit(op.getArgument(i));
+                if (type[i] == 'S') {
+                    args[i] = &ffi_type_pointer;
+                    strVal[i] = interpreter.getSymbolTable().resolve(arg).c_str();
+                    values[i] = &strVal[i];
+                } else {
+                    args[i] = &ffi_type_uint32;
+                    intVal[i] = arg;
+                    values[i] = &intVal[i];
+                }
+            }
+
+            // call external function
+            if (type[arity] == 'N') {
+                // Initialize for numerical return value
+                if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, arity, &ffi_type_uint32, args) != FFI_OK) {
+                    std::cerr << "Failed to prepare CIF for user-defined operator ";
+                    std::cerr << name << std::endl;
+                    exit(1);
+                }
+            } else {
+                // Initialize for string return value
+                if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, arity, &ffi_type_pointer, args) != FFI_OK) {
+                    std::cerr << "Failed to prepare CIF for user-defined operator ";
+                    std::cerr << name << std::endl;
+                    exit(1);
+                }
+            }
+            ffi_call(&cif, fn, &rc, values);
+            RamDomain result;
+            if (type[arity] == 'N') {
+                result = ((RamDomain)rc);
+            } else {
+                result = interpreter.getSymbolTable().lookup(((const char*)rc));
+            }
+
+            return result;
         }
 
         // -- records --
         RamDomain visitPack(const RamPack& op) override {
-            auto values = op.getValues();
+            auto values = op.getArguments();
             auto arity = values.size();
             RamDomain data[arity];
             for (size_t i = 0; i < arity; ++i) {
@@ -197,7 +258,7 @@ RamDomain Interpreter::evalVal(const RamValue& value, const InterpreterContext& 
 
         // -- subroutine argument
         RamDomain visitArgument(const RamArgument& arg) override {
-            return ctxt.getArgument(arg.getArgNumber());
+            return ctxt.getArgument(arg.getArgCount());
         }
 
         // -- safety net --
@@ -218,39 +279,50 @@ bool Interpreter::evalCond(const RamCondition& cond, const InterpreterContext& c
     class ConditionEvaluator : public RamVisitor<bool> {
         Interpreter& interpreter;
         const InterpreterContext& ctxt;
+        RamExistenceCheckAnalysis* existCheckAnalysis;
+        RamProvenanceExistenceCheckAnalysis* provExistCheckAnalysis;
 
     public:
         ConditionEvaluator(Interpreter& interp, const InterpreterContext& ctxt)
-                : interpreter(interp), ctxt(ctxt) {}
+                : interpreter(interp), ctxt(ctxt),
+                  existCheckAnalysis(interp.getTranslationUnit().getAnalysis<RamExistenceCheckAnalysis>()),
+                  provExistCheckAnalysis(
+                          interp.getTranslationUnit().getAnalysis<RamProvenanceExistenceCheckAnalysis>()) {}
 
         // -- connectors operators --
 
-        bool visitAnd(const RamAnd& a) override {
-            return visit(a.getLHS()) && visit(a.getRHS());
+        bool visitConjunction(const RamConjunction& conj) override {
+            return visit(conj.getLHS()) && visit(conj.getRHS());
+        }
+
+        bool visitNegation(const RamNegation& neg) override {
+            return !visit(neg.getOperand());
         }
 
         // -- relation operations --
 
-        bool visitEmpty(const RamEmpty& empty) override {
-            const InterpreterRelation& rel = interpreter.getRelation(empty.getRelation());
-            return rel.empty();
+        bool visitEmptinessCheck(const RamEmptinessCheck& emptiness) override {
+            return interpreter.getRelation(emptiness.getRelation()).empty();
         }
 
-        bool visitNotExists(const RamNotExists& ne) override {
-            const InterpreterRelation& rel = interpreter.getRelation(ne.getRelation());
+        bool visitExistenceCheck(const RamExistenceCheck& exists) override {
+            const InterpreterRelation& rel = interpreter.getRelation(exists.getRelation());
 
             // construct the pattern tuple
             auto arity = rel.getArity();
-            auto values = ne.getValues();
+            auto values = exists.getValues();
 
+            if (Global::config().has("profile") && !exists.getRelation().isTemp()) {
+                interpreter.reads[exists.getRelation().getName()]++;
+            }
             // for total we use the exists test
-            if (ne.isTotal()) {
+            if (existCheckAnalysis->isTotal(&exists)) {
                 RamDomain tuple[arity];
                 for (size_t i = 0; i < arity; i++) {
                     tuple[i] = (values[i]) ? interpreter.evalVal(*values[i], ctxt) : MIN_RAM_DOMAIN;
                 }
 
-                return !rel.exists(tuple);
+                return rel.exists(tuple);
             }
 
             // for partial we search for lower and upper boundaries
@@ -262,17 +334,17 @@ bool Interpreter::evalCond(const RamCondition& cond, const InterpreterContext& c
             }
 
             // obtain index
-            auto idx = rel.getIndex(ne.getKey());
+            auto idx = rel.getIndex(existCheckAnalysis->getKey(&exists));
             auto range = idx->lowerUpperBound(low, high);
-            return range.first == range.second;  // if there are none => done
+            return range.first != range.second;  // if there is something => done
         }
 
-        bool visitProvenanceNotExists(const RamProvenanceNotExists& ne) override {
-            const InterpreterRelation& rel = interpreter.getRelation(ne.getRelation());
+        bool visitProvenanceExistenceCheck(const RamProvenanceExistenceCheck& provExists) override {
+            const InterpreterRelation& rel = interpreter.getRelation(provExists.getRelation());
 
             // construct the pattern tuple
             auto arity = rel.getArity();
-            auto values = ne.getValues();
+            auto values = provExists.getValues();
 
             // for partial we search for lower and upper boundaries
             RamDomain low[arity];
@@ -288,13 +360,13 @@ bool Interpreter::evalCond(const RamCondition& cond, const InterpreterContext& c
             high[arity - 1] = MAX_RAM_DOMAIN;
 
             // obtain index
-            auto idx = rel.getIndex(ne.getKey());
+            auto idx = rel.getIndex(provExistCheckAnalysis->getKey(&provExists));
             auto range = idx->lowerUpperBound(low, high);
-            return range.first == range.second;  // if there are none => done
+            return range.first != range.second;  // if there is something => done
         }
 
         // -- comparison operators --
-        bool visitBinaryRelation(const RamBinaryRelation& relOp) override {
+        bool visitConstraint(const RamConstraint& relOp) override {
             RamDomain lhs = interpreter.evalVal(*relOp.getLHS(), ctxt);
             RamDomain rhs = interpreter.evalVal(*relOp.getRHS(), ctxt);
             switch (relOp.getOperator()) {
@@ -357,6 +429,7 @@ bool Interpreter::evalCond(const RamCondition& cond, const InterpreterContext& c
                     return false;
             }
         }
+
         bool visitNode(const RamNode& node) override {
             std::cerr << "Unsupported node type: " << typeid(node).name() << "\n";
             assert(false && "Unsupported Node Type!");
@@ -373,19 +446,21 @@ void Interpreter::evalOp(const RamOperation& op, const InterpreterContext& args)
     class OperationEvaluator : public RamVisitor<void> {
         Interpreter& interpreter;
         InterpreterContext& ctxt;
+        RamIndexScanKeysAnalysis* keysAnalysis;
 
     public:
-        OperationEvaluator(Interpreter& interp, InterpreterContext& ctxt) : interpreter(interp), ctxt(ctxt) {}
+        OperationEvaluator(Interpreter& interp, InterpreterContext& ctxt)
+                : interpreter(interp), ctxt(ctxt),
+                  keysAnalysis(interp.getTranslationUnit().getAnalysis<RamIndexScanKeysAnalysis>()) {}
 
         // -- Operations -----------------------------
 
+        void visitNestedOperation(const RamNestedOperation& nested) override {
+            visit(nested.getOperation());
+        }
+
         void visitSearch(const RamSearch& search) override {
-            // check condition
-            auto condition = search.getCondition();
-            if (!condition || interpreter.evalCond(*condition, ctxt)) {
-                // process nested
-                visit(*search.getNestedOperation());
-            }
+            visitNestedOperation(search);
 
             if (Global::config().has("profile") && !search.getProfileText().empty()) {
                 interpreter.frequencies[search.getProfileText()][interpreter.getIterationNumber()]++;
@@ -396,21 +471,16 @@ void Interpreter::evalOp(const RamOperation& op, const InterpreterContext& args)
             // get the targeted relation
             const InterpreterRelation& rel = interpreter.getRelation(scan.getRelation());
 
-            // process full scan if no index is given
-            if (scan.getRangeQueryColumns() == 0) {
-                // if scan is not binding anything => check for emptiness
-                if (scan.isPureExistenceCheck() && !rel.empty()) {
-                    visitSearch(scan);
-                    return;
-                }
-
-                // if scan is unrestricted => use simple iterator
-                for (const RamDomain* cur : rel) {
-                    ctxt[scan.getLevel()] = cur;
-                    visitSearch(scan);
-                }
-                return;
+            // use simple iterator
+            for (const RamDomain* cur : rel) {
+                ctxt[scan.getIdentifier()] = cur;
+                visitSearch(scan);
             }
+        }
+
+        void visitIndexScan(const RamIndexScan& scan) override {
+            // get the targeted relation
+            const InterpreterRelation& rel = interpreter.getRelation(scan.getRelation());
 
             // create pattern tuple for range query
             auto arity = rel.getArity();
@@ -428,26 +498,15 @@ void Interpreter::evalOp(const RamOperation& op, const InterpreterContext& args)
             }
 
             // obtain index
-            auto idx = rel.getIndex(scan.getRangeQueryColumns(), nullptr);
+            auto idx = rel.getIndex(keysAnalysis->getRangeQueryColumns(&scan), nullptr);
 
             // get iterator range
             auto range = idx->lowerUpperBound(low, hig);
 
-            // if this scan is not binding anything ...
-            if (scan.isPureExistenceCheck()) {
-                if (range.first != range.second) {
-                    visitSearch(scan);
-                }
-                if (Global::config().has("profile") && !scan.getProfileText().empty()) {
-                    interpreter.frequencies[scan.getProfileText()][interpreter.getIterationNumber()]++;
-                }
-                return;
-            }
-
             // conduct range query
             for (auto ip = range.first; ip != range.second; ++ip) {
                 const RamDomain* data = *(ip);
-                ctxt[scan.getLevel()] = data;
+                ctxt[scan.getIdentifier()] = data;
                 visitSearch(scan);
             }
         }
@@ -466,7 +525,7 @@ void Interpreter::evalOp(const RamOperation& op, const InterpreterContext& args)
             const RamDomain* tuple = unpack(ref, arity);
 
             // save reference to temporary value
-            ctxt[lookup.getLevel()] = tuple;
+            ctxt[lookup.getIdentifier()] = tuple;
 
             // run nested part - using base class visitor
             visitSearch(lookup);
@@ -528,11 +587,11 @@ void Interpreter::evalOp(const RamOperation& op, const InterpreterContext& args)
             for (auto ip = range.first; ip != range.second; ++ip) {
                 // link tuple
                 const RamDomain* data = *(ip);
-                ctxt[aggregate.getLevel()] = data;
+                ctxt[aggregate.getIdentifier()] = data;
 
                 // count is easy
                 if (aggregate.getFunction() == RamAggregate::COUNT) {
-                    res++;
+                    ++res;
                     continue;
                 }
 
@@ -560,25 +619,25 @@ void Interpreter::evalOp(const RamOperation& op, const InterpreterContext& args)
             // write result to environment
             RamDomain tuple[1];
             tuple[0] = res;
-            ctxt[aggregate.getLevel()] = tuple;
-
-            // check whether result is used in a condition
-            auto condition = aggregate.getCondition();
-            if (condition && !interpreter.evalCond(*condition, ctxt)) {
-                return;  // condition not valid => skip nested
-            }
+            ctxt[aggregate.getIdentifier()] = tuple;
 
             // run nested part - using base class visitor
             visitSearch(aggregate);
         }
 
-        void visitProject(const RamProject& project) override {
-            // check constraints
-            RamCondition* condition = project.getCondition();
-            if (condition && !interpreter.evalCond(*condition, ctxt)) {
-                return;  // condition violated => skip insert
+        void visitFilter(const RamFilter& filter) override {
+            // check condition
+            if (interpreter.evalCond(filter.getCondition(), ctxt)) {
+                // process nested
+                visitNestedOperation(filter);
             }
 
+            if (Global::config().has("profile") && !filter.getProfileText().empty()) {
+                interpreter.frequencies[filter.getProfileText()][interpreter.getIterationNumber()]++;
+            }
+        }
+
+        void visitProject(const RamProject& project) override {
             // create a tuple of the proper arity (also supports arity 0)
             auto arity = project.getRelation().getArity();
             const auto& values = project.getValues();
@@ -612,7 +671,7 @@ void Interpreter::evalOp(const RamOperation& op, const InterpreterContext& args)
     };
 
     // create and run interpreter for operations
-    InterpreterContext ctxt(op.getDepth());
+    InterpreterContext ctxt(translationUnit.getAnalysis<RamOperationDepthAnalysis>()->getDepth(&op));
     ctxt.setReturnValues(args.getReturnValues());
     ctxt.setReturnErrors(args.getReturnErrors());
     ctxt.setArguments(args.getArguments());
@@ -728,14 +787,6 @@ void Interpreter::evalStmt(const RamStatement& stmt) {
 
         bool visitDrop(const RamDrop& drop) override {
             interpreter.dropRelation(drop.getRelation());
-            return true;
-        }
-
-        bool visitPrintSize(const RamPrintSize& print) override {
-            auto lease = getOutputLock().acquire();
-            (void)lease;
-            const InterpreterRelation& rel = interpreter.getRelation(print.getRelation());
-            std::cout << print.getMessage() << rel.size() << "\n";
             return true;
         }
 
@@ -866,7 +917,10 @@ void Interpreter::executeMain() {
         // Store count of relations
         size_t relationCount = 0;
         visitDepthFirst(main, [&](const RamCreate& create) {
-            if (create.getRelation().getName()[0] != '@') ++relationCount;
+            if (create.getRelation().getName()[0] != '@') {
+                ++relationCount;
+                reads[create.getRelation().getName()] = 0;
+            }
         });
         ProfileEventSingleton::instance().makeConfigRecord("relationCount", std::to_string(relationCount));
 
@@ -881,6 +935,10 @@ void Interpreter::executeMain() {
             for (auto const& iter : cur.second) {
                 ProfileEventSingleton::instance().makeQuantityEvent(cur.first, iter.second, iter.first);
             }
+        }
+        for (auto const& cur : reads) {
+            ProfileEventSingleton::instance().makeQuantityEvent(
+                    "@relation-reads;" + cur.first, cur.second, 0);
         }
     }
     SignalHandler::instance()->reset();

@@ -27,6 +27,7 @@
     #include <cassert>
     #include <cstdarg>
     #include <cstdio>
+    #include <memory.h>
     #include <cstdlib>
     #include <stack>
     #include <string>
@@ -35,16 +36,16 @@
     #include "AstArgument.h"
     #include "AstClause.h"
     #include "AstComponent.h"
-    #include "AstIODirective.h"
+    #include "AstFunctorDeclaration.h"
+    #include "AstIO.h"
     #include "AstNode.h"
     #include "AstParserUtils.h"
     #include "AstProgram.h"
     #include "AstRelation.h"
-    #include "SrcLocation.h"
     #include "AstTypes.h"
     #include "BinaryConstraintOps.h"
-    #include "BinaryFunctorOps.h"
-    #include "UnaryFunctorOps.h"
+    #include "FunctorOps.h"
+    #include "SrcLocation.h"
     #include "Util.h"
 
     using namespace souffle;
@@ -60,14 +61,15 @@
     /* Macro to update locations as parsing proceeds */
     # define YYLLOC_DEFAULT(Cur, Rhs, N)                       \
     do {                                                       \
-       if (N) {                                                \
-           (Cur).start        = YYRHSLOC(Rhs, 1).start;        \
-           (Cur).end          = YYRHSLOC(Rhs, N).end;          \
-           (Cur).filename     = YYRHSLOC(Rhs, N).filename;     \
-       } else {                                                \
-           (Cur).start    = YYRHSLOC(Rhs, 0).end;              \
-           (Cur).filename = YYRHSLOC(Rhs, 0).filename;         \
-       }                                                       \
+        if (N) {                                               \
+            (Cur).start        = YYRHSLOC(Rhs, 1).start;       \
+            (Cur).end          = YYRHSLOC(Rhs, N).end;         \
+            (Cur).filename     = YYRHSLOC(Rhs, N).filename;    \
+        } else {                                               \
+            (Cur).start    = YYRHSLOC(Rhs, 0).end;             \
+            (Cur).end      = YYRHSLOC(Rhs, 0).end;             \
+            (Cur).filename = YYRHSLOC(Rhs, 0).filename;        \
+        }                                                      \
     } while (0)
 }
 
@@ -96,8 +98,6 @@
 %token BRIE_QUALIFIER            "BRIE datastructure qualifier"
 %token BTREE_QUALIFIER           "BTREE datastructure qualifier"
 %token EQREL_QUALIFIER           "equivalence relation qualifier"
-%token RBTSET_QUALIFIER          "red-black tree set relation qualifier"
-%token HASHSET_QUALIFIER         "hashset relation qualifier"
 %token OVERRIDABLE_QUALIFIER     "relation qualifier overidable"
 %token INLINE_QUALIFIER          "relation qualifier inline"
 %token TMATCH                    "match predicate"
@@ -116,6 +116,7 @@
 %token PLAN                      "plan keyword"
 %token IF                        ":-"
 %token DECL                      "relation declaration"
+%token FUNCTOR                   "functor declaration"
 %token INPUT_DECL                "input directives declaration"
 %token OUTPUT_DECL               "output directives declaration"
 %token PRINTSIZE_DECL            "printsize directives declaration"
@@ -145,6 +146,7 @@
 %token DOT                       "."
 %token EQUALS                    "="
 %token STAR                      "*"
+%token AT                        "@"
 %token SLASH                     "/"
 %token CARET                     "^"
 %token PERCENT                   "%"
@@ -167,8 +169,11 @@
 %type <AstComponent *>                   component component_head component_body
 %type <AstComponentType *>               comp_type
 %type <AstComponentInit *>               comp_init
+%type <AstFunctorDeclaration *>          functor_decl
+%type <std::string>                      functor_type
+%type <std::string>                      functor_typeargs
 %type <AstRelation *>                    attributes non_empty_attributes relation_body
-%type <std::vector<AstRelation *>>       relation_list relation_head
+%type <std::vector<AstRelation *>>       relation_list relation_decl
 %type <AstArgument *>                    arg
 %type <AstAtom *>                        arg_list non_empty_arg_list atom
 %type <std::vector<AstAtom*>>            head
@@ -179,12 +184,15 @@
 %type <AstExecutionOrder *>              exec_order exec_order_list
 %type <AstExecutionPlan *>               exec_plan exec_plan_list
 %type <AstRecordInit *>                  recordlist
+%type <AstUserDefinedFunctor *>          functor_list functor_args
 %type <AstRecordType *>                  recordtype
 %type <AstUnionType *>                   uniontype
 %type <std::vector<AstTypeIdentifier>>   type_params type_param_list
 %type <std::string>                      comp_override
-%type <AstIODirective *>                 key_value_pairs non_empty_key_value_pairs iodirective_body
-%type <std::vector<AstIODirective *>>    iodirective_head iodirective_list
+%type <AstIO *>                          key_value_pairs non_empty_key_value_pairs iodirective_body
+%type <std::vector<AstIO *>>             iodirective_list
+%type <std::vector<AstLoad *>>           load_head
+%type <std::vector<AstStore *>>          store_head
 %printer { yyoutput << $$; } <*>;
 
 %precedence AS
@@ -197,7 +205,7 @@
 %left STAR SLASH PERCENT
 %precedence BW_NOT L_NOT
 %precedence NEG
-%left CARET
+%right CARET
 
 %%
 %start program;
@@ -211,11 +219,17 @@ unit
   : unit type {
         driver.addType(std::unique_ptr<AstType>($2));
     }
-  | unit relation_head {
+  | unit functor_decl {
+        driver.addFunctorDeclaration(std::unique_ptr<AstFunctorDeclaration>($2));
+    }
+  | unit relation_decl {
         for(const auto& cur : $2) driver.addRelation(std::unique_ptr<AstRelation>(cur));
     }
-  | unit iodirective_head {
-        for(const auto& cur : $2) driver.addIODirective(std::unique_ptr<AstIODirective>(cur));
+  | unit load_head {
+        for(const auto& cur : $2) driver.addLoad(std::unique_ptr<AstLoad>(cur));
+    }
+  | unit store_head {
+        for(const auto& cur : $2) driver.addStore(std::unique_ptr<AstStore>(cur));
     }
   | unit fact {
         driver.addClause(std::unique_ptr<AstClause>($2));
@@ -295,7 +309,7 @@ recordtype
         $$->add($1, *$3); delete $3;
     }
   | recordtype COMMA IDENT COLON type_id {
-         $$ = $1;
+        $$ = $1;
         $1->add($3, *$5); delete $5;
     }
 
@@ -369,30 +383,48 @@ qualifiers
         $$ = $1 | INLINE_RELATION;
     }
   | qualifiers BRIE_QUALIFIER {
-        if($1 & (BRIE_RELATION|BTREE_RELATION|EQREL_RELATION|RBTSET_RELATION|HASHSET_RELATION)) driver.error(@2, "btree/brie/eqrel/rbtset/hashset qualifier already set");
+        if($1 & (BRIE_RELATION|BTREE_RELATION|EQREL_RELATION)) driver.error(@2, "btree/brie/eqrel qualifier already set");
         $$ = $1 | BRIE_RELATION;
     }
   | qualifiers BTREE_QUALIFIER {
-        if($1 & (BRIE_RELATION|BTREE_RELATION|EQREL_RELATION|RBTSET_RELATION|HASHSET_RELATION)) driver.error(@2, "btree/brie/eqrel/rbtset/hashset qualifier already set");
+        if($1 & (BRIE_RELATION|BTREE_RELATION|EQREL_RELATION)) driver.error(@2, "btree/brie/eqrel qualifier already set");
         $$ = $1 | BTREE_RELATION;
     }
   | qualifiers EQREL_QUALIFIER {
-        if($1 & (BRIE_RELATION|BTREE_RELATION|EQREL_RELATION|RBTSET_RELATION|HASHSET_RELATION)) driver.error(@2, "btree/brie/eqrel/rbtset/hashset qualifier already set");
+        if($1 & (BRIE_RELATION|BTREE_RELATION|EQREL_RELATION)) driver.error(@2, "btree/brie/eqrel qualifier already set");
         $$ = $1 | EQREL_RELATION;
-    }
-  | qualifiers RBTSET_QUALIFIER {
-        if($1 & (BRIE_RELATION|BTREE_RELATION|EQREL_RELATION|RBTSET_RELATION|HASHSET_RELATION)) driver.error(@2, "btree/brie/eqrel/rbtset/hashset qualifier already set");
-        $$ = $1 | RBTSET_RELATION;
-    }
-  | qualifiers HASHSET_QUALIFIER {
-        if($1 & (BRIE_RELATION|BTREE_RELATION|EQREL_RELATION|RBTSET_RELATION|HASHSET_RELATION)) driver.error(@2, "btree/brie/eqrel/rbtset/hashset qualifier already set");
-        $$ = $1 | HASHSET_RELATION;
     }
   | %empty {
         $$ = 0;
     }
 
-relation_head
+functor_decl
+  : FUNCTOR IDENT LPAREN functor_typeargs RPAREN COLON functor_type {
+        $$ = new AstFunctorDeclaration($2, $4+$7);
+        $$->setSrcLoc(@$);
+    }
+  | FUNCTOR IDENT LPAREN RPAREN COLON functor_type {
+        $$ = new AstFunctorDeclaration($2, $6);
+        $$->setSrcLoc(@$);
+    }
+  ;
+
+functor_type
+  : IDENT {
+      if ($1 == "number") {
+          $$ = "N";
+      } else if ($1 == "symbol") {
+          $$ = "S";
+      } else driver.error(@1, "number or symbol identifier expected");
+    }
+  ;
+
+functor_typeargs
+  : functor_type COMMA functor_typeargs { $$ = $1 + $3; }
+  | functor_type { $$ = $1;  }
+  ;
+
+relation_decl
   : DECL relation_list {
       $$.swap($2);
     }
@@ -419,7 +451,7 @@ relation_body
 
 non_empty_key_value_pairs
   : IDENT EQUALS STRING {
-        $$ = new AstIODirective();
+        $$ = new AstIO();
         $$->addKVP($1, $3);
     }
   | key_value_pairs COMMA IDENT EQUALS STRING {
@@ -427,7 +459,7 @@ non_empty_key_value_pairs
         $$->addKVP($3, $5);
     }
   | IDENT EQUALS IDENT {
-        $$ = new AstIODirective();
+        $$ = new AstIO();
         $$->addKVP($1, $3);
     }
   | key_value_pairs COMMA IDENT EQUALS IDENT {
@@ -435,18 +467,18 @@ non_empty_key_value_pairs
         $$->addKVP($3, $5);
     }
   | IDENT EQUALS TRUE {
-        $$ = new AstIODirective();
+        $$ = new AstIO();
         $$->addKVP($1, "true");
     }
   | key_value_pairs COMMA IDENT EQUALS TRUE {
         $$ = $1;
         $$->addKVP($3, "true");
     }
- | IDENT EQUALS FALSE {
-        $$ = new AstIODirective();
+  | IDENT EQUALS FALSE {
+        $$ = new AstIO();
         $$->addKVP($1, "false");
     }
- | key_value_pairs COMMA IDENT EQUALS FALSE {
+  | key_value_pairs COMMA IDENT EQUALS FALSE {
         $$ = $1;
         $$->addKVP($3, "false");
     }
@@ -456,22 +488,29 @@ key_value_pairs
         $$ = $1;
     }
   | %empty {
-        $$ = new AstIODirective();
+        $$ = new AstIO();
         $$->setSrcLoc(@$);
     }
 
-iodirective_head
+load_head
   : INPUT_DECL iodirective_list {
-      $$.swap($2);
-      for (auto& cur : $$) cur->setAsInput();
+      for (auto* cur : $2) {
+          $$.push_back(new AstLoad(*cur));
+          delete cur;
+      }
     }
-  | OUTPUT_DECL iodirective_list {
-      $$.swap($2);
-      for (auto& cur : $$) cur->setAsOutput();
+store_head
+  : OUTPUT_DECL iodirective_list {
+      for (auto* cur : $2) {
+          $$.push_back(new AstStore(*cur));
+          delete cur;
+      }
     }
   | PRINTSIZE_DECL iodirective_list {
-      $$.swap($2);
-      for (auto& cur : $$) cur->setAsPrintSize();
+      for (auto* cur : $2) {
+          $$.push_back(new AstPrintSize(*cur));
+          delete cur;
+      }
     }
 
 iodirective_list
@@ -494,7 +533,7 @@ iodirective_body
         delete $1;
     }
   | rel_id {
-        $$ = new AstIODirective();
+        $$ = new AstIO();
         $$->setName(*$1);
         $$->setSrcLoc(@1);
         delete $1;
@@ -514,6 +553,11 @@ arg
         $$ = new AstCounter();
         $$->setSrcLoc(@$);
     }
+  | AT IDENT functor_list {
+        $$ = $3;
+        $3->setName($2);
+        $$->setSrcLoc(@$);
+    }
   | IDENT {
         $$ = new AstVariable($1);
         $$->setSrcLoc(@$);
@@ -526,79 +570,79 @@ arg
         $$ = $2;
     }
   | arg BW_OR arg {
-        $$ = new AstBinaryFunctor(BinaryOp::BOR, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
+        $$ = new AstIntrinsicFunctor(FunctorOp::BOR, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
         $$->setSrcLoc(@$);
     }
   | arg BW_XOR arg {
-        $$ = new AstBinaryFunctor(BinaryOp::BXOR, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
+        $$ = new AstIntrinsicFunctor(FunctorOp::BXOR, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
         $$->setSrcLoc(@$);
     }
   | arg BW_AND arg {
-        $$ = new AstBinaryFunctor(BinaryOp::BAND, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
+        $$ = new AstIntrinsicFunctor(FunctorOp::BAND, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
         $$->setSrcLoc(@$);
     }
   | arg L_OR arg {
-        $$ = new AstBinaryFunctor(BinaryOp::LOR, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
+        $$ = new AstIntrinsicFunctor(FunctorOp::LOR, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
         $$->setSrcLoc(@$);
     }
   | arg L_AND arg {
-        $$ = new AstBinaryFunctor(BinaryOp::LAND, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
+        $$ = new AstIntrinsicFunctor(FunctorOp::LAND, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
         $$->setSrcLoc(@$);
     }
   | arg PLUS arg {
-        $$ = new AstBinaryFunctor(BinaryOp::ADD, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
+        $$ = new AstIntrinsicFunctor(FunctorOp::ADD, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
         $$->setSrcLoc(@$);
     }
   | arg MINUS arg {
-        $$ = new AstBinaryFunctor(BinaryOp::SUB, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
+        $$ = new AstIntrinsicFunctor(FunctorOp::SUB, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
         $$->setSrcLoc(@$);
     }
   | arg STAR arg {
-        $$ = new AstBinaryFunctor(BinaryOp::MUL, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
+        $$ = new AstIntrinsicFunctor(FunctorOp::MUL, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
         $$->setSrcLoc(@$);
     }
   | arg SLASH arg {
-        $$ = new AstBinaryFunctor(BinaryOp::DIV, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
+        $$ = new AstIntrinsicFunctor(FunctorOp::DIV, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
         $$->setSrcLoc(@$);
     }
   | arg PERCENT arg {
-        $$ = new AstBinaryFunctor(BinaryOp::MOD, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
+        $$ = new AstIntrinsicFunctor(FunctorOp::MOD, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
         $$->setSrcLoc(@$);
     }
   | arg CARET arg {
-        $$ = new AstBinaryFunctor(BinaryOp::EXP, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
+        $$ = new AstIntrinsicFunctor(FunctorOp::EXP, std::unique_ptr<AstArgument>($1), std::unique_ptr<AstArgument>($3));
         $$->setSrcLoc(@$);
     }
   | MAX LPAREN arg COMMA arg RPAREN {
-        $$ = new AstBinaryFunctor(BinaryOp::MAX, std::unique_ptr<AstArgument>($3), std::unique_ptr<AstArgument>($5));
+        $$ = new AstIntrinsicFunctor(FunctorOp::MAX, std::unique_ptr<AstArgument>($3), std::unique_ptr<AstArgument>($5));
         $$->setSrcLoc(@$);
     }
   | MIN LPAREN arg COMMA arg RPAREN {
-        $$ = new AstBinaryFunctor(BinaryOp::MIN, std::unique_ptr<AstArgument>($3), std::unique_ptr<AstArgument>($5));
+        $$ = new AstIntrinsicFunctor(FunctorOp::MIN, std::unique_ptr<AstArgument>($3), std::unique_ptr<AstArgument>($5));
         $$->setSrcLoc(@$);
     }
   | CAT LPAREN arg COMMA arg RPAREN {
-        $$ = new AstBinaryFunctor(BinaryOp::CAT, std::unique_ptr<AstArgument>($3), std::unique_ptr<AstArgument>($5));
+        $$ = new AstIntrinsicFunctor(FunctorOp::CAT, std::unique_ptr<AstArgument>($3), std::unique_ptr<AstArgument>($5));
         $$->setSrcLoc(@$);
     }
   | ORD LPAREN arg RPAREN {
-        $$ = new AstUnaryFunctor(UnaryOp::ORD, std::unique_ptr<AstArgument>($3));
+        $$ = new AstIntrinsicFunctor(FunctorOp::ORD, std::unique_ptr<AstArgument>($3));
         $$->setSrcLoc(@$);
     }
   | STRLEN LPAREN arg RPAREN {
-        $$ = new AstUnaryFunctor(UnaryOp::STRLEN, std::unique_ptr<AstArgument>($3));
+        $$ = new AstIntrinsicFunctor(FunctorOp::STRLEN, std::unique_ptr<AstArgument>($3));
         $$->setSrcLoc(@$);
     }
   | TONUMBER LPAREN arg RPAREN {
-        $$ = new AstUnaryFunctor(UnaryOp::TONUMBER, std::unique_ptr<AstArgument>($3));
+        $$ = new AstIntrinsicFunctor(FunctorOp::TONUMBER, std::unique_ptr<AstArgument>($3));
         $$->setSrcLoc(@$);
     }
   | TOSTRING LPAREN arg RPAREN {
-        $$ = new AstUnaryFunctor(UnaryOp::TOSTRING, std::unique_ptr<AstArgument>($3));
+        $$ = new AstIntrinsicFunctor(FunctorOp::TOSTRING, std::unique_ptr<AstArgument>($3));
         $$->setSrcLoc(@$);
     }
   | SUBSTR LPAREN arg COMMA arg COMMA arg RPAREN {
-        $$ = new AstTernaryFunctor(TernaryOp::SUBSTR,
+        $$ = new AstIntrinsicFunctor(FunctorOp::SUBSTR,
                 std::unique_ptr<AstArgument>($3),
                 std::unique_ptr<AstArgument>($5),
                 std::unique_ptr<AstArgument>($7));
@@ -615,16 +659,16 @@ arg
             $$->setSrcLoc($2->getSrcLoc());
             delete $2;
         } else {
-            $$ = new AstUnaryFunctor(UnaryOp::NEG, std::unique_ptr<AstArgument>($2));
+            $$ = new AstIntrinsicFunctor(FunctorOp::NEG, std::unique_ptr<AstArgument>($2));
             $$->setSrcLoc(@$);
         }
     }
   | BW_NOT arg {
-        $$ = new AstUnaryFunctor(UnaryOp::BNOT, std::unique_ptr<AstArgument>($2));
+        $$ = new AstIntrinsicFunctor(FunctorOp::BNOT, std::unique_ptr<AstArgument>($2));
         $$->setSrcLoc(@$);
     }
   | L_NOT arg {
-        $$ = new AstUnaryFunctor(UnaryOp::LNOT, std::unique_ptr<AstArgument>($2));
+        $$ = new AstIntrinsicFunctor(FunctorOp::LNOT, std::unique_ptr<AstArgument>($2));
         $$->setSrcLoc(@$);
     }
   | LBRACKET RBRACKET {
@@ -733,6 +777,26 @@ arg
         std::cerr << "ERROR: '" << $1 << "' is a keyword reserved for future implementation!" << std::endl;
         exit(1);
     }
+
+functor_list
+  : LPAREN RPAREN {
+        $$ = new AstUserDefinedFunctor();
+    }
+  | LPAREN functor_args RPAREN {
+        $$ = $2;
+    }
+  ;
+
+functor_args
+  : arg {
+        $$ = new AstUserDefinedFunctor();
+        $$->add(std::unique_ptr<AstArgument>($1));
+    }
+  | functor_args COMMA arg {
+        $$ = $1;
+        $$->add(std::unique_ptr<AstArgument>($3));
+    }
+  ;
 
 recordlist
   : arg {
@@ -994,13 +1058,17 @@ component_body
         $$ = $1;
         $$->addType(std::unique_ptr<AstType>($2));
     }
-  | component_body relation_head {
+  | component_body relation_decl {
         $$ = $1;
         for(const auto& cur : $2) $$->addRelation(std::unique_ptr<AstRelation>(cur));
     }
-  | component_body iodirective_head {
+  | component_body load_head {
         $$ = $1;
-        for(const auto& cur : $2) $$->addIODirective(std::unique_ptr<AstIODirective>(cur));
+        for(const auto& cur : $2) $$->addLoad(std::unique_ptr<AstLoad>(cur));
+    }
+  | component_body store_head {
+        $$ = $1;
+        for(const auto& cur : $2) $$->addStore(std::unique_ptr<AstStore>(cur));
     }
   | component_body fact {
         $$ = $1;
@@ -1054,5 +1122,5 @@ comp_override
 
 %%
 void yy::parser::error(const location_type &l, const std::string &m) {
-   driver.error(l, m);
+    driver.error(l, m);
 }

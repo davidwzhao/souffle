@@ -68,7 +68,7 @@ struct linear_search : public search_strategy {
     /**
      * Required user-defined default constructor.
      */
-    linear_search() {}
+    linear_search() = default;
 
     /**
      * Obtains an iterator referencing an element equivalent to the
@@ -122,7 +122,7 @@ struct binary_search : public search_strategy {
     /**
      * Required user-defined default constructor.
      */
-    binary_search() {}
+    binary_search() = default;
 
     /**
      * Obtains an iterator pointing to some element within the given
@@ -250,7 +250,7 @@ public:
     using key_type = Key;
     using chunk = range<iterator>;
 
-private:
+protected:
     /* ------------- static utilities ----------------- */
 
     const static SearchStrategy search;
@@ -544,11 +544,15 @@ private:
          *                 (might have to be updated if the root-node needs to be split)
          * @param idx  .. the position of the insert causing the split
          */
-        void split(node** root, lock_type& root_lock, int idx) {
 #ifdef IS_PARALLEL
+        void split(node** root, lock_type& root_lock, int idx, std::vector<node*>& locked_nodes) {
             assert(this->lock.is_write_locked());
             assert(!this->parent || this->parent->lock.is_write_locked());
             assert((this->parent != nullptr) || root_lock.is_write_locked());
+            assert(this->isLeaf() || souffle::contains(locked_nodes, this));
+            assert(!this->parent || souffle::contains(locked_nodes, const_cast<node*>(this->parent)));
+#else
+        void split(node** root, lock_type& root_lock, int idx) {
 #endif
             assert(this->numElements == maxKeys);
 
@@ -562,6 +566,7 @@ private:
 #ifdef IS_PARALLEL
             // lock sibling
             sibling->lock.start_write();
+            locked_nodes.push_back(sibling);
 #endif
 
             // move data over to the new node
@@ -585,11 +590,10 @@ private:
             sibling->numElements = maxKeys - split_point - 1;
 
             // update parent
-            grow_parent(root, root_lock, sibling);
-
 #ifdef IS_PARALLEL
-            // unlock sibling
-            sibling->lock.end_write();
+            grow_parent(root, root_lock, sibling, locked_nodes);
+#else
+            grow_parent(root, root_lock, sibling);
 #endif
         }
 
@@ -605,11 +609,15 @@ private:
          * @param idx  .. the position of the insert triggering this operation
          */
         // TODO: remove root_lock ... no longer needed
-        int rebalance_or_split(node** root, lock_type& root_lock, int idx) {
 #ifdef IS_PARALLEL
+        int rebalance_or_split(node** root, lock_type& root_lock, int idx, std::vector<node*>& locked_nodes) {
             assert(this->lock.is_write_locked());
             assert(!this->parent || this->parent->lock.is_write_locked());
             assert((this->parent != nullptr) || root_lock.is_write_locked());
+            assert(this->isLeaf() || souffle::contains(locked_nodes, this));
+            assert(!this->parent || souffle::contains(locked_nodes, const_cast<node*>(this->parent)));
+#else
+        int rebalance_or_split(node** root, lock_type& root_lock, int idx) {
 #endif
 
             // this node is full ... and needs some space
@@ -627,7 +635,7 @@ private:
                 // lock access to left sibling
                 if (!left->lock.try_start_write()) {
                     // left node is currently updated => skip balancing and split
-                    split(root, root_lock, idx);
+                    split(root, root_lock, idx, locked_nodes);
                     return 0;
                 }
 #endif
@@ -697,7 +705,11 @@ private:
             }
 
             // Option B) split node
+#ifdef IS_PARALLEL
+            split(root, root_lock, idx, locked_nodes);
+#else
             split(root, root_lock, idx);
+#endif
             return 0;  // = no re-balancing
         }
 
@@ -710,11 +722,15 @@ private:
          * @param root .. a pointer to the root-pointer of the containing tree
          * @param sibling .. the new right-sibling to be add to the parent node
          */
-        void grow_parent(node** root, lock_type& root_lock, node* sibling) {
 #ifdef IS_PARALLEL
+        void grow_parent(node** root, lock_type& root_lock, node* sibling, std::vector<node*>& locked_nodes) {
             assert(this->lock.is_write_locked());
             assert(!this->parent || this->parent->lock.is_write_locked());
             assert((this->parent != nullptr) || root_lock.is_write_locked());
+            assert(this->isLeaf() || souffle::contains(locked_nodes, this));
+            assert(!this->parent || souffle::contains(locked_nodes, const_cast<node*>(this->parent)));
+#else
+        void grow_parent(node** root, lock_type& root_lock, node* sibling) {
 #endif
 
             if (this->parent == nullptr) {
@@ -741,7 +757,12 @@ private:
                 auto parent = this->parent;
                 auto pos = this->position;
 
+#ifdef IS_PARALLEL
+                parent->insert_inner(
+                        root, root_lock, pos, this, keys[this->numElements], sibling, locked_nodes);
+#else
                 parent->insert_inner(root, root_lock, pos, this, keys[this->numElements], sibling);
+#endif
             }
         }
 
@@ -753,10 +774,14 @@ private:
          * @param key  .. the key to insert
          * @param newNode .. the new right-child of the inserted key
          */
+#ifdef IS_PARALLEL
+        void insert_inner(node** root, lock_type& root_lock, unsigned pos, node* predecessor, const Key& key,
+                node* newNode, std::vector<node*>& locked_nodes) {
+            assert(this->lock.is_write_locked());
+            assert(souffle::contains(locked_nodes, this));
+#else
         void insert_inner(node** root, lock_type& root_lock, unsigned pos, node* predecessor, const Key& key,
                 node* newNode) {
-#ifdef IS_PARALLEL
-            assert(this->lock.is_write_locked());
 #endif
 
             // check capacity
@@ -764,10 +789,15 @@ private:
 #ifdef IS_PARALLEL
                 assert(!this->parent || this->parent->lock.is_write_locked());
                 assert((this->parent) || root_lock.is_write_locked());
+                assert(!this->parent || souffle::contains(locked_nodes, const_cast<node*>(this->parent)));
 #endif
 
                 // split this node
+#ifdef IS_PARALLEL
+                pos -= rebalance_or_split(root, root_lock, pos, locked_nodes);
+#else
                 pos -= rebalance_or_split(root, root_lock, pos);
+#endif
 
                 // complete insertion within new sibling if necessary
                 if (pos > this->numElements) {
@@ -778,8 +808,9 @@ private:
                     auto other = this->parent->getChild(this->position + 1);
 
 #ifdef IS_PARALLEL
-                    // lock other side
-                    other->lock.start_write();
+                    // make sure other side is write locked
+                    assert(other->lock.is_write_locked());
+                    assert(souffle::contains(locked_nodes, other));
 
                     // search for new position (since other may have been altered in the meanwhile)
                     size_type i = 0;
@@ -787,10 +818,9 @@ private:
                         if (other->getChild(i) == predecessor) break;
 
                     pos = (i > other->numElements) ? 0 : i;
-#endif
+                    other->insert_inner(root, root_lock, pos, predecessor, key, newNode, locked_nodes);
+#else
                     other->insert_inner(root, root_lock, pos, predecessor, key, newNode);
-#ifdef IS_PARALLEL
-                    other->lock.end_write();
 #endif
                     return;
                 }
@@ -1017,7 +1047,7 @@ private:
 
             return valid;
         }
-    };
+    };  // namespace detail
 
     /**
      * The data type representing inner nodes of the b-tree. It extends
@@ -1154,7 +1184,7 @@ public:
         node_cache last_upper_bound_end;
 
         // default constructor
-        btree_operation_hints() {}
+        btree_operation_hints() = default;
 
         // resets all hints (to be triggered e.g. when deleting nodes)
         void clear() {
@@ -1167,7 +1197,7 @@ public:
 
     using operation_hints = btree_operation_hints<1>;
 
-private:
+protected:
 #ifdef IS_PARALLEL
     // a pointer to the root node of this tree
     node* volatile root;
@@ -1483,7 +1513,7 @@ public:
 
                 // split this node
                 auto old_root = root;
-                idx -= cur->rebalance_or_split(const_cast<node**>(&root), root_lock, idx);
+                idx -= cur->rebalance_or_split(const_cast<node**>(&root), root_lock, idx, parents);
 
                 // release parent lock
                 for (auto it = parents.rbegin(); it != parents.rend(); ++it) {
@@ -1634,10 +1664,6 @@ public:
             // remember last insertion position
             hints.last_insert.access(cur);
 
-#ifdef HAS_TSX
-            // end hardware transaction
-            TX_END;
-#endif
             return true;
         }
 #endif
@@ -2087,7 +2113,7 @@ public:
         return R(b - a, root, static_cast<leaf_node*>(leftmost));
     }
 
-private:
+protected:
     /**
      * Determines whether the range covered by the given node is also
      * covering the given key value.
@@ -2116,6 +2142,7 @@ private:
                weak_less(k, node->keys[node->numElements - 1]);
     }
 
+private:
     /**
      * Determines whether the range covered by this node covers
      * the upper bound of the given key.
@@ -2182,7 +2209,7 @@ private:
         // done
         return res;
     }
-};
+};  // namespace souffle
 
 // Instantiation of static member search.
 template <typename Key, typename Comparator, typename Allocator, unsigned blockSize, typename SearchStrategy,

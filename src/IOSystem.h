@@ -78,6 +78,7 @@ private:
         registerReadStreamFactory(std::make_shared<ReadCinCSVFactory>());
         registerWriteStreamFactory(std::make_shared<WriteFileCSVFactory>());
         registerWriteStreamFactory(std::make_shared<WriteCoutCSVFactory>());
+        registerWriteStreamFactory(std::make_shared<WriteCoutPrintSizeFactory>());
 #ifdef USE_SQLITE
         registerReadStreamFactory(std::make_shared<ReadSQLiteFactory>());
         registerWriteStreamFactory(std::make_shared<WriteSQLiteFactory>());

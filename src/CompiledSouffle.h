@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "souffle/AstTypes.h"
+#include "souffle/Brie.h"
 #include "souffle/CompiledIndexUtils.h"
 #include "souffle/CompiledOptions.h"
 #include "souffle/CompiledRecord.h"
@@ -32,7 +32,6 @@
 #include "souffle/SouffleInterface.h"
 #include "souffle/SymbolMask.h"
 #include "souffle/SymbolTable.h"
-#include "souffle/Trie.h"
 #include "souffle/Util.h"
 #include "souffle/WriteStream.h"
 #ifdef USE_MPI
@@ -68,7 +67,7 @@ inline souffle::SouffleProgram* getInstance(const char* p) {
 /**
  * Relation wrapper used internally in the generated Datalog program
  */
-template <uint32_t id, class RelType, class TupleType, size_t Arity, bool IsInputRel, bool IsOutputRel>
+template <uint32_t id, class RelType, class TupleType, size_t Arity>
 class RelationWrapper : public Relation {
 private:
     RelType& relation;
@@ -132,13 +131,7 @@ public:
         }
         return relation.contains(t);
     }
-    bool isInput() const override {
-        return IsInputRel;
-    }
-    bool isOutput() const override {
-        return IsOutputRel;
-    }
-    std::size_t size() override {
+    std::size_t size() const override {
         return relation.size();
     }
     std::string getName() const override {
@@ -158,15 +151,20 @@ public:
     SymbolTable& getSymbolTable() const override {
         return symTable;
     }
+
+    /** Eliminate all the tuples in relation*/
+    void purge() override {
+        relation.purge();
+    }
 };
 
 /** Nullary relations */
 class t_nullaries {
 private:
-    bool data;
+    bool data{false};
 
 public:
-    t_nullaries() : data(false) {}
+    t_nullaries() = default;
     using t_tuple = ram::Tuple<RamDomain, 0>;
     struct context {};
     context createContext() {

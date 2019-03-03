@@ -27,9 +27,11 @@ namespace souffle {
 class AstClause;
 class AstComponent;
 class AstComponentInit;
-class AstIODirective;
+class AstFunctorDeclaration;
+class AstLoad;
 class AstPragma;
 class AstRelation;
+class AstStore;
 class AstTranslationUnit;
 class AstType;
 class DebugReport;
@@ -53,7 +55,9 @@ public:
     std::unique_ptr<AstTranslationUnit> translationUnit;
 
     void addRelation(std::unique_ptr<AstRelation> r);
-    void addIODirective(std::unique_ptr<AstIODirective> d);
+    void addFunctorDeclaration(std::unique_ptr<AstFunctorDeclaration> f);
+    void addStore(std::unique_ptr<AstStore> d);
+    void addLoad(std::unique_ptr<AstLoad> d);
     void addType(std::unique_ptr<AstType> type);
     void addClause(std::unique_ptr<AstClause> c);
     void addComponent(std::unique_ptr<AstComponent> c);

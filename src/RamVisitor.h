@@ -76,30 +76,32 @@ struct RamVisitor : public ram_visitor_tag {
         return visit##Kind(static_cast<const Ram##Kind&>(node), args...);
             // Relation
             FORWARD(Relation);
-            FORWARD(RelationRef);
+            FORWARD(RelationReference);
 
             // values
             FORWARD(ElementAccess);
             FORWARD(Number);
-            FORWARD(UnaryOperator);
-            FORWARD(BinaryOperator);
-            FORWARD(TernaryOperator);
+            FORWARD(IntrinsicOperator);
+            FORWARD(UserDefinedOperator);
             FORWARD(AutoIncrement);
             FORWARD(Pack);
             FORWARD(Argument);
 
             // conditions
-            FORWARD(Empty);
-            FORWARD(NotExists);
-            FORWARD(ProvenanceNotExists);
-            FORWARD(And);
-            FORWARD(BinaryRelation);
+            FORWARD(EmptinessCheck);
+            FORWARD(ExistenceCheck);
+            FORWARD(ProvenanceExistenceCheck);
+            FORWARD(Conjunction);
+            FORWARD(Negation);
+            FORWARD(Constraint);
 
             // operations
+            FORWARD(Filter);
             FORWARD(Project);
             FORWARD(Return);
             FORWARD(Lookup);
             FORWARD(Scan);
+            FORWARD(IndexScan);
             FORWARD(Aggregate);
 
             // statements
@@ -110,7 +112,6 @@ struct RamVisitor : public ram_visitor_tag {
             FORWARD(Insert);
             FORWARD(Clear);
             FORWARD(Drop);
-            FORWARD(PrintSize);
             FORWARD(LogSize);
 
             FORWARD(Merge);
@@ -162,7 +163,6 @@ protected:
     LINK(Insert, Statement);
     LINK(Clear, RelationStatement);
     LINK(Drop, RelationStatement);
-    LINK(PrintSize, RelationStatement);
     LINK(LogSize, RelationStatement);
 
     LINK(RelationStatement, Statement);
@@ -181,30 +181,34 @@ protected:
     LINK(Statement, Node);
 
     // -- operations --
-    LINK(Project, Operation)
-    LINK(Lookup, Search)
-    LINK(Scan, Search)
-    LINK(Aggregate, Search)
-    LINK(Search, Operation)
+    LINK(Project, Operation);
     LINK(Return, Operation);
+    LINK(Lookup, Search);
+    LINK(Scan, RelationSearch);
+    LINK(IndexScan, RelationSearch);
+    LINK(RelationSearch, Search);
+    LINK(Aggregate, Search);
+    LINK(Search, NestedOperation);
+    LINK(Filter, NestedOperation);
+    LINK(NestedOperation, Operation);
 
     LINK(Operation, Node)
 
     // -- conditions --
-    LINK(And, Condition)
-    LINK(BinaryRelation, Condition)
-    LINK(NotExists, Condition)
-    LINK(ProvenanceNotExists, Condition)
-    LINK(Empty, Condition)
+    LINK(Conjunction, Condition)
+    LINK(Negation, Condition)
+    LINK(Constraint, Condition)
+    LINK(ExistenceCheck, Condition)
+    LINK(ProvenanceExistenceCheck, Condition)
+    LINK(EmptinessCheck, Condition)
 
     LINK(Condition, Node)
 
     // -- values --
     LINK(Number, Value)
     LINK(ElementAccess, Value)
-    LINK(UnaryOperator, Value)
-    LINK(BinaryOperator, Value)
-    LINK(TernaryOperator, Value)
+    LINK(IntrinsicOperator, Value)
+    LINK(UserDefinedOperator, Value)
     LINK(AutoIncrement, Value)
     LINK(Pack, Value)
     LINK(Argument, Value)
@@ -216,7 +220,7 @@ protected:
 
     // -- relation
     LINK(Relation, Node)
-    LINK(RelationRef, Node)
+    LINK(RelationReference, Node)
 
 #ifdef USE_MPI
     LINK(Send, RelationStatement);

@@ -70,6 +70,7 @@
 
 %%
 ".decl"                               { return yy::parser::make_DECL(yylloc); }
+".functor"                            { return yy::parser::make_FUNCTOR(yylloc); }
 ".input"                              { return yy::parser::make_INPUT_DECL(yylloc); }
 ".output"                             { return yy::parser::make_OUTPUT_DECL(yylloc); }
 ".printsize"                          { return yy::parser::make_PRINTSIZE_DECL(yylloc); }
@@ -98,8 +99,6 @@
 "overridable"                         { return yy::parser::make_OVERRIDABLE_QUALIFIER(yylloc); }
 "printsize"                           { return yy::parser::make_PRINTSIZE_QUALIFIER(yylloc); }
 "eqrel"                               { return yy::parser::make_EQREL_QUALIFIER(yylloc); }
-"rbtset"                              { return yy::parser::make_RBTSET_QUALIFIER(yylloc); }
-"hashset"                             { return yy::parser::make_HASHSET_QUALIFIER(yylloc); }
 "inline"                              { return yy::parser::make_INLINE_QUALIFIER(yylloc); }
 "brie"                                { return yy::parser::make_BRIE_QUALIFIER(yylloc); }
 "btree"                               { return yy::parser::make_BTREE_QUALIFIER(yylloc); }
@@ -130,6 +129,7 @@
 "."                                   { return yy::parser::make_DOT(yylloc); }
 "="                                   { return yy::parser::make_EQUALS(yylloc); }
 "*"                                   { return yy::parser::make_STAR(yylloc); }
+"@"                                   { return yy::parser::make_AT(yylloc); }
 "/"                                   { return yy::parser::make_SLASH(yylloc); }
 "^"                                   { return yy::parser::make_CARET(yylloc); }
 "%"                                   { return yy::parser::make_PERCENT(yylloc); }
@@ -187,18 +187,15 @@
 [\?a-zA-Z]|[_\?a-zA-Z][_\?a-zA-Z0-9]+ {
                                         return yy::parser::make_IDENT(SLOOKUP(yytext), yylloc);
                                       }
-\"([^\"]*|\\[^n])*\"                  {
+\"([^\"]*|\\\")*\"                     {
                                         yytext[strlen(yytext)-1]=0;
-                                        if(strlen(&yytext[1]) == 0) {
-                                          driver.error(yylloc, "string literal is empty");
-                                        }
-                                        for(size_t i=1;i<=strlen(&yytext[1]); i++) {
+                                        for(size_t i = 1; i <= strlen(&yytext[1]); i++) {
                                           if(yytext[i] == '\t' || yytext[i] == '\n') {
                                             driver.error(yylloc, "no tabs/newlines in string literals");
                                             break;
                                           }
                                         }
-                                        for(size_t i=1;i<=strlen(&yytext[1]); i++) {
+                                        for(size_t i = 1; i <= strlen(&yytext[1]); i++) {
                                           if(!isascii(yytext[i])) {
                                             driver.error(yylloc, "only ascii characters in string literals");
                                             break;

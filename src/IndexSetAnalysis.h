@@ -50,11 +50,6 @@ public:
     using Matchings = std::map<SearchColumns, SearchColumns, std::greater<SearchColumns>>;
     using Nodes = std::set<SearchColumns, std::greater<SearchColumns>>;
 
-private:
-    using Edges = std::set<SearchColumns>;
-    using Graph = std::map<SearchColumns, Edges>;
-    using Distance = std::map<SearchColumns, int>;
-
 public:
     /** Solve */
     const Matchings& solve();
@@ -81,6 +76,10 @@ protected:
     bool dfSearch(SearchColumns u);
 
 private:
+    using Edges = std::set<SearchColumns>;
+    using Graph = std::map<SearchColumns, Edges>;
+    using Distance = std::map<SearchColumns, int>;
+
     Matchings match;
     Graph graph;
     Distance distance;
@@ -101,20 +100,11 @@ class IndexSet {
 public:
     using LexicographicalOrder = std::vector<int>;
     using OrderCollection = std::vector<LexicographicalOrder>;
-
-protected:
     using Chain = std::set<SearchColumns>;
     using ChainOrderMap = std::vector<Chain>;
     using SearchSet = std::set<SearchColumns>;
 
-    SearchSet searches;           // set of search patterns on table
-    OrderCollection orders;       // collection of lexicographical orders
-    ChainOrderMap chainToOrder;   // maps order index to set of searches covered by chain
-    MaxMatching matching;         // matching problem for finding minimal number of orders
-    const RamRelation& relation;  // relation
-
-public:
-    IndexSet(const RamRelation& rel) : relation(rel) {}
+    IndexSet(const RamRelationReference& rel) : relation(rel) {}
 
     /** Add new key to an Index Set */
     inline void addSearch(SearchColumns cols) {
@@ -123,7 +113,7 @@ public:
         }
     }
     /** Get relation */
-    const RamRelation& getRelation() const {
+    const RamRelationReference& getRelation() const {
         return relation;
     }
 
@@ -172,8 +162,13 @@ public:
     }
 
 protected:
+    SearchSet searches;                    // set of search patterns on table
+    OrderCollection orders;                // collection of lexicographical orders
+    ChainOrderMap chainToOrder;            // maps order index to set of searches covered by chain
+    MaxMatching matching;                  // matching problem for finding minimal number of orders
+    const RamRelationReference& relation;  // relation
+
     /** count the number of bits in key */
-    // TODO: replace by intrinsic of GCC
     static size_t card(SearchColumns cols) {
         size_t sz = 0, idx = 1;
         for (size_t i = 0; i < sizeof(SearchColumns) * 8; i++) {
@@ -245,9 +240,6 @@ protected:
  * Analysis pass computing the index sets of RAM relations
  */
 class IndexSetAnalysis : public RamAnalysis {
-private:
-    std::map<std::string, IndexSet> data;
-
 public:
     static constexpr const char* name = "index-analysis";
 
@@ -258,7 +250,7 @@ public:
     void print(std::ostream& os) const override;
 
     /** get indexes */
-    IndexSet& getIndexes(const RamRelation& rel) {
+    IndexSet& getIndexes(const RamRelationReference& rel) {
         auto pos = data.find(rel.getName());
         if (pos != data.end()) {
             return pos->second;
@@ -268,6 +260,9 @@ public:
             return ret.first->second;
         }
     }
+
+private:
+    std::map<std::string, IndexSet> data;
 };
 
 }  // end of namespace souffle

@@ -33,12 +33,6 @@ public:
             const SymbolMask& symbolMask, const SymbolTable& symbolTable, const bool provenance)
             : WriteStream(symbolMask, symbolTable, provenance), dbFilename(dbFilename),
               relationName(relationName) {
-        if (provenance) {
-            arity = symbolMask.getArity() - 2;
-        } else {
-            arity = symbolMask.getArity();
-        }
-
         openDB();
         createTables();
         prepareStatements();
@@ -53,11 +47,9 @@ public:
     }
 
 protected:
-    void writeNextTuple(const RamDomain* tuple) override {
-        if (arity == 0) {
-            return;
-        }
+    void writeNullary() override {}
 
+    void writeNextTuple(const RamDomain* tuple) override {
         for (size_t i = 0; i < arity; i++) {
             RamDomain value;
             if (symbolMask.isSymbol(i)) {
@@ -176,7 +168,7 @@ private:
 
     void prepareInsertStatement() {
         std::stringstream insertSQL;
-        insertSQL << "INSERT INTO _" << relationName << " VALUES ";
+        insertSQL << "INSERT INTO '_" << relationName << "' VALUES ";
         insertSQL << "(@V0";
         for (unsigned int i = 1; i < arity; i++) {
             insertSQL << ",@V" << i;
@@ -254,7 +246,6 @@ private:
     const std::string& dbFilename;
     const std::string& relationName;
     const std::string symbolTableName = "__SymbolTable";
-    size_t arity;
 
     std::unordered_map<uint64_t, uint64_t> dbSymbolTable;
     sqlite3_stmt* insertStatement = nullptr;

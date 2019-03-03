@@ -32,7 +32,8 @@ m4_define([POSITIVE_PROVENANCE_TEST],[
 
 ##########################################################################
 
-POSITIVE_PROVENANCE_TEST([path],[provenance])
-POSITIVE_PROVENANCE_TEST([negation],[provenance])
+POSITIVE_PROVENANCE_TEST([components],[provenance])
 POSITIVE_PROVENANCE_TEST([cprog1],[provenance])
 POSITIVE_PROVENANCE_TEST([high_arity],[provenance])
+POSITIVE_PROVENANCE_TEST([negation],[provenance])
+POSITIVE_PROVENANCE_TEST([path],[provenance])

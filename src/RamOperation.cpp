@@ -20,6 +20,9 @@
 #include "BinaryConstraintOps.h"
 #include "RamCondition.h"
 #include "RamRelation.h"
+#include "RamValue.h"
+#include "RamVisitor.h"
+#include <algorithm>
 #include <cstddef>
 #include <iostream>
 #include <memory>
@@ -27,278 +30,233 @@
 
 namespace souffle {
 
-/** add condition */
-void RamOperation::addCondition(std::unique_ptr<RamCondition> c, const RamOperation& root) {
-    assert(c->getLevel() == level);
+/** Determine whether a RAM value is a constant */
+// TODO (#541): Remove or replace by RamConstValueAnalysis
+bool isConstant(const RamValue* value) {
+    // visitor
+    class ConstValueVisitor : public RamVisitor<bool> {
+    public:
+        // number
+        bool visitNumber(const RamNumber& num) override {
+            return true;
+        }
 
-    if (condition) {
-        condition = std::make_unique<RamAnd>(std::move(condition), std::move(c));
-    } else {
-        condition.swap(c);
-    }
+        // tuple element access
+        bool visitElementAccess(const RamElementAccess& elem) override {
+            return false;
+        }
+
+        // auto increment
+        bool visitAutoIncrement(const RamAutoIncrement& increment) override {
+            return false;
+        }
+
+        // intrinsic functors
+        bool visitIntrinsicOperator(const RamIntrinsicOperator& op) override {
+            const auto& args = op.getArguments();
+            bool isConst = true;
+            for (const auto arg : args) {
+                isConst = isConst && visit(arg);
+            }
+            return isConst;
+        }
+
+        // pack operator
+        bool visitPack(const RamPack& pack) override {
+            return false;
+        }
+
+        // argument
+        bool visitArgument(const RamArgument& arg) override {
+            return false;
+        }
+
+        // user defined operator
+        bool visitUserDefinedOperator(const RamUserDefinedOperator& op) override {
+            const auto& args = op.getArguments();
+            bool isConst = true;
+            for (const auto arg : args) {
+                isConst = isConst && visit(arg);
+            }
+            return isConst;
+        }
+    };
+    return ConstValueVisitor().visit(value);
 }
 
-/** add condition */
-void RamSearch::addCondition(std::unique_ptr<RamCondition> c, const RamOperation& root) {
-    assert(c->getLevel() >= level);
+/** Get level of value (which for-loop of a query) */
+// TODO (#541): Remove or replace by RamValueLevelAnalysis
+size_t getLevel(const RamValue* value) {
+    // visitor
+    class ValueLevelVisitor : public RamVisitor<size_t> {
+    public:
+        // number
+        size_t visitNumber(const RamNumber& num) override {
+            return 0;
+        }
 
-    if (c->getLevel() > level) {
-        getNestedOperation()->addCondition(std::move(c), root);
-        return;
-    }
+        // tuple element access
+        size_t visitElementAccess(const RamElementAccess& elem) override {
+            return elem.getLevel();
+        }
 
-    // use base-class implementation
-    RamOperation::addCondition(std::move(c), root);
+        // auto increment
+        size_t visitAutoIncrement(const RamAutoIncrement& increment) override {
+            return 0;
+        }
+
+        // intrinsic functors
+        size_t visitIntrinsicOperator(const RamIntrinsicOperator& op) override {
+            size_t level = 0;
+            for (const auto& arg : op.getArguments()) {
+                if (arg != nullptr) {
+                    level = std::max(level, visit(arg));
+                }
+            }
+            return level;
+        }
+
+        // pack operator
+        size_t visitPack(const RamPack& pack) override {
+            size_t level = 0;
+            for (const auto& arg : pack.getArguments()) {
+                if (arg != nullptr) {
+                    level = std::max(level, visit(arg));
+                }
+            }
+            return level;
+        }
+
+        // argument
+        size_t visitArgument(const RamArgument& arg) override {
+            return 0;
+        }
+
+        // user defined operator
+        size_t visitUserDefinedOperator(const RamUserDefinedOperator& op) override {
+            size_t level = 0;
+            for (const auto& arg : op.getArguments()) {
+                if (arg != nullptr) {
+                    level = std::max(level, visit(arg));
+                }
+            }
+            return level;
+        }
+    };
+    return ValueLevelVisitor().visit(value);
 }
 
-namespace {
+/** Get level of condition (which for-loop of a query) */
+// TODO (#541): Remove or replace by RamConditionLevelAnalysis
+size_t getLevel(const RamCondition* condition) {
+    // visitor
+    class ConditionLevelVisitor : public RamVisitor<size_t> {
+    public:
+        // conjunction
+        size_t visitConjunction(const RamConjunction& conj) override {
+            return std::max(visit(conj.getLHS()), visit(conj.getRHS()));
+        }
+
+        // negation
+        size_t visitNegation(const RamNegation& neg) override {
+            return visit(neg.getOperand());
+        }
+
+        // binary constraint
+        size_t visitConstraint(const RamConstraint& binRel) override {
+            return std::max(getLevel(binRel.getLHS()), getLevel(binRel.getRHS()));
+        }
+
+        // not exists check
+        size_t visitExistenceCheck(const RamExistenceCheck& exists) override {
+            size_t level = 0;
+            for (const auto& cur : exists.getValues()) {
+                if (cur != nullptr) {
+                    level = std::max(level, getLevel(cur));
+                }
+            }
+            return level;
+        }
+
+        // not exists check for a provenance existence check
+        size_t visitProvenanceExistenceCheck(const RamProvenanceExistenceCheck& provExists) override {
+            size_t level = 0;
+            for (const auto& cur : provExists.getValues()) {
+                if (cur != nullptr) {
+                    level = std::max(level, getLevel(cur));
+                }
+            }
+            return level;
+        }
+
+        // emptiness check
+        size_t visitEmptinessCheck(const RamEmptinessCheck& emptiness) override {
+            return 0;  // can be in the top level
+        }
+    };
+    return ConditionLevelVisitor().visit(condition);
+}
 
 /** get indexable element */
-std::unique_ptr<RamValue> getIndexElement(RamCondition* c, size_t& element, size_t level) {
-    if (auto* binRelOp = dynamic_cast<RamBinaryRelation*>(c)) {
+std::unique_ptr<RamValue> RamAggregate::getIndexElement(RamCondition* c, size_t& element, size_t level) {
+    if (auto* binRelOp = dynamic_cast<RamConstraint*>(c)) {
         if (binRelOp->getOperator() == BinaryConstraintOp::EQ) {
             if (auto* lhs = dynamic_cast<RamElementAccess*>(binRelOp->getLHS())) {
                 RamValue* rhs = binRelOp->getRHS();
-                if (lhs->getLevel() == level && (rhs->isConstant() || rhs->getLevel() < level)) {
+                if (lhs->getLevel() == level && (isConstant(rhs) || getLevel(rhs) < level)) {
                     element = lhs->getElement();
-                    return binRelOp->takeRHS();
+                    return std::unique_ptr<RamValue>(rhs->clone());
                 }
             }
             if (auto* rhs = dynamic_cast<RamElementAccess*>(binRelOp->getRHS())) {
                 RamValue* lhs = binRelOp->getLHS();
-                if (rhs->getLevel() == level && (lhs->isConstant() || lhs->getLevel() < level)) {
+                if (rhs->getLevel() == level && (isConstant(lhs) || getLevel(lhs) < level)) {
                     element = rhs->getElement();
-                    return binRelOp->takeLHS();
+                    return std::unique_ptr<RamValue>(lhs->clone());
                 }
             }
         }
     }
     return std::unique_ptr<RamValue>(nullptr);
 }
-}  // namespace
 
 /** add condition */
-void RamScan::addCondition(std::unique_ptr<RamCondition> c, const RamOperation& root) {
+void RamAggregate::addCondition(std::unique_ptr<RamCondition> newCondition) {
+    assert(getLevel(newCondition.get()) == getIdentifier());
+
     // use condition to narrow scan if possible
-    if (c->getLevel() == level) {
-        size_t element = 0;
-        if (std::unique_ptr<RamValue> value = getIndexElement(c.get(), element, level)) {
+    size_t element = 0;
+    if (std::unique_ptr<RamValue> value = getIndexElement(newCondition.get(), element, getIdentifier())) {
+        if (element > 0 || relation->getName().find("__agg") == std::string::npos) {
             keys |= (1 << element);
-            if (queryPattern[element] == nullptr) {
-                queryPattern[element] = std::move(value);
+            if (pattern[element] == nullptr) {
+                pattern[element] = std::move(value);
             } else {
-                std::unique_ptr<RamValue> field = std::make_unique<RamElementAccess>(level, element);
-                RamSearch::addCondition(std::make_unique<RamBinaryRelation>(
-                                                BinaryConstraintOp::EQ, std::move(field), std::move(value)),
-                        root);
-            }
-            return;
-        }
-    }
+                std::unique_ptr<RamValue> field(new RamElementAccess(getIdentifier(), element));
 
-    // otherwise: use default handling
-    RamSearch::addCondition(std::move(c), root);
-}
-
-void RamScan::print(std::ostream& os, int tabpos) const {
-    os << times('\t', tabpos);
-
-    if (isPureExistenceCheck()) {
-        os << "IF ∃ t" << level << " ∈ " << relation->getName() << " ";
-        if (keys != 0) {
-            os << "WITH ";
-            bool first = true;
-            for (size_t i = 0; i < relation->getArity(); i++) {
-                if (queryPattern[i] != nullptr) {
-                    if (first) {
-                        first = false;
+                auto addCondition = [&](std::unique_ptr<RamCondition> c) {
+                    assert(getLevel(c.get()) == getIdentifier());
+                    if (condition != nullptr) {
+                        condition = std::make_unique<RamConjunction>(std::move(condition), std::move(c));
                     } else {
-                        os << "and ";
+                        condition = std::move(c);
                     }
-                    os << "t" << level << "." << relation->getArg(i) << "=";
-                    queryPattern[i]->print(os);
-                    os << " ";
-                }
+                };
+
+                addCondition(std::make_unique<RamConstraint>(
+                        BinaryConstraintOp::EQ, std::move(field), std::move(value)));
             }
-        }
-    } else {
-        if (keys == 0) {
-            os << "SCAN " << relation->getName() << " AS t" << level << " ";
         } else {
-            // Keys indicates index search?
-            os << "SEARCH " << relation->getName() << " AS t" << level;
-            os << " ON INDEX ";
-            bool first = true;
-            for (size_t i = 0; i < relation->getArity(); i++) {
-                if (queryPattern[i] != nullptr) {
-                    if (first) {
-                        first = false;
-                    } else {
-                        os << "and ";
-                    }
-                    os << "t" << level << "." << relation->getArg(i) << "=";
-                    queryPattern[i]->print(os);
-                    os << " ";
-                }
-            }
-        }
-    }
-    if (auto condition = getCondition()) {
-        os << "WHERE ";
-        condition->print(os);
-    }
-
-    os << "\n";
-    if (getNestedOperation() != nullptr) {
-        getNestedOperation()->print(os, tabpos + 1);
-    }
-}
-
-/*
- * Class Lookup
- */
-
-/** print search */
-void RamLookup::print(std::ostream& os, int tabpos) const {
-    os << times('\t', tabpos);
-
-    os << "UNPACK env(t" << refLevel << ", i" << refPos << ") INTO t" << getLevel();
-
-    if (auto condition = getCondition()) {
-        os << " WHERE ";
-        condition->print(os);
-    }
-
-    os << " FOR \n";
-    getNestedOperation()->print(os, tabpos + 1);
-}
-
-/** add condition */
-void RamAggregate::addCondition(std::unique_ptr<RamCondition> c, const RamOperation& root) {
-    // use condition to narrow scan if possible
-    if (c->getLevel() == level) {
-        size_t element = 0;
-        if (std::unique_ptr<RamValue> value = getIndexElement(c.get(), element, level)) {
-            if (element > 0 || relation->getName().find("__agg") == std::string::npos) {
-                keys |= (1 << element);
-                if (pattern[element] == nullptr) {
-                    pattern[element] = std::move(value);
-                } else {
-                    std::unique_ptr<RamValue> field(new RamElementAccess(level, element));
-                    RamSearch::addCondition(std::make_unique<RamBinaryRelation>(BinaryConstraintOp::EQ,
-                                                    std::move(field), std::move(value)),
-                            root);
-                }
+            std::unique_ptr<RamValue> field(new RamElementAccess(getIdentifier(), element));
+            std::unique_ptr<RamCondition> eq(
+                    new RamConstraint(BinaryConstraintOp::EQ, std::move(field), std::move(value)));
+            if (condition != nullptr) {
+                condition = std::make_unique<RamConjunction>(std::move(condition), std::move(eq));
             } else {
-                std::unique_ptr<RamValue> field(new RamElementAccess(level, element));
-                std::unique_ptr<RamCondition> eq(
-                        new RamBinaryRelation(BinaryConstraintOp::EQ, std::move(field), std::move(value)));
-                if (condition != nullptr) {
-                    condition = std::make_unique<RamAnd>(std::move(condition), std::move(eq));
-                } else {
-                    condition.swap(eq);
-                }
+                condition.swap(eq);
             }
-            return;
         }
     }
-
-    // otherwise: use default handling
-    RamSearch::addCondition(std::move(c), root);
-}
-
-/** print search */
-void RamAggregate::print(std::ostream& os, int tabpos) const {
-    os << times('\t', tabpos);
-
-    switch (fun) {
-        case MIN:
-            os << "MIN ";
-            break;
-        case MAX:
-            os << "MAX ";
-            break;
-        case COUNT:
-            os << "COUNT ";
-            break;
-        case SUM:
-            os << "SUM ";
-            break;
-    }
-
-    if (fun != COUNT) {
-        os << *value << " ";
-    }
-
-    os << "AS t" << getLevel() << ".0 IN t" << getLevel() << " ∈ " << relation->getName();
-    os << "(" << join(pattern, ",", [&](std::ostream& out, const std::unique_ptr<RamValue>& value) {
-        if (!value) {
-            out << "_";
-        } else {
-            out << *value;
-        }
-    }) << ")";
-
-    if (auto condition = getCondition()) {
-        os << " WHERE ";
-        condition->print(os);
-    }
-
-    os << " FOR \n";
-    getNestedOperation()->print(os, tabpos + 1);
-}
-
-/*
- * Class Project
- */
-
-/* print projection */
-void RamProject::print(std::ostream& os, int tabpos) const {
-    const std::string tabs(tabpos, '\t');
-
-    os << tabs << "PROJECT (" << join(values, ", ", print_deref<std::unique_ptr<RamValue>>()) << ") INTO "
-       << relation->getName();
-
-    // support table-less options
-    if (auto condition = getCondition()) {
-        os << " IF ";
-        condition->print(os);
-    }
-}
-
-/* add condition */
-void RamProject::addCondition(std::unique_ptr<RamCondition> c, const RamOperation& root) {
-    // we can have condition arguments from lower levels, since the values we project are also from lower
-    // levels
-    assert(c->getLevel() <= level);
-
-    if (condition) {
-        condition = std::make_unique<RamAnd>(std::move(condition), std::move(c));
-    } else {
-        condition.swap(c);
-    }
-}
-
-/* print return */
-void RamReturn::print(std::ostream& os, int tabpos) const {
-    const std::string tabs(tabpos, '\t');
-
-    // return
-    os << tabs << "RETURN (";
-
-    for (auto val : getValues()) {
-        if (val == nullptr) {
-            os << "_";
-        } else {
-            val->print(os);
-        }
-
-        if (val != *(getValues().end() - 1)) {
-            os << ", ";
-        }
-    }
-
-    os << ")";
 }
 
 }  // end of namespace souffle

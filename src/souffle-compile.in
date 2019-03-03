@@ -19,6 +19,7 @@ Usage:
 Options:
   -h           show usage
   -g           Build in debug mode
+  -s           enable shared library
   -v           verbose output
   -w           enable warnings\n"
   exit 1;
@@ -61,13 +62,16 @@ error "installation error: souffle header files cannot be found" $?
 
 # Options processing via getopts builtin, it is very limiting but on OSX the
 # default getopt is an old BSD getopt, so need this for portability
-while getopts "hwvs" opt; do
+while getopts "hwsvg" opt; do
   case "$opt" in
     h|\?) # Show usage and exit
       usage;
     ;;
-    g|\?) # enable debug mode
-      CXXFLAGS = "$CXXFLAGS -g";
+    g) # enable debug mode
+      CXXFLAGS="$(echo $CXXFLAGS|sed 's/-O[0-9s]//g') -g -O0";
+    ;;
+    s) # enable shared library
+      LDFLAGS="$LDFLAGS -L. -lfunctors";
     ;;
     w) # enable warnings
       WARNINGS="1"

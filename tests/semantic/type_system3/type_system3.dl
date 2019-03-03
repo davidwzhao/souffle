@@ -164,10 +164,10 @@ symbol_union_relation_3(X) :- symbol_union_relation_2_3(X).
 
 // Numbers and Symbols
 
-.type number_symbol = number | symbol
+.type number_symbol = number | symbol // error
 
-.type number_symbol_primi = number_primi_1 | symbol_primi_1
-.type number_symbol_primi_1_2 = number_primi_1_2 | symbol_primi_1_2
+.type number_symbol_primi = number_primi_1 | symbol_primi_1 // error
+.type number_symbol_primi_1_2 = number_primi_1_2 | symbol_primi_1_2 // error
 
-.type number_symbol_union = number_union_1 | symbol_union_1
-.type number_symbol_union_1_2 = number_union_1_2 | symbol_union_1_2
+.type number_symbol_union = number_union_1 | symbol_union_1 // error
+.type number_symbol_union_1_2 = number_union_1_2 | symbol_union_1_2 // error

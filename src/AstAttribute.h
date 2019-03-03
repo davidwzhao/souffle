@@ -38,12 +38,6 @@ class Type;
  *  Attribute has the only name attribute
  */
 class AstAttribute : public AstNode {
-    /** Attribute name */
-    std::string name;
-
-    /** Type name */
-    AstTypeIdentifier typeName;
-
 public:
     AstAttribute(std::string n, AstTypeIdentifier t, const Type* /*type*/ = nullptr)
             : name(std::move(n)), typeName(std::move(t)) {}
@@ -88,6 +82,13 @@ protected:
         const auto& other = static_cast<const AstAttribute&>(node);
         return name == other.name && typeName == other.typeName;
     }
+
+private:
+    /** Attribute name */
+    std::string name;
+
+    /** Type name */
+    AstTypeIdentifier typeName;
 };
 
 }  // end of namespace souffle

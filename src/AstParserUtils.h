@@ -27,22 +27,6 @@ namespace souffle {
 class AstClause;
 
 class RuleBody {
-    // a struct to represent literals
-    struct literal {
-        // whether this literal is negated or not
-        bool negated;
-
-        // the atom referenced by tis literal
-        std::unique_ptr<AstLiteral> atom;
-
-        literal clone() const {
-            return literal({negated, std::unique_ptr<AstLiteral>(atom->clone())});
-        }
-    };
-
-    using clause = std::vector<literal>;
-    std::vector<clause> dnf;
-
 public:
     RuleBody() = default;
 
@@ -67,6 +51,23 @@ public:
     friend std::ostream& operator<<(std::ostream& out, const RuleBody& body);
 
 private:
+    // a struct to represent literals
+    struct literal {
+        // whether this literal is negated or not
+        bool negated;
+
+        // the atom referenced by tis literal
+        std::unique_ptr<AstLiteral> atom;
+
+        literal clone() const {
+            return literal({negated, std::unique_ptr<AstLiteral>(atom->clone())});
+        }
+    };
+
+    using clause = std::vector<literal>;
+
+    std::vector<clause> dnf;
+
     static bool equal(const literal& a, const literal& b);
 
     static bool equal(const clause& a, const clause& b);

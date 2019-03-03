@@ -20,8 +20,6 @@
 namespace souffle {
 
 class SymbolMask {
-    std::vector<bool> mask;
-
 public:
     SymbolMask(size_t arity) : mask(arity) {}
 
@@ -65,6 +63,9 @@ public:
         mask.print(out);
         return out;
     }
+
+protected:
+    std::vector<bool> mask;
 };
 
 } /* namespace souffle */

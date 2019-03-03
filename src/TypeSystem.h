@@ -36,14 +36,6 @@ class TypeEnvironment;
  * An abstract base class for types to be covered within a type environment.
  */
 class Type {
-protected:
-    /** A reference to the type environment this type is associated to. */
-    const TypeEnvironment& environment;
-
-private:
-    /** The name of this type. */
-    AstTypeIdentifier name;
-
 public:
     Type(const TypeEnvironment& environment, AstTypeIdentifier name)
             : environment(environment), name(std::move(name)) {}
@@ -86,12 +78,28 @@ public:
         }
         return t->print(out), out;
     }
+
+protected:
+    /** A reference to the type environment this type is associated to. */
+    const TypeEnvironment& environment;
+
+private:
+    /** The name of this type. */
+    AstTypeIdentifier name;
 };
 
 /**
  * A primitive type. The basic type construct to build new types.
  */
 class PrimitiveType : public Type {
+public:
+    void print(std::ostream& out) const override;
+
+    const Type& getBaseType() const {
+        return baseType;
+    }
+
+private:
     // only allow type environments to create instances
     friend class TypeEnvironment;
 
@@ -100,27 +108,12 @@ class PrimitiveType : public Type {
 
     PrimitiveType(const TypeEnvironment& environment, const AstTypeIdentifier& name, const Type& base)
             : Type(environment, name), baseType(base) {}
-
-public:
-    void print(std::ostream& out) const override;
-
-    const Type& getBaseType() const {
-        return baseType;
-    }
 };
 
 /**
  * A union type combining a list of types into a new, aggregated type.
  */
 class UnionType : public Type {
-    // only allow type environments to create instances
-    friend class TypeEnvironment;
-
-    /** The contained element types */
-    std::vector<const Type*> elementTypes;
-
-    UnionType(const TypeEnvironment& environment, const AstTypeIdentifier& name) : Type(environment, name) {}
-
 public:
     void add(const Type& type);
 
@@ -129,28 +122,29 @@ public:
     }
 
     void print(std::ostream& out) const override;
+
+private:
+    // only allow type environments to create instances
+    friend class TypeEnvironment;
+
+    /** The contained element types */
+    std::vector<const Type*> elementTypes;
+
+    UnionType(const TypeEnvironment& environment, const AstTypeIdentifier& name) : Type(environment, name) {}
 };
 
 /**
  * A record type combining a list of fields into a new, aggregated type.
  */
 struct RecordType : public Type {
-    // only allow type environments to create instances
-    friend class TypeEnvironment;
-
+public:
     /** The type to model fields */
     struct Field {
         std::string name;  // < the name of the field
         const Type& type;  // < the type of the field
     };
 
-private:
     /** The list of contained fields */
-    std::vector<Field> fields;
-
-    RecordType(const TypeEnvironment& environment, const AstTypeIdentifier& name) : Type(environment, name) {}
-
-public:
     void add(const std::string& name, const Type& type);
 
     const std::vector<Field>& getFields() const {
@@ -158,6 +152,14 @@ public:
     }
 
     void print(std::ostream& out) const override;
+
+private:
+    // only allow type environments to create instances
+    friend class TypeEnvironment;
+
+    std::vector<Field> fields;
+
+    RecordType(const TypeEnvironment& environment, const AstTypeIdentifier& name) : Type(environment, name) {}
 };
 
 /**
@@ -167,16 +169,9 @@ public:
  * It is the basic entity to conduct sub- and super-type computations.
  */
 struct TypeSet {
+public:
     using const_iterator = IterDerefWrapper<typename std::set<const Type*>::const_iterator>;
 
-private:
-    /** True if it is the all-types set, false otherwise */
-    bool all;
-
-    /** The enumeration of types in case it is not the all-types set */
-    std::set<const Type*, deref_less<Type>> types;
-
-public:
     // -- constructors, destructors and assignment operations --
 
     TypeSet(bool all = false) : all(all) {}
@@ -294,6 +289,13 @@ public:
         set.print(out);
         return out;
     }
+
+private:
+    /** True if it is the all-types set, false otherwise */
+    bool all;
+
+    /** The enumeration of types in case it is not the all-types set */
+    std::set<const Type*, deref_less<Type>> types;
 };
 
 /**
@@ -302,14 +304,10 @@ public:
  * type instances.
  */
 class TypeEnvironment {
+public:
     /** The type utilized for identifying types */
     using identifier = AstTypeIdentifier;
 
-private:
-    /** The list of covered types */
-    std::map<identifier, Type*> types;
-
-public:
     // -- constructors / destructores --
     TypeEnvironment();
 
@@ -376,6 +374,9 @@ public:
     }
 
 private:
+    /** The list of covered types */
+    std::map<identifier, Type*> types;
+
     /** Register types created by one of the factory functions */
     void addType(Type& type);
 };

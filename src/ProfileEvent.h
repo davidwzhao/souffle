@@ -98,7 +98,7 @@ public:
         /* current time */
         microseconds time = std::chrono::duration_cast<microseconds>(now().time_since_epoch());
         /* system CPU time used */
-        struct rusage ru;
+        struct rusage ru {};
         getrusage(RUSAGE_SELF, &ru);
         /* system CPU time used */
         uint64_t systemTime = ru.ru_stime.tv_sec * 1000000 + ru.ru_stime.tv_usec;
@@ -155,13 +155,16 @@ private:
         uint32_t t;
 
         /** timer is running */
-        bool running = false;
+        std::atomic<bool> running{false};
 
         /** thread timer runs on */
         std::thread th;
 
+        std::condition_variable conditionVariable;
+        std::mutex timerMutex;
+
         /** number of utilisation events */
-        uint32_t runCount = 0;
+        std::atomic<uint32_t> runCount{0};
 
         /** run method for thread th */
         void run() {
@@ -192,12 +195,16 @@ private:
 
         /** start timer on the thread th */
         void start() {
+            if (running) {
+                return;
+            }
             running = true;
 
             th = std::thread([this]() {
                 while (running) {
                     run();
-                    std::this_thread::sleep_for(std::chrono::milliseconds(getInterval()));
+                    std::unique_lock<std::mutex> lock(timerMutex);
+                    conditionVariable.wait_for(lock, std::chrono::milliseconds(getInterval()));
                 }
             });
         }
@@ -205,6 +212,7 @@ private:
         /** stop timer on the thread th */
         void stop() {
             running = false;
+            conditionVariable.notify_all();
             if (th.joinable()) {
                 th.join();
             }
@@ -220,7 +228,7 @@ private:
         void resetTimerInterval(uint32_t interval = 10) {
             t = interval;
             runCount = 0;
-            run();
+            conditionVariable.notify_all();
         }
     };
 

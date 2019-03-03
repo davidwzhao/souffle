@@ -20,12 +20,9 @@
 
 #include "AstNode.h"
 #include "AstTypes.h"
-#include "BinaryFunctorOps.h"
+#include "FunctorOps.h"
 #include "SymbolTable.h"
-#include "TernaryFunctorOps.h"
-#include "UnaryFunctorOps.h"
 #include "Util.h"
-#include <array>
 #include <cassert>
 #include <cstddef>
 #include <memory>
@@ -59,10 +56,6 @@ public:
  * Subclass of Argument that represents a named variable
  */
 class AstVariable : public AstArgument {
-protected:
-    /** Variable name */
-    std::string name;
-
 public:
     AstVariable(std::string n) : AstArgument(), name(std::move(n)) {}
 
@@ -94,6 +87,9 @@ public:
     }
 
 protected:
+    /** Variable name */
+    std::string name;
+
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
         assert(nullptr != dynamic_cast<const AstVariable*>(&node));
@@ -106,7 +102,6 @@ protected:
  * Subclass of Argument that represents an unnamed variable
  */
 class AstUnnamedVariable : public AstArgument {
-protected:
 public:
     AstUnnamedVariable() : AstArgument() {}
 
@@ -139,7 +134,6 @@ protected:
  * Subclass of Argument that represents a counter (for projections only)
  */
 class AstCounter : public AstArgument {
-protected:
 public:
     AstCounter() : AstArgument() {}
 
@@ -172,10 +166,6 @@ protected:
  * Subclass of Argument that represents a datalog constant value
  */
 class AstConstant : public AstArgument {
-protected:
-    /** Index of this Constant in the SymbolTable */
-    AstDomain idx;
-
 public:
     AstConstant(AstDomain i) : AstArgument(), idx(i) {}
 
@@ -190,6 +180,9 @@ public:
     }
 
 protected:
+    /** Index of this Constant in the SymbolTable */
+    AstDomain idx;
+
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
         assert(nullptr != dynamic_cast<const AstConstant*>(&node));
@@ -202,9 +195,6 @@ protected:
  * Subclass of Argument that represents a datalog constant value
  */
 class AstStringConstant : public AstConstant {
-    SymbolTable& symTable;
-    AstStringConstant(SymbolTable& symTable, size_t index) : AstConstant(index), symTable(symTable) {}
-
 public:
     AstStringConstant(SymbolTable& symTable, const std::string& c)
             : AstConstant(symTable.lookup(c)), symTable(symTable) {}
@@ -225,6 +215,10 @@ public:
         res->setSrcLoc(getSrcLoc());
         return res;
     }
+
+private:
+    SymbolTable& symTable;
+    AstStringConstant(SymbolTable& symTable, size_t index) : AstConstant(index), symTable(symTable) {}
 };
 
 /**
@@ -270,270 +264,209 @@ public:
 /**
  * A common base class for AST functors
  */
+// TODO (azreika): consider pushing some common Intr/Extr functor functionality here
 class AstFunctor : public AstArgument {};
 
 /**
- * Subclass of Argument that represents a unary function
+ * Subclass of AstFunctor that represents an intrinsic (built-in) functor
  */
-class AstUnaryFunctor : public AstFunctor {
-protected:
-    UnaryOp fun;
-
-    std::unique_ptr<AstArgument> operand;
-
+class AstIntrinsicFunctor : public AstFunctor {
 public:
-    AstUnaryFunctor(UnaryOp fun, std::unique_ptr<AstArgument> o) : fun(fun), operand(std::move(o)) {}
+    template <typename... Operands>
+    AstIntrinsicFunctor(FunctorOp function, Operands... operands) : function(function) {
+        std::unique_ptr<AstArgument> tmp[] = {std::move(operands)...};
+        for (auto& cur : tmp) {
+            args.push_back(std::move(cur));
+        }
 
-    ~AstUnaryFunctor() override = default;
-
-    AstArgument* getOperand() const {
-        return operand.get();
+        // TODO (#761): eventually allow non-fixed functor arity
+        assert(getFunctorOpArity(function) == args.size() && "invalid number of arguments for functor");
     }
 
-    UnaryOp getFunction() const {
-        return fun;
+    AstIntrinsicFunctor(FunctorOp function, std::vector<std::unique_ptr<AstArgument>> operands)
+            : function(function), args(std::move(operands)){};
+
+    AstArgument* getArg(size_t idx) const {
+        assert(idx >= 0 && idx < args.size() && "wrong argument");
+        return args[idx].get();
+    }
+
+    FunctorOp getFunction() const {
+        return function;
+    }
+
+    size_t getArity() const {
+        return args.size();
+    }
+
+    std::vector<AstArgument*> getArguments() const {
+        return toPtrVector(args);
+    }
+
+    void setArg(size_t idx, std::unique_ptr<AstArgument> arg) {
+        assert(idx >= 0 && idx < args.size() && "wrong argument");
+        args[idx] = std::move(arg);
     }
 
     /** Check if the return value of this functor is a number type. */
     bool isNumerical() const {
-        return isNumericUnaryOp(fun);
+        return isNumericFunctorOp(function);
     }
 
     /** Check if the return value of this functor is a symbol type. */
     bool isSymbolic() const {
-        return isSymbolicUnaryOp(fun);
+        return isSymbolicFunctorOp(function);
     }
 
     /** Check if the argument of this functor is a number type. */
-    bool acceptsNumbers() const {
-        return unaryOpAcceptsNumbers(fun);
+    bool acceptsNumbers(size_t arg) const {
+        return functorOpAcceptsNumbers(arg, function);
     }
 
     /** Check if the argument of this functor is a symbol type. */
-    bool acceptsSymbols() const {
-        return unaryOpAcceptsSymbols(fun);
+    bool acceptsSymbols(size_t arg) const {
+        return functorOpAcceptsSymbols(arg, function);
     }
 
     /** Print argument to the given output stream */
     void print(std::ostream& os) const override {
-        os << getSymbolForUnaryOp(fun);
-        os << "(";
-        operand->print(os);
-        os << ")";
-    }
-
-    /** Creates a clone */
-    AstUnaryFunctor* clone() const override {
-        auto res = new AstUnaryFunctor(fun, std::unique_ptr<AstArgument>(operand->clone()));
-        res->setSrcLoc(getSrcLoc());
-        return res;
-    }
-
-    /** Mutates this node */
-    void apply(const AstNodeMapper& map) override {
-        operand = map(std::move(operand));
-    }
-
-    /** Obtains a list of all embedded child nodes */
-    std::vector<const AstNode*> getChildNodes() const override {
-        auto res = AstArgument::getChildNodes();
-        res.push_back(operand.get());
-        return res;
-    }
-
-protected:
-    /** Implements the node comparison for this node type */
-    bool equal(const AstNode& node) const override {
-        assert(nullptr != dynamic_cast<const AstUnaryFunctor*>(&node));
-        const auto& other = static_cast<const AstUnaryFunctor&>(node);
-        return fun == other.fun && *operand == *other.operand;
-    }
-};
-
-/**
- * Subclass of Argument that represents a binary function
- */
-class AstBinaryFunctor : public AstFunctor {
-protected:
-    BinaryOp fun;                      // binary operator
-    std::unique_ptr<AstArgument> lhs;  // first argument
-    std::unique_ptr<AstArgument> rhs;  // second argument
-
-public:
-    AstBinaryFunctor(BinaryOp fun, std::unique_ptr<AstArgument> l, std::unique_ptr<AstArgument> r)
-            : fun(fun), lhs(std::move(l)), rhs(std::move(r)) {}
-
-    ~AstBinaryFunctor() override = default;
-
-    AstArgument* getLHS() const {
-        return lhs.get();
-    }
-
-    AstArgument* getRHS() const {
-        return rhs.get();
-    }
-
-    BinaryOp getFunction() const {
-        return fun;
-    }
-
-    /** Check if the return value of this functor is a number type. */
-    bool isNumerical() const {
-        return isNumericBinaryOp(fun);
-    }
-
-    /** Check if the return value of this functor is a symbol type. */
-    bool isSymbolic() const {
-        return isSymbolicBinaryOp(fun);
-    }
-
-    /** Check if the arguments of this functor are number types. */
-    bool acceptsNumbers(int arg) const {
-        return binaryOpAcceptsNumbers(arg, fun);
-    }
-
-    /** Check if the arguments of this functor are symbol types. */
-    bool acceptsSymbols(int arg) const {
-        return binaryOpAcceptsSymbols(arg, fun);
-    }
-
-    /** Print argument to the given output stream */
-    void print(std::ostream& os) const override {
-        if (fun < BinaryOp::MAX) {
+        if (isInfixFunctorOp(function)) {
             os << "(";
-            lhs->print(os);
-            os << getSymbolForBinaryOp(fun);
-            rhs->print(os);
+            os << join(args, getSymbolForFunctorOp(function), print_deref<std::unique_ptr<AstArgument>>());
             os << ")";
         } else {
-            os << getSymbolForBinaryOp(fun);
+            os << getSymbolForFunctorOp(function);
             os << "(";
-            lhs->print(os);
-            os << ",";
-            rhs->print(os);
+            os << join(args, ",", print_deref<std::unique_ptr<AstArgument>>());
             os << ")";
         }
     }
 
-    /** Creates a clone */
-    AstBinaryFunctor* clone() const override {
-        auto res = new AstBinaryFunctor(
-                fun, std::unique_ptr<AstArgument>(lhs->clone()), std::unique_ptr<AstArgument>(rhs->clone()));
+    /** Clone this node */
+    AstIntrinsicFunctor* clone() const override {
+        std::vector<std::unique_ptr<AstArgument>> argsCopy;
+        for (auto& arg : args) {
+            argsCopy.emplace_back(arg->clone());
+        }
+        auto res = new AstIntrinsicFunctor(function, std::move(argsCopy));
         res->setSrcLoc(getSrcLoc());
         return res;
     }
 
     /** Mutates this node */
     void apply(const AstNodeMapper& map) override {
-        lhs = map(std::move(lhs));
-        rhs = map(std::move(rhs));
+        for (auto& arg : args) {
+            arg = map(std::move(arg));
+        }
     }
 
     /** Obtains a list of all embedded child nodes */
     std::vector<const AstNode*> getChildNodes() const override {
         auto res = AstArgument::getChildNodes();
-        res.push_back(lhs.get());
-        res.push_back(rhs.get());
+        for (auto& arg : args) {
+            res.push_back(arg.get());
+        }
         return res;
     }
 
 protected:
+    FunctorOp function;
+    std::vector<std::unique_ptr<AstArgument>> args;
+
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
-        assert(nullptr != dynamic_cast<const AstBinaryFunctor*>(&node));
-        const auto& other = static_cast<const AstBinaryFunctor&>(node);
-        return fun == other.fun && *lhs == *other.lhs && *rhs == *other.rhs;
+        assert(nullptr != dynamic_cast<const AstIntrinsicFunctor*>(&node));
+        const auto& other = static_cast<const AstIntrinsicFunctor&>(node);
+        return function == other.function && equal_targets(args, other.args);
     }
 };
 
 /**
- * @class TernaryFunctor
- * @brief Subclass of Argument that represents a binary functor
+ * Subclass of AstFunctor that represents an extrinsic (user-defined) functor
  */
-class AstTernaryFunctor : public AstFunctor {
-protected:
-    TernaryOp fun;
-    std::array<std::unique_ptr<AstArgument>, 3> arg;
-
+class AstUserDefinedFunctor : public AstFunctor {
 public:
-    AstTernaryFunctor(TernaryOp fun, std::unique_ptr<AstArgument> a1, std::unique_ptr<AstArgument> a2,
-            std::unique_ptr<AstArgument> a3)
-            : fun(fun), arg({{std::move(a1), std::move(a2), std::move(a3)}}) {}
+    AstUserDefinedFunctor() = default;
 
-    ~AstTernaryFunctor() override = default;
+    AstUserDefinedFunctor(std::string name) : name(std::move(name)) {}
 
-    AstArgument* getArg(int idx) const {
-        assert(idx >= 0 && idx < 3 && "wrong argument");
-        return arg[idx].get();
+    ~AstUserDefinedFunctor() override = default;
+
+    /** get name */
+    const std::string& getName() const {
+        return name;
     }
 
-    TernaryOp getFunction() const {
-        return fun;
+    /** set name */
+    void setName(const std::string& n) {
+        name = n;
     }
 
-    /** Check if the return value of this functor is a number type. */
-    bool isNumerical() const {
-        return isNumericTernaryOp(fun);
+    /** get argument */
+    const AstArgument* getArg(size_t idx) const {
+        assert(idx >= 0 && idx < args.size() && "argument index out of bounds");
+        return args[idx].get();
     }
 
-    /** Check if the return value of this functor is a symbol type. */
-    bool isSymbolic() const {
-        return isSymbolicTernaryOp(fun);
+    /** get number of arguments */
+    size_t getArgCount() const {
+        return args.size();
     }
 
-    /** Check if the arguments of this functor are number types. */
-    bool acceptsNumbers(int arg) const {
-        return ternaryOpAcceptsNumbers(arg, fun);
+    /** get arguments */
+    std::vector<AstArgument*> getArguments() const {
+        return toPtrVector(args);
     }
 
-    /** Check if the arguments of this functor are symbol types. */
-    bool acceptsSymbols(int arg) const {
-        return ternaryOpAcceptsSymbols(arg, fun);
+    /** add argument to argument list */
+    void add(std::unique_ptr<AstArgument> arg) {
+        args.push_back(std::move(arg));
     }
 
-    /** Print argument to the given output stream */
+    /** print user-defined functor */
     void print(std::ostream& os) const override {
-        os << getSymbolForTernaryOp(fun);
-        os << "(";
-        arg[0]->print(os);
-        os << ",";
-        arg[1]->print(os);
-        os << ",";
-        arg[2]->print(os);
-        os << ")";
+        os << '@' << name << "(" << join(args, ",", print_deref<std::unique_ptr<AstArgument>>()) << ")";
     }
 
-    /** Clone this node  */
-    AstTernaryFunctor* clone() const override {
-        auto res = new AstTernaryFunctor(fun, std::unique_ptr<AstArgument>(arg[0]->clone()),
-                std::unique_ptr<AstArgument>(arg[1]->clone()), std::unique_ptr<AstArgument>(arg[2]->clone()));
+    /** Create clone */
+    AstUserDefinedFunctor* clone() const override {
+        auto res = new AstUserDefinedFunctor();
+        for (auto& cur : args) {
+            res->args.emplace_back(cur->clone());
+        }
         res->setSrcLoc(getSrcLoc());
+        res->setName(getName());
         return res;
     }
 
     /** Mutates this node */
     void apply(const AstNodeMapper& map) override {
-        arg[0] = map(std::move(arg[0]));
-        arg[1] = map(std::move(arg[1]));
-        arg[2] = map(std::move(arg[2]));
+        for (auto& arg : args) {
+            arg = map(std::move(arg));
+        }
     }
 
     /** Obtains a list of all embedded child nodes */
     std::vector<const AstNode*> getChildNodes() const override {
         auto res = AstArgument::getChildNodes();
-        res.push_back(arg[0].get());
-        res.push_back(arg[1].get());
-        res.push_back(arg[2].get());
+        for (auto& cur : args) {
+            res.push_back(cur.get());
+        }
         return res;
     }
 
 protected:
+    /** name of user-defined functor */
+    std::string name;
+
+    /** arguments of user-defined functor */
+    std::vector<std::unique_ptr<AstArgument>> args;
+
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
-        assert(nullptr != dynamic_cast<const AstTernaryFunctor*>(&node));
-        const auto& other = static_cast<const AstTernaryFunctor&>(node);
-        return fun == other.fun && *arg[0] == *other.arg[0] && *arg[1] == *other.arg[1] &&
-               *arg[2] == *other.arg[2];
+        assert(nullptr != dynamic_cast<const AstUserDefinedFunctor*>(&node));
+        const auto& other = static_cast<const AstUserDefinedFunctor&>(node);
+        return name == other.name && equal_targets(args, other.args);
     }
 };
 
@@ -542,9 +475,6 @@ protected:
  * new record.
  */
 class AstRecordInit : public AstArgument {
-    /** The list of components to be aggregated into a record */
-    std::vector<std::unique_ptr<AstArgument>> args;
-
 public:
     AstRecordInit() = default;
 
@@ -566,7 +496,7 @@ public:
     AstRecordInit* clone() const override {
         auto res = new AstRecordInit();
         for (auto& cur : args) {
-            res->args.push_back(std::unique_ptr<AstArgument>(cur->clone()));
+            res->args.emplace_back(cur->clone());
         }
         res->setSrcLoc(getSrcLoc());
         return res;
@@ -589,6 +519,9 @@ public:
     }
 
 protected:
+    /** The list of components to be aggregated into a record */
+    std::vector<std::unique_ptr<AstArgument>> args;
+
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
         assert(nullptr != dynamic_cast<const AstRecordInit*>(&node));
@@ -601,12 +534,6 @@ protected:
  * An argument capable of casting a value of one type into another.
  */
 class AstTypeCast : public AstArgument {
-    /** The value to be casted */
-    std::unique_ptr<AstArgument> value;
-
-    /** The target type name */
-    std::string type;
-
 public:
     AstTypeCast(std::unique_ptr<AstArgument> value, std::string type)
             : value(std::move(value)), type(std::move(type)) {}
@@ -643,6 +570,12 @@ public:
     }
 
 protected:
+    /** The value to be casted */
+    std::unique_ptr<AstArgument> value;
+
+    /** The target type name */
+    std::string type;
+
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
         assert(nullptr != dynamic_cast<const AstTypeCast*>(&node));
@@ -657,23 +590,12 @@ protected:
 class AstAggregator : public AstArgument {
 public:
     /**
-     * The kind of utilized aggregation operator.
+     * The kind of utilised aggregation operator.
      * Note: lower-case is utilized due to a collision with
      *  constants in the parser.
      */
     enum Op { min, max, count, sum };
 
-private:
-    /** The aggregation operator of this aggregation step */
-    Op fun;
-
-    /** The expression to be aggregated */
-    std::unique_ptr<AstArgument> expr;
-
-    /** A list of body-literals forming a sub-query which's result is projected and aggregated */
-    std::vector<std::unique_ptr<AstLiteral>> body;
-
-public:
     /** Creates a new aggregation node */
     AstAggregator(Op fun) : fun(fun), expr(nullptr) {}
 
@@ -734,16 +656,22 @@ protected:
         const auto& other = static_cast<const AstAggregator&>(node);
         return fun == other.fun && equal_ptr(expr, other.expr) && equal_targets(body, other.body);
     }
+
+private:
+    /** The aggregation operator of this aggregation step */
+    Op fun;
+
+    /** The expression to be aggregated */
+    std::unique_ptr<AstArgument> expr;
+
+    /** A list of body-literals forming a sub-query which's result is projected and aggregated */
+    std::vector<std::unique_ptr<AstLiteral>> body;
 };
 
 /**
  * An argument taking its value from an argument of a RAM subroutine
  */
 class AstSubroutineArgument : public AstArgument {
-private:
-    /** Index of argument in argument list*/
-    size_t number;
-
 public:
     AstSubroutineArgument(size_t n) : AstArgument(), number(n) {}
 
@@ -776,6 +704,10 @@ protected:
         const auto& other = static_cast<const AstSubroutineArgument&>(node);
         return number == other.number;
     }
+
+private:
+    /** Index of argument in argument list*/
+    size_t number;
 };
 
 }  // end of namespace souffle

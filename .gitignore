@@ -21,6 +21,7 @@ ltmain.sh
 test-driver
 warn.log
 packaging/*
+utilities/bash-completion
 
 m4/libtool.m4
 m4/ltoptions.m4

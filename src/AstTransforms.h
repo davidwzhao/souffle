@@ -23,6 +23,7 @@
 #include "Util.h"
 #include <functional>
 #include <memory>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -35,16 +36,10 @@ class AstRelation;
 
 /**
  * Transformation pass to eliminate grounded aliases.
- * e.g. resolve  a(r) , r = [x,y]    =>    a(x,y)
+ * e.g. resolve: a(r) , r = [x,y]       => a(x,y)
+ * e.g. resolve: a(x) , !b(y) , y = x   => a(x) , !b(x)
  */
 class ResolveAliasesTransformer : public AstTransformer {
-private:
-    bool transform(AstTranslationUnit& translationUnit) override {
-        resolveAliases(*translationUnit.getProgram());
-        return true;
-    }
-    static void removeComplexTermsInAtoms(AstClause& clause);
-
 public:
     std::string getName() const override {
         return "ResolveAliasesTransformer";
@@ -55,7 +50,7 @@ public:
      * grounded variables.
      *
      * @param clause the clause to be processed
-     * @return a clone of the processed clause
+     * @return a modified clone of the processed clause
      */
     static std::unique_ptr<AstClause> resolveAliases(const AstClause& clause);
 
@@ -68,11 +63,15 @@ public:
     static std::unique_ptr<AstClause> removeTrivialEquality(const AstClause& clause);
 
     /**
-     * Eliminate grounded aliases in the given program.
+     * Removes complex terms in atoms, replacing them with constrained variables.
      *
-     * @param program the program to be processed
+     * @param clause the clause to be processed
+     * @return a modified clone of the processed clause
      */
-    static void resolveAliases(AstProgram& program);
+    static std::unique_ptr<AstClause> removeComplexTermsInAtoms(const AstClause& clause);
+
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
 };
 
 /**
@@ -84,11 +83,6 @@ public:
  * and no other clause, all occurrences of r will be replaced by s.
  */
 class RemoveRelationCopiesTransformer : public AstTransformer {
-private:
-    bool transform(AstTranslationUnit& translationUnit) override {
-        return removeRelationCopies(*translationUnit.getProgram());
-    }
-
 public:
     std::string getName() const override {
         return "RemoveRelationCopiesTransformer";
@@ -100,20 +94,25 @@ public:
      * @param program the program to be processed
      * @return whether the program was modified
      */
-    static bool removeRelationCopies(AstProgram& program);
+    static bool removeRelationCopies(AstTranslationUnit& translationUnit);
+
+private:
+    bool transform(AstTranslationUnit& translationUnit) override {
+        return removeRelationCopies(translationUnit);
+    }
 };
 
 /**
  * Transformation pass to rename aggregation variables to make them unique.
  */
 class UniqueAggregationVariablesTransformer : public AstTransformer {
-private:
-    bool transform(AstTranslationUnit& translationUnit) override;
-
 public:
     std::string getName() const override {
         return "UniqueAggregationVariablesTransformer";
     }
+
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
 };
 
 /**
@@ -121,17 +120,6 @@ public:
  * aggregation functions consisting of more than a single atom.
  */
 class MaterializeAggregationQueriesTransformer : public AstTransformer {
-private:
-    bool transform(AstTranslationUnit& translationUnit) override {
-        return materializeAggregationQueries(translationUnit);
-    }
-
-    /**
-     * A test determining whether the body of a given aggregation needs to be
-     * 'outlined' into an independent relation or can be kept inline.
-     */
-    static bool needsMaterializedRelation(const AstAggregator& agg);
-
 public:
     std::string getName() const override {
         return "MaterializeAggregationQueriesTransformer";
@@ -145,25 +133,23 @@ public:
      * @return whether the program was modified
      */
     static bool materializeAggregationQueries(AstTranslationUnit& translationUnit);
+
+private:
+    bool transform(AstTranslationUnit& translationUnit) override {
+        return materializeAggregationQueries(translationUnit);
+    }
+
+    /**
+     * A test determining whether the body of a given aggregation needs to be
+     * 'outlined' into an independent relation or can be kept inline.
+     */
+    static bool needsMaterializedRelation(const AstAggregator& agg);
 };
 
 /**
  * Transformation pass to remove all empty relations and rules that use empty relations.
  */
 class RemoveEmptyRelationsTransformer : public AstTransformer {
-private:
-    bool transform(AstTranslationUnit& translationUnit) override {
-        return removeEmptyRelations(translationUnit);
-    }
-
-    /**
-     * Eliminate rules that contain empty relations and/or rewrite them.
-     *
-     * @param translationUnit the program to be processed
-     * @param emptyRelation relation that is empty
-     */
-    static void removeEmptyRelationUses(AstTranslationUnit& translationUnit, AstRelation* emptyRelation);
-
 public:
     std::string getName() const override {
         return "RemoveEmptyRelationsTransformer";
@@ -176,45 +162,59 @@ public:
      * @return whether the program was modified
      */
     static bool removeEmptyRelations(AstTranslationUnit& translationUnit);
+
+private:
+    bool transform(AstTranslationUnit& translationUnit) override {
+        return removeEmptyRelations(translationUnit);
+    }
+
+    /**
+     * Eliminate rules that contain empty relations and/or rewrite them.
+     *
+     * @param translationUnit the program to be processed
+     * @param emptyRelation relation that is empty
+     * @return whether the program was modified
+     */
+    static bool removeEmptyRelationUses(AstTranslationUnit& translationUnit, AstRelation* emptyRelation);
 };
 
 /**
  * Transformation pass to remove relations which are redundant (do not contribute to output).
  */
 class RemoveRedundantRelationsTransformer : public AstTransformer {
-private:
-    bool transform(AstTranslationUnit& translationUnit) override;
-
 public:
     std::string getName() const override {
         return "RemoveRedundantRelationsTransformer";
     }
+
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
 };
 
 /**
  * Transformation pass to remove equivalent rules.
  */
 class MinimiseProgramTransformer : public AstTransformer {
-private:
-    bool transform(AstTranslationUnit& translationUnit) override;
-
 public:
     std::string getName() const override {
         return "MinimiseProgramTransformer";
     }
+
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
 };
 
 /**
  * Transformation pass to add provenance information via guided SLD
  */
 class ProvenanceTransformer : public AstTransformer {
-private:
-    bool transform(AstTranslationUnit& translationUnit) override;
-
 public:
     std::string getName() const override {
         return "ProvenanceTransformer";
     }
+
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
 };
 
 /**
@@ -222,26 +222,26 @@ public:
  * Should be called after any transformation that may generate boolean constraints
  */
 class RemoveBooleanConstraintsTransformer : public AstTransformer {
-private:
-    bool transform(AstTranslationUnit& translationUnit) override;
-
 public:
     std::string getName() const override {
         return "RemoveBooleanConstraintsTransformer";
     }
+
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
 };
 
 /**
  * Transformation pass to inline marked relations
  */
 class InlineRelationsTransformer : public AstTransformer {
-private:
-    bool transform(AstTranslationUnit& translationUnit) override;
-
 public:
     std::string getName() const override {
         return "InlineRelationsTransformer";
     }
+
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
 };
 
 /**
@@ -253,13 +253,13 @@ public:
  *      - newrel2() :- e(z).
  */
 class PartitionBodyLiteralsTransformer : public AstTransformer {
-private:
-    bool transform(AstTranslationUnit& translationUnit) override;
-
 public:
     std::string getName() const override {
         return "PartitionBodyLiteralsTransformer";
     }
+
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
 };
 
 /**
@@ -267,13 +267,13 @@ public:
  * relations that only appear in the form A(_,...,_).
  */
 class ReduceExistentialsTransformer : public AstTransformer {
-private:
-    bool transform(AstTranslationUnit& translationUnit) override;
-
 public:
     std::string getName() const override {
         return "ReduceExistentialsTransformer";
     }
+
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
 };
 
 /**
@@ -282,26 +282,26 @@ public:
  * E.g.: a() :- b(x). -> a() :- b(_).
  */
 class ReplaceSingletonVariablesTransformer : public AstTransformer {
-private:
-    bool transform(AstTranslationUnit& translationUnit) override;
-
 public:
     std::string getName() const override {
         return "ReplaceSingletonVariablesTransformer";
     }
+
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
 };
 
 /**
  * Transformation pass to reorder body literals.
  */
 class ReorderLiteralsTransformer : public AstTransformer {
-private:
-    bool transform(AstTranslationUnit& translationUnit) override;
-
 public:
     std::string getName() const override {
         return "ReorderLiteralsTransformer";
     }
+
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
 };
 
 /**
@@ -309,26 +309,26 @@ public:
  * E.g.: a(x) :- b(x, 1). -> a(x) :- b(x, tmp0), tmp0=1.
  */
 class NormaliseConstraintsTransformer : public AstTransformer {
-private:
-    bool transform(AstTranslationUnit& translationUnit) override;
-
 public:
     std::string getName() const override {
         return "NormaliseConstraintsTransformer";
     }
+
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
 };
 
 /**
  * Magic Set Transformation
  */
 class MagicSetTransformer : public AstTransformer {
-private:
-    bool transform(AstTranslationUnit& translationUnit) override;
-
 public:
     std::string getName() const override {
         return "MagicSetTransformer";
     }
+
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
 };
 
 /**
@@ -348,10 +348,6 @@ public:
  * Transformer that holds an arbitrary number of sub-transformations
  */
 class PipelineTransformer : public MetaTransformer {
-private:
-    std::vector<std::unique_ptr<AstTransformer>> pipeline;
-    bool transform(AstTranslationUnit& translationUnit) override;
-
 public:
     template <typename... Args>
     PipelineTransformer(Args... args) {
@@ -393,17 +389,16 @@ public:
     std::string getName() const override {
         return "PipelineTransformer";
     }
+
+private:
+    std::vector<std::unique_ptr<AstTransformer>> pipeline;
+    bool transform(AstTranslationUnit& translationUnit) override;
 };
 
 /**
  * Transformer that executes a sub-transformer iff a condition holds
  */
 class ConditionalTransformer : public MetaTransformer {
-private:
-    std::function<bool()> condition;
-    std::unique_ptr<AstTransformer> transformer;
-    bool transform(AstTranslationUnit& translationUnit) override;
-
 public:
     ConditionalTransformer(std::function<bool()> cond, std::unique_ptr<AstTransformer> transformer)
             : condition(std::move(cond)), transformer(std::move(transformer)) {}
@@ -437,17 +432,17 @@ public:
     std::string getName() const override {
         return "ConditionalTransformer";
     }
+
+private:
+    std::function<bool()> condition;
+    std::unique_ptr<AstTransformer> transformer;
+    bool transform(AstTranslationUnit& translationUnit) override;
 };
 
 /**
  * Transformer that repeatedly executes a sub-transformer while a condition is met
  */
 class WhileTransformer : public MetaTransformer {
-private:
-    std::function<bool()> condition;
-    std::unique_ptr<AstTransformer> transformer;
-    bool transform(AstTranslationUnit& translationUnit) override;
-
 public:
     WhileTransformer(std::function<bool()> cond, std::unique_ptr<AstTransformer> transformer)
             : condition(std::move(cond)), transformer(std::move(transformer)) {}
@@ -481,16 +476,17 @@ public:
     std::string getName() const override {
         return "WhileTransformer";
     }
+
+private:
+    std::function<bool()> condition;
+    std::unique_ptr<AstTransformer> transformer;
+    bool transform(AstTranslationUnit& translationUnit) override;
 };
 
 /**
  * Transformer that repeatedly executes a sub-transformer until no changes are made
  */
 class FixpointTransformer : public MetaTransformer {
-private:
-    std::unique_ptr<AstTransformer> transformer;
-    bool transform(AstTranslationUnit& translationUnit) override;
-
 public:
     FixpointTransformer(std::unique_ptr<AstTransformer> transformer) : transformer(std::move(transformer)) {}
 
@@ -520,6 +516,10 @@ public:
     std::string getName() const override {
         return "FixpointTransformer";
     }
+
+private:
+    std::unique_ptr<AstTransformer> transformer;
+    bool transform(AstTranslationUnit& translationUnit) override;
 };
 
 }  // end of namespace souffle

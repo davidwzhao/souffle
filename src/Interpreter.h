@@ -23,11 +23,19 @@
 #include "RamStatement.h"
 #include "RamTranslationUnit.h"
 #include "RamTypes.h"
+#include "RelationRepresentation.h"
 
+#include <atomic>
 #include <cassert>
+#include <cstdlib>
+#include <iostream>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
+#include <dlfcn.h>
+
+#define SOUFFLE_DLL "libfunctors.so"
 
 namespace souffle {
 
@@ -41,28 +49,30 @@ class SymbolTable;
  */
 
 class Interpreter {
-    friend InterpreterProgInterface;
+public:
+    Interpreter(RamTranslationUnit& tUnit) : translationUnit(tUnit), counter(0), iteration(0), dll(nullptr) {}
+    virtual ~Interpreter() {
+        for (auto& x : environment) {
+            delete x.second;
+        }
+    }
 
-private:
-    /** RAM translation Unit */
-    RamTranslationUnit& translationUnit;
+    /** Get translation unit */
+    RamTranslationUnit& getTranslationUnit() {
+        return translationUnit;
+    }
 
+    /** Execute main program */
+    void executeMain();
+
+    /* Execute subroutine */
+    void executeSubroutine(const RamStatement& stmt, const std::vector<RamDomain>& arguments,
+            std::vector<RamDomain>& returnValues, std::vector<bool>& returnErrors);
+
+protected:
     /** relation environment type */
     using relation_map = std::map<std::string, InterpreterRelation*>;
 
-    /** relation environment */
-    relation_map environment;
-
-    /** counters for atom profiling */
-    std::map<std::string, std::map<size_t, size_t>> frequencies;
-
-    /** counter for $ operator */
-    int counter;
-
-    /** iteration number (in a fix-point calculation) */
-    size_t iteration;
-
-protected:
     /** Evaluate value */
     RamDomain evalVal(const RamValue& value, const InterpreterContext& ctxt = InterpreterContext());
 
@@ -106,13 +116,13 @@ protected:
     }
 
     /** Create relation */
-    void createRelation(const RamRelation& id) {
+    void createRelation(const RamRelationReference& id) {
         InterpreterRelation* res = nullptr;
         assert(environment.find(id.getName()) == environment.end());
-        if (!id.isEqRel()) {
-            res = new InterpreterRelation(id.getArity());
-        } else {
+        if (id.getRepresentation() == RelationRepresentation::EQREL) {
             res = new InterpreterEqRelation(id.getArity());
+        } else {
+            res = new InterpreterRelation(id.getArity());
         }
         environment[id.getName()] = res;
     }
@@ -126,7 +136,7 @@ protected:
     }
 
     /** Get relation */
-    inline InterpreterRelation& getRelation(const RamRelation& id) {
+    inline InterpreterRelation& getRelation(const RamRelationReference& id) {
         return getRelation(id.getName());
     }
 
@@ -136,39 +146,57 @@ protected:
     }
 
     /** Drop relation */
-    void dropRelation(const RamRelation& id) {
+    void dropRelation(const RamRelationReference& id) {
         InterpreterRelation& rel = getRelation(id);
         environment.erase(id.getName());
         delete &rel;
     }
 
     /** Swap relation */
-    void swapRelation(const RamRelation& ramRel1, const RamRelation& ramRel2) {
+    void swapRelation(const RamRelationReference& ramRel1, const RamRelationReference& ramRel2) {
         InterpreterRelation* rel1 = &getRelation(ramRel1);
         InterpreterRelation* rel2 = &getRelation(ramRel2);
         environment[ramRel1.getName()] = rel2;
         environment[ramRel2.getName()] = rel1;
     }
 
-public:
-    Interpreter(RamTranslationUnit& tUnit) : translationUnit(tUnit), counter(0), iteration(0) {}
-    virtual ~Interpreter() {
-        for (auto& x : environment) {
-            delete x.second;
+    /** Load dll */
+    void* loadDLL() {
+        if (dll == nullptr) {
+            // check environment variable
+            std::string fname = SOUFFLE_DLL;
+            dll = dlopen(SOUFFLE_DLL, RTLD_LAZY);
+            if (dll == nullptr) {
+                std::cerr << "Cannot find Souffle's DLL" << std::endl;
+                exit(1);
+            }
         }
+        return dll;
     }
 
-    /** Get translation unit */
-    RamTranslationUnit& getTranslationUnit() {
-        return translationUnit;
-    }
+private:
+    friend InterpreterProgInterface;
 
-    /** Execute main program */
-    void executeMain();
+    /** RAM translation Unit */
+    RamTranslationUnit& translationUnit;
 
-    /* Execute subroutine */
-    void executeSubroutine(const RamStatement& stmt, const std::vector<RamDomain>& arguments,
-            std::vector<RamDomain>& returnValues, std::vector<bool>& returnErrors);
+    /** relation environment */
+    relation_map environment;
+
+    /** counters for atom profiling */
+    std::map<std::string, std::map<size_t, size_t>> frequencies;
+
+    /** counters for non-existence checks */
+    std::map<std::string, std::atomic<size_t>> reads;
+
+    /** counter for $ operator */
+    int counter;
+
+    /** iteration number (in a fix-point calculation) */
+    size_t iteration;
+
+    /** Dynamic library for user-defined functors */
+    void* dll;
 };
 
 }  // end of namespace souffle

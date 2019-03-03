@@ -60,13 +60,6 @@ public:
  * The arguments of the atom can be variables or constants.
  */
 class AstAtom : public AstLiteral {
-protected:
-    /** Name of the atom */
-    AstRelationIdentifier name;
-
-    /** Arguments of the atom */
-    std::vector<std::unique_ptr<AstArgument>> arguments;
-
 public:
     AstAtom(AstRelationIdentifier name = AstRelationIdentifier()) : name(std::move(name)) {}
 
@@ -139,7 +132,7 @@ public:
         auto res = new AstAtom(name);
         res->setSrcLoc(getSrcLoc());
         for (const auto& cur : arguments) {
-            res->arguments.push_back(std::unique_ptr<AstArgument>(cur->clone()));
+            res->arguments.emplace_back(cur->clone());
         }
         return res;
     }
@@ -161,6 +154,12 @@ public:
     }
 
 protected:
+    /** Name of the atom */
+    AstRelationIdentifier name;
+
+    /** Arguments of the atom */
+    std::vector<std::unique_ptr<AstArgument>> arguments;
+
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
         assert(nullptr != dynamic_cast<const AstAtom*>(&node));
@@ -174,10 +173,6 @@ protected:
  * A Negated atom occurs in a body of clause and cannot occur in a head of a clause.
  */
 class AstNegation : public AstLiteral {
-protected:
-    /** A pointer to the negated Atom */
-    std::unique_ptr<AstAtom> atom;
-
 public:
     AstNegation(std::unique_ptr<AstAtom> atom) : atom(std::move(atom)) {}
 
@@ -217,6 +212,9 @@ public:
     }
 
 protected:
+    /** A pointer to the negated Atom */
+    std::unique_ptr<AstAtom> atom;
+
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
         assert(nullptr != dynamic_cast<const AstNegation*>(&node));
@@ -232,10 +230,6 @@ protected:
  * Specialised for provenance: used for existence check that tuple doesn't already exist
  */
 class AstProvenanceNegation : public AstLiteral {
-protected:
-    /** A pointer to the negated Atom */
-    std::unique_ptr<AstAtom> atom;
-
 public:
     AstProvenanceNegation(std::unique_ptr<AstAtom> atom) : atom(std::move(atom)) {}
 
@@ -275,10 +269,13 @@ public:
     }
 
 protected:
+    /** A pointer to the negated Atom */
+    std::unique_ptr<AstAtom> atom;
+
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
         assert(dynamic_cast<const AstProvenanceNegation*>(&node));
-        const AstProvenanceNegation& other = static_cast<const AstProvenanceNegation&>(node);
+        const auto& other = static_cast<const AstProvenanceNegation&>(node);
         return *atom == *other.atom;
     }
 };
@@ -306,9 +303,6 @@ public:
  * or 'false' value.
  */
 class AstBooleanConstraint : public AstConstraint {
-protected:
-    bool truthValue;
-
 public:
     AstBooleanConstraint(bool truthValue) : truthValue(truthValue) {}
 
@@ -341,6 +335,8 @@ public:
     }
 
 protected:
+    bool truthValue;
+
     bool equal(const AstNode& node) const override {
         assert(nullptr != dynamic_cast<const AstBooleanConstraint*>(&node));
         const auto& other = static_cast<const AstBooleanConstraint&>(node);
@@ -353,16 +349,6 @@ protected:
  * e.g., x = y.
  */
 class AstBinaryConstraint : public AstConstraint {
-protected:
-    /** The operator in this relation */
-    BinaryConstraintOp operation;
-
-    /** Left-hand side argument of a binary operation */
-    std::unique_ptr<AstArgument> lhs;
-
-    /** Right-hand side argument of a binary operation */
-    std::unique_ptr<AstArgument> rhs;
-
 public:
     AstBinaryConstraint(
             BinaryConstraintOp o, std::unique_ptr<AstArgument> ls, std::unique_ptr<AstArgument> rs)
@@ -436,6 +422,15 @@ public:
     }
 
 protected:
+    /** The operator in this relation */
+    BinaryConstraintOp operation;
+
+    /** Left-hand side argument of a binary operation */
+    std::unique_ptr<AstArgument> lhs;
+
+    /** Right-hand side argument of a binary operation */
+    std::unique_ptr<AstArgument> rhs;
+
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
         assert(nullptr != dynamic_cast<const AstBinaryConstraint*>(&node));

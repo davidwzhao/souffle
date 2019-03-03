@@ -9,5 +9,5 @@
 
 .decl B(x:number, y:number)
 .output B()
-.output B(IO=file,filename="B.csv",compress=true)
+.output B(IO=file,filename="B.csv.gz.output",compress=true)
 B(x,y) :- A(x,y).

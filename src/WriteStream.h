@@ -19,32 +19,56 @@
 #include "SymbolMask.h"
 #include "SymbolTable.h"
 
+#include <cassert>
+
 namespace souffle {
 
 class WriteStream {
 public:
-    WriteStream(const SymbolMask& symbolMask, const SymbolTable& symbolTable, const bool prov)
-            : symbolMask(symbolMask), symbolTable(symbolTable), isProvenance(prov) {}
+    WriteStream(const SymbolMask& symbolMask, const SymbolTable& symbolTable, const bool prov,
+            bool summary = false)
+            : symbolMask(symbolMask), symbolTable(symbolTable), isProvenance(prov), summary(summary),
+              arity(symbolMask.getArity() - (prov ? 2 : 0)) {}
     template <typename T>
     void writeAll(const T& relation) {
+        if (summary) {
+            return writeSize(relation.size());
+        }
         auto lease = symbolTable.acquireLock();
         (void)lease;
+        if (arity == 0) {
+            if (relation.begin() != relation.end()) {
+                writeNullary();
+            }
+            return;
+        }
         for (const auto& current : relation) {
             writeNext(current);
         }
+    }
+    template <typename T>
+    void writeSize(const T& relation) {
+        writeSize(relation.size());
     }
 
     virtual ~WriteStream() = default;
 
 protected:
+    const SymbolMask& symbolMask;
+    const SymbolTable& symbolTable;
+    const bool isProvenance;
+    const bool summary;
+    const size_t arity;
+
+    virtual void writeNullary() = 0;
     virtual void writeNextTuple(const RamDomain* tuple) = 0;
+    virtual void writeSize(std::size_t size) {
+        assert(false && "attempting to print size of a write operation");
+    }
     template <typename Tuple>
     void writeNext(const Tuple tuple) {
         writeNextTuple(tuple.data);
     }
-    const SymbolMask& symbolMask;
-    const SymbolTable& symbolTable;
-    const bool isProvenance;
 };
 
 class WriteStreamFactory {

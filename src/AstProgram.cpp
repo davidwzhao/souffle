@@ -18,6 +18,7 @@
 #include "AstProgram.h"
 #include "AstClause.h"
 #include "AstComponent.h"
+#include "AstFunctorDeclaration.h"
 #include "AstLiteral.h"
 #include "AstRelation.h"
 #include "ErrorReport.h"
@@ -34,7 +35,8 @@ AstProgram::AstProgram(AstProgram&& other) noexcept {
     types.swap(other.types);
     relations.swap(other.relations);
     clauses.swap(other.clauses);
-    ioDirectives.swap(other.ioDirectives);
+    loads.swap(other.loads);
+    stores.swap(other.stores);
     components.swap(other.components);
     instantiations.swap(other.instantiations);
 }
@@ -75,6 +77,13 @@ void AstProgram::appendRelation(std::unique_ptr<AstRelation> r) {
     rel = std::move(r);
 }
 
+/* Add a functor declaration to the program */
+void AstProgram::addFunctorDeclaration(std::unique_ptr<AstFunctorDeclaration> f) {
+    const auto& name = f->getName();
+    assert(functors.find(name) == functors.end() && "Redefinition of relation!");
+    functors[name] = std::move(f);
+}
+
 /* Remove a relation from the program */
 void AstProgram::removeRelation(const AstRelationIdentifier& name) {
     /* Remove relation from map */
@@ -106,16 +115,25 @@ AstRelation* AstProgram::getRelation(const AstRelationIdentifier& name) const {
     return (pos == relations.end()) ? nullptr : pos->second.get();
 }
 
+AstFunctorDeclaration* AstProgram::getFunctorDeclaration(const std::string& name) const {
+    auto pos = functors.find(name);
+    return (pos == functors.end()) ? nullptr : pos->second.get();
+}
+
 /* Add a clause to the program */
 void AstProgram::addClause(std::unique_ptr<AstClause> clause) {
     assert(clause && "NULL clause");
     clauses.push_back(std::move(clause));
 }
 
-/* Add a clause to the program */
-void AstProgram::addIODirective(std::unique_ptr<AstIODirective> directive) {
+void AstProgram::addLoad(std::unique_ptr<AstLoad> directive) {
     assert(directive && "NULL IO directive");
-    ioDirectives.push_back(std::move(directive));
+    loads.push_back(std::move(directive));
+}
+
+void AstProgram::addStore(std::unique_ptr<AstStore> directive) {
+    assert(directive && "NULL IO directive");
+    stores.push_back(std::move(directive));
 }
 
 /* Add a pragma to the program */
@@ -137,9 +155,15 @@ std::vector<AstRelation*> AstProgram::getRelations() const {
     }
     return res;
 }
-/* Put all io directives of the program into a list */
-const std::vector<std::unique_ptr<AstIODirective>>& AstProgram::getIODirectives() const {
-    return ioDirectives;
+
+/* Put all loads of the program into a list */
+const std::vector<std::unique_ptr<AstLoad>>& AstProgram::getLoads() const {
+    return loads;
+}
+
+/* Put all stores of the program into a list */
+const std::vector<std::unique_ptr<AstStore>>& AstProgram::getStores() const {
+    return stores;
 }
 
 /* Print program in textual format */
@@ -166,6 +190,15 @@ void AstProgram::print(std::ostream& os) const {
         }
     }
 
+    /* Print functors */
+    os << "\n// ----- Functors -----\n";
+    for (const auto& cur : functors) {
+        const std::unique_ptr<AstFunctorDeclaration>& f = cur.second;
+        os << "\n\n// -- " << f->getName() << " --\n";
+        f->print(os);
+        os << "\n";
+    }
+
     /* Print relations */
     os << "\n// ----- Relations -----\n";
     for (const auto& cur : relations) {
@@ -175,7 +208,10 @@ void AstProgram::print(std::ostream& os) const {
         for (const auto clause : rel->getClauses()) {
             os << *clause << "\n\n";
         }
-        for (const auto ioDirective : rel->getIODirectives()) {
+        for (const auto ioDirective : rel->getLoads()) {
+            os << *ioDirective << "\n\n";
+        }
+        for (const auto ioDirective : rel->getStores()) {
             os << *ioDirective << "\n\n";
         }
     }
@@ -185,9 +221,13 @@ void AstProgram::print(std::ostream& os) const {
         os << join(clauses, "\n\n", print_deref<std::unique_ptr<AstClause>>()) << "\n";
     }
 
-    if (!ioDirectives.empty()) {
-        os << "\n// ----- Orphan IO directives -----\n";
-        os << join(ioDirectives, "\n\n", print_deref<std::unique_ptr<AstIODirective>>()) << "\n";
+    if (!loads.empty()) {
+        os << "\n// ----- Orphan Load directives -----\n";
+        os << join(loads, "\n\n", print_deref<std::unique_ptr<AstLoad>>()) << "\n";
+    }
+    if (!stores.empty()) {
+        os << "\n// ----- Orphan Store directives -----\n";
+        os << join(stores, "\n\n", print_deref<std::unique_ptr<AstStore>>()) << "\n";
     }
 
     if (!pragmaDirectives.empty()) {
@@ -214,17 +254,20 @@ AstProgram* AstProgram::clone() const {
 
     // move components
     for (const auto& cur : components) {
-        res->components.push_back(std::unique_ptr<AstComponent>(cur->clone()));
+        res->components.emplace_back(cur->clone());
     }
 
     // move component instantiations
     for (const auto& cur : instantiations) {
-        res->instantiations.push_back(std::unique_ptr<AstComponentInit>(cur->clone()));
+        res->instantiations.emplace_back(cur->clone());
     }
 
     // move ioDirectives
-    for (const auto& cur : ioDirectives) {
-        res->ioDirectives.push_back(std::unique_ptr<AstIODirective>(cur->clone()));
+    for (const auto& cur : loads) {
+        res->loads.emplace_back(cur->clone());
+    }
+    for (const auto& cur : stores) {
+        res->stores.emplace_back(cur->clone());
     }
 
     ErrorReport errors;
@@ -252,7 +295,10 @@ void AstProgram::apply(const AstNodeMapper& map) {
     for (auto& cur : pragmaDirectives) {
         cur = map(std::move(cur));
     }
-    for (auto& cur : ioDirectives) {
+    for (auto& cur : loads) {
+        cur = map(std::move(cur));
+    }
+    for (auto& cur : stores) {
         cur = map(std::move(cur));
     }
 }
@@ -275,20 +321,33 @@ void AstProgram::finishParsing() {
     clauses.swap(unbound);
 
     // unbound directives with no relation defined
-    std::vector<std::unique_ptr<AstIODirective>> unboundDirectives;
+    std::vector<std::unique_ptr<AstLoad>> unboundLoads;
+    std::vector<std::unique_ptr<AstStore>> unboundStores;
 
     // add IO directives
-    for (auto& cur : ioDirectives) {
+    for (auto& cur : loads) {
         auto pos = relations.find(cur->getName());
         if (pos != relations.end()) {
-            pos->second->addIODirectives(std::move(cur));
+            pos->second->addLoad(std::move(cur));
         } else {
-            unboundDirectives.push_back(std::move(cur));
+            unboundLoads.push_back(std::move(cur));
         }
     }
     // remember the remaining orphan directives
-    ioDirectives.clear();
-    ioDirectives.swap(unboundDirectives);
+    loads.clear();
+    loads.swap(unboundLoads);
+
+    for (auto& cur : stores) {
+        auto pos = relations.find(cur->getName());
+        if (pos != relations.end()) {
+            pos->second->addStore(std::move(cur));
+        } else {
+            unboundStores.push_back(std::move(cur));
+        }
+    }
+    // remember the remaining orphan directives
+    stores.clear();
+    stores.swap(unboundStores);
 }
 
 }  // end of namespace souffle

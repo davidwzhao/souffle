@@ -135,7 +135,7 @@ protected:
     }
 
 private:
-    static constexpr unsigned int bufferSize = 4096;
+    static constexpr unsigned int bufferSize = 65536;
     static constexpr unsigned int reserveSize = 16;
 
     char buffer[bufferSize] = {};
@@ -157,7 +157,7 @@ public:
 
     gzfstream(const gzfstream&) = delete;
 
-    gzfstream(gzfstream&&) = default;
+    gzfstream(gzfstream&&) = delete;
 
     ~gzfstream() override = default;
 
@@ -198,7 +198,7 @@ public:
 
     igzfstream(const igzfstream&) = delete;
 
-    igzfstream(igzfstream&&) = default;
+    igzfstream(igzfstream&&) = delete;
 
     internal::gzfstreambuf* rdbuf() const {
         return internal::gzfstream::rdbuf();
@@ -218,7 +218,7 @@ public:
 
     ogzfstream(const ogzfstream&) = delete;
 
-    ogzfstream(ogzfstream&&) = default;
+    ogzfstream(ogzfstream&&) = delete;
 
     internal::gzfstreambuf* rdbuf() const {
         return internal::gzfstream::rdbuf();

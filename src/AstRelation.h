@@ -19,10 +19,11 @@
 
 #include "AstAttribute.h"
 #include "AstClause.h"
-#include "AstIODirective.h"
+#include "AstIO.h"
 #include "AstNode.h"
 #include "AstRelationIdentifier.h"
 #include "AstType.h"
+#include "RelationRepresentation.h"
 
 #include <iostream>
 #include <memory>
@@ -58,12 +59,6 @@
 /* Relation uses a union relation */
 #define EQREL_RELATION (0x100)
 
-/* Relation uses a red-black tree set */
-#define RBTSET_RELATION (0x200)
-
-/* Relation uses a hash set */
-#define HASHSET_RELATION (0x400)
-
 /* Relation warnings are suppressed */
 #define SUPPRESSED_RELATION (0x800)
 
@@ -78,26 +73,6 @@ namespace souffle {
  *
  */
 class AstRelation : public AstNode {
-protected:
-    /** Name of relation */
-    AstRelationIdentifier name;
-
-    /** Attributes of the relation */
-    std::vector<std::unique_ptr<AstAttribute>> attributes;
-
-    /** Qualifier of relation (i.e., output or not an output relation) */
-    // TODO: Change to a set of qualifiers
-    int qualifier = 0;
-
-    /** Clauses associated with this relation. Clauses could be
-     * either facts or rules.
-     */
-    std::vector<std::unique_ptr<AstClause>> clauses;
-
-    /** IO directives associated with this relation.
-     */
-    std::vector<std::unique_ptr<AstIODirective>> ioDirectives;
-
 public:
     AstRelation() = default;
 
@@ -142,51 +117,38 @@ public:
     /** Set qualifier associated with this relation */
     void setQualifier(int q) {
         qualifier = q;
+        if (q & EQREL_RELATION) {
+            representation = RelationRepresentation::EQREL;
+        } else if (q & BRIE_RELATION) {
+            representation = RelationRepresentation::BRIE;
+        } else if (q & BTREE_RELATION) {
+            representation = RelationRepresentation::BTREE;
+        }
+
+        if (q & INPUT_RELATION) {
+            loads.emplace_back(new AstLoad());
+            loads.back()->setName(getName());
+            loads.back()->setSrcLoc(getSrcLoc());
+        }
+        if (q & OUTPUT_RELATION) {
+            stores.emplace_back(new AstStore());
+            stores.back()->setName(getName());
+            stores.back()->setSrcLoc(getSrcLoc());
+        }
+        if (q & PRINTSIZE_RELATION) {
+            stores.emplace_back(new AstPrintSize());
+            stores.back()->setName(getName());
+            stores.back()->setSrcLoc(getSrcLoc());
+        }
     }
 
-    /** Check whether relation is an output relation */
-    bool isOutput() const {
-        return (qualifier & OUTPUT_RELATION) != 0;
+    /** Get representation for this relation */
+    RelationRepresentation getRepresentation() const {
+        return representation;
     }
 
-    /** Check whether relation is an input relation */
-    bool isInput() const {
-        return (qualifier & INPUT_RELATION) != 0;
-    }
-
-    /** Check whether relation is a brie relation */
-    bool isBrie() const {
-        return (qualifier & BRIE_RELATION) != 0;
-    }
-
-    /** Check whether relation is a btree relation */
-    bool isBTree() const {
-        return (qualifier & BTREE_RELATION) != 0;
-    }
-
-    /** Check whether relation is a equivalence relation */
-    bool isEqRel() const {
-        return (qualifier & EQREL_RELATION) != 0;
-    }
-
-    /** Check whether relation is a red-black tree set relation */
-    bool isRbtset() const {
-        return (qualifier & RBTSET_RELATION) != 0;
-    }
-
-    /** Check whether relation is a hash set relation */
-    bool isHashset() const {
-        return (qualifier & HASHSET_RELATION) != 0;
-    }
-
-    /** Check whether relation is an input relation */
-    bool isPrintSize() const {
-        return (qualifier & PRINTSIZE_RELATION) != 0;
-    }
-
-    /** Check whether relation is an output relation */
-    bool isComputed() const {
-        return isOutput() || isPrintSize();
+    void setRepresentation(RelationRepresentation representation) {
+        this->representation = representation;
     }
 
     /** Check whether relation is an overridable relation */
@@ -239,36 +201,13 @@ public:
             }
         }
         os << ") ";
-        if (isInput()) {
-            os << "input ";
-        }
-        if (isOutput()) {
-            os << "output ";
-        }
-        if (isPrintSize()) {
-            os << "printsize ";
-        }
         if (isOverridable()) {
             os << "overridable ";
         }
         if (isInline()) {
             os << "inline ";
         }
-        if (isBTree()) {
-            os << "btree ";
-        }
-        if (isBrie()) {
-            os << "brie ";
-        }
-        if (isRbtset()) {
-            os << "rbtset ";
-        }
-        if (isHashset()) {
-            os << "hashset ";
-        }
-        if (isEqRel()) {
-            os << "eqrel ";
-        }
+        os << representation << " ";
     }
 
     /** Creates a clone of this AST sub-structure */
@@ -277,13 +216,16 @@ public:
         res->name = name;
         res->setSrcLoc(getSrcLoc());
         for (const auto& cur : attributes) {
-            res->attributes.push_back(std::unique_ptr<AstAttribute>(cur->clone()));
+            res->attributes.emplace_back(cur->clone());
         }
         for (const auto& cur : clauses) {
-            res->clauses.push_back(std::unique_ptr<AstClause>(cur->clone()));
+            res->clauses.emplace_back(cur->clone());
         }
-        for (const auto& cur : ioDirectives) {
-            res->ioDirectives.push_back(std::unique_ptr<AstIODirective>(cur->clone()));
+        for (const auto& cur : stores) {
+            res->stores.emplace_back(cur->clone());
+        }
+        for (const auto& cur : loads) {
+            res->loads.emplace_back(cur->clone());
         }
         res->qualifier = qualifier;
         return res;
@@ -297,7 +239,10 @@ public:
         for (auto& cur : clauses) {
             cur = map(std::move(cur));
         }
-        for (auto& cur : ioDirectives) {
+        for (auto& cur : stores) {
+            cur = map(std::move(cur));
+        }
+        for (auto& cur : loads) {
             cur = map(std::move(cur));
         }
     }
@@ -346,30 +291,55 @@ public:
         for (const auto& cur : clauses) {
             res.push_back(cur.get());
         }
-        for (const auto& cur : ioDirectives) {
+        for (const auto& cur : stores) {
+            res.push_back(cur.get());
+        }
+        for (const auto& cur : loads) {
             res.push_back(cur.get());
         }
         return res;
     }
 
-    void addIODirectives(std::unique_ptr<AstIODirective> directive) {
+    void addStore(std::unique_ptr<AstStore> directive) {
         assert(directive && "Undefined directive");
-        // Make sure the old style qualifiers still work.
-        if (directive->isInput()) {
-            qualifier |= INPUT_RELATION;
-        } else if (directive->isOutput()) {
-            qualifier |= OUTPUT_RELATION;
-        } else if (directive->isPrintSize()) {
-            qualifier |= PRINTSIZE_RELATION;
-        }
-        ioDirectives.push_back(std::move(directive));
+        stores.push_back(std::move(directive));
     }
 
-    std::vector<AstIODirective*> getIODirectives() const {
-        return toPtrVector(ioDirectives);
+    void addLoad(std::unique_ptr<AstLoad> directive) {
+        assert(directive && "Undefined directive");
+        loads.push_back(std::move(directive));
+    }
+
+    std::vector<AstStore*> getStores() const {
+        return toPtrVector(stores);
+    }
+    std::vector<AstLoad*> getLoads() const {
+        return toPtrVector(loads);
     }
 
 protected:
+    /** Name of relation */
+    AstRelationIdentifier name;
+
+    /** Attributes of the relation */
+    std::vector<std::unique_ptr<AstAttribute>> attributes;
+
+    /** Qualifier of relation (i.e., output or not an output relation) */
+    // TODO: Change to a set of qualifiers
+    int qualifier = 0;
+
+    /** Clauses associated with this relation. Clauses could be
+     * either facts or rules.
+     */
+    std::vector<std::unique_ptr<AstClause>> clauses;
+
+    /** IO directives associated with this relation. */
+    std::vector<std::unique_ptr<AstStore>> stores;
+    std::vector<std::unique_ptr<AstLoad>> loads;
+
+    /** Datastructure to use for this relation */
+    RelationRepresentation representation{RelationRepresentation::DEFAULT};
+
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
         assert(nullptr != dynamic_cast<const AstRelation*>(&node));

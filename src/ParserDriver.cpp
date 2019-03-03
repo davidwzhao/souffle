@@ -17,14 +17,17 @@
 #include "ParserDriver.h"
 #include "AstClause.h"
 #include "AstComponent.h"
-#include "AstIODirective.h"
+#include "AstFunctorDeclaration.h"
+#include "AstIO.h"
 #include "AstPragma.h"
 #include "AstProgram.h"
 #include "AstRelation.h"
 #include "AstRelationIdentifier.h"
 #include "AstTranslationUnit.h"
 #include "AstType.h"
+#include "DebugReport.h"
 #include "ErrorReport.h"
+#include "SymbolTable.h"
 #include "Util.h"
 #include <memory>
 #include <utility>
@@ -99,6 +102,18 @@ void ParserDriver::addPragma(std::unique_ptr<AstPragma> p) {
     translationUnit->getProgram()->addPragma(std::move(p));
 }
 
+void ParserDriver::addFunctorDeclaration(std::unique_ptr<AstFunctorDeclaration> f) {
+    const std::string& name = f->getName();
+    if (AstFunctorDeclaration* prev = translationUnit->getProgram()->getFunctorDeclaration(name)) {
+        Diagnostic err(Diagnostic::ERROR,
+                DiagnosticMessage("Redefinition of functor " + toString(name), f->getSrcLoc()),
+                {DiagnosticMessage("Previous definition", prev->getSrcLoc())});
+        translationUnit->getErrorReport().addDiagnostic(err);
+    } else {
+        translationUnit->getProgram()->addFunctorDeclaration(std::move(f));
+    }
+}
+
 void ParserDriver::addRelation(std::unique_ptr<AstRelation> r) {
     const auto& name = r->getName();
     if (AstRelation* prev = translationUnit->getProgram()->getRelation(name)) {
@@ -107,35 +122,33 @@ void ParserDriver::addRelation(std::unique_ptr<AstRelation> r) {
                 {DiagnosticMessage("Previous definition", prev->getSrcLoc())});
         translationUnit->getErrorReport().addDiagnostic(err);
     } else {
-        if (r->isInput()) {
+        if (!r->getStores().empty() || !r->getLoads().empty()) {
             translationUnit->getErrorReport().addWarning(
-                    "Deprecated input qualifier was used in relation " + toString(name), r->getSrcLoc());
-        }
-        if (r->isOutput()) {
-            translationUnit->getErrorReport().addWarning(
-                    "Deprecated output qualifier was used in relation " + toString(name), r->getSrcLoc());
-        }
-        if (r->isPrintSize()) {
-            translationUnit->getErrorReport().addWarning(
-                    "Deprecated printsize qualifier was used in relation " + toString(name), r->getSrcLoc());
+                    "Deprecated io qualifier was used in relation " + toString(name), r->getSrcLoc());
         }
         translationUnit->getProgram()->addRelation(std::move(r));
     }
 }
 
-void ParserDriver::addIODirective(std::unique_ptr<AstIODirective> d) {
-    for (const auto& cur : translationUnit->getProgram()->getIODirectives()) {
-        if ((cur->isPrintSize() && d->isPrintSize()) && cur->getName() == d->getName()) {
-            Diagnostic err(Diagnostic::ERROR,
-                    DiagnosticMessage(
-                            "Redefinition of printsize directives for relation " + toString(d->getName()),
-                            d->getSrcLoc()),
-                    {DiagnosticMessage("Previous definition", cur->getSrcLoc())});
-            translationUnit->getErrorReport().addDiagnostic(err);
-            return;
+void ParserDriver::addStore(std::unique_ptr<AstStore> d) {
+    if (dynamic_cast<AstPrintSize*>(d.get()) != nullptr) {
+        for (const auto& cur : translationUnit->getProgram()->getStores()) {
+            if (cur->getName() == d->getName() && dynamic_cast<AstPrintSize*>(cur.get()) != nullptr) {
+                Diagnostic err(Diagnostic::ERROR,
+                        DiagnosticMessage(
+                                "Redefinition of printsize directives for relation " + toString(d->getName()),
+                                d->getSrcLoc()),
+                        {DiagnosticMessage("Previous definition", cur->getSrcLoc())});
+                translationUnit->getErrorReport().addDiagnostic(err);
+                return;
+            }
         }
     }
-    translationUnit->getProgram()->addIODirective(std::move(d));
+    translationUnit->getProgram()->addStore(std::move(d));
+}
+
+void ParserDriver::addLoad(std::unique_ptr<AstLoad> d) {
+    translationUnit->getProgram()->addLoad(std::move(d));
 }
 
 void ParserDriver::addType(std::unique_ptr<AstType> type) {

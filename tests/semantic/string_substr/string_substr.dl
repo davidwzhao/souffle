@@ -11,7 +11,10 @@ B(substr(x,2,2)) :- A(x).
 
 .output B()
 
+.decl Nullary()
+Nullary().
+
 .decl C(x:symbol) 
-C(substr("12",22,12)) :- A(_).
+C(substr("12",22,12)) :- Nullary().
 
 .output C()

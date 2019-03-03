@@ -21,6 +21,7 @@
 #include "AstAttribute.h"
 #include "AstClause.h"
 #include "AstComponentChecker.h"
+#include "AstIOTypeAnalysis.h"
 #include "AstLiteral.h"
 #include "AstNode.h"
 #include "AstPragma.h"
@@ -33,10 +34,10 @@
 #include "AstType.h"
 #include "AstVisitor.h"
 #include "BinaryConstraintOps.h"
-#include "BinaryFunctorOps.h"
 #include "ComponentModel.h"
 #include "DebugReport.h"
 #include "ErrorReport.h"
+#include "FunctorOps.h"
 #include "Global.h"
 #include "ParserDriver.h"
 #include "SymbolTable.h"
@@ -75,6 +76,8 @@ public:
 class LogicbloxConverter : private AstVisitor<void, std::ostream&> {
     // literals aggregated to be added to the end of a rule while converting
     std::vector<std::string> extra_literals;
+    const IOType* ioTypes;
+
     std::ostream& iout;
     std::ostream& eout;
     std::ostream& dout;
@@ -93,8 +96,9 @@ public:
         eout << "\n";
     }
 
-    void convert(std::ostream& out, const AstProgram& program) {
-        visit(program, out);
+    void convert(std::ostream& out, const AstTranslationUnit& tu) {
+        ioTypes = tu.getAnalysis<IOType>();
+        visit(*tu.getProgram(), out);
     }
 
 private:
@@ -146,7 +150,7 @@ private:
         dout << ".";
         dout << "\n";
 
-        if (rel.isInput()) {
+        if (ioTypes->isInput(&rel)) {
             int i = 0;
             iout << "fromFile,"
                  << "\"" << rel.getName() << ".facts\",";
@@ -163,7 +167,7 @@ private:
             });
             iout << "\n";
         }
-        if (rel.isOutput() || rel.isPrintSize()) {
+        if (ioTypes->isOutput(&rel)) {
             int i = 0;
             eout << "fromPredicate," << rel.getName() << ",";
             eout << join(rel.getAttributes(), ",", [&](std::ostream& os, AstAttribute* cur) {
@@ -251,18 +255,17 @@ private:
     }
 
     void visitFunctor(const AstFunctor& fun, std::ostream& out) override {
-        // process unary operators
-        if (dynamic_cast<const AstUnaryFunctor*>(&fun)) {
-            throw UnsupportedConstructException("Unsupported function: " + toString(fun));
-        } else if (const auto* binary = dynamic_cast<const AstBinaryFunctor*>(&fun)) {
-            std::string sym = getSymbolForBinaryOp(binary->getFunction());
+        // only intrinsic binary operators supported
+        const auto* inf = dynamic_cast<const AstIntrinsicFunctor*>(&fun);
+        if (inf != nullptr && inf->getArity() == 2) {
+            std::string sym = getSymbolForFunctorOp(inf->getFunction());
             out << "(";
-            visit(*binary->getLHS(), out);
+            visit(*inf->getArg(0), out);
             out << sym;
-            visit(*binary->getRHS(), out);
+            visit(*inf->getArg(1), out);
             out << ")";
         } else {
-            assert(false && "Unsupported functor!");
+            throw UnsupportedConstructException("Unsupported function: " + toString(fun));
         }
     }
 
@@ -287,7 +290,7 @@ private:
 void toLogicblox(std::ostream& out, std::ostream& impOut, std::ostream& expOut, std::ostream& decOut,
         const AstTranslationUnit& translationUnit) {
     // simply run the converter
-    LogicbloxConverter(impOut, expOut, decOut).convert(out, *translationUnit.getProgram());
+    LogicbloxConverter(impOut, expOut, decOut).convert(out, translationUnit);
 }
 
 int main(int argc, char** argv) {
@@ -297,46 +300,33 @@ int main(int argc, char** argv) {
     /* have all to do with command line arguments in its own scope, as these are accessible through the global
      * configuration only */
     {
-        Global::config().processArgs(argc, argv,
-                []() {
-                    std::stringstream header;
-                    header << "============================================================================"
-                           << std::endl;
-                    header << "souffle2lb -- translating souffle programs to Logicblox programs."
-                           << std::endl;
-                    header << "Usage: souffle2lb [OPTION] FILE." << std::endl;
-                    header << "----------------------------------------------------------------------------"
-                           << std::endl;
-                    header << "Options:" << std::endl;
-                    return header.str();
-                }(),
-                []() {
-                    std::stringstream footer;
-                    footer << "----------------------------------------------------------------------------"
-                           << std::endl;
-                    footer << "Version: " << PACKAGE_VERSION << "" << std::endl;
-                    footer << "----------------------------------------------------------------------------"
-                           << std::endl;
-                    footer << "Copyright (c) 2016-18 The Souffle Developers." << std::endl;
-                    footer << "Copyright (c) 2013-16 Oracle and/or its affiliates." << std::endl;
-                    footer << "All rights reserved." << std::endl;
-                    footer << "============================================================================"
-                           << std::endl;
-                    return footer.str();
-                }(),
-                // command line options, the environment will be filled with the arguments passed to them, or
-                // the empty string if they take none
-                []() {
-                    MainOption opts[] = {// main option, the datalog program itself, key is always empty
-                            {"", 0, "", "", false, ""},
-                            {"include-dir", 'I', "DIR", ".", true, "Specify directory for include files."},
-                            {"output", 'o', "FILE", "", false, "Generate bddbddb Datalog program"},
-                            {"debug-report", 'r', "FILE", "", false, "Write HTML debug report to <FILE>."},
-                            {"no-warn", 'w', "", "", false, "Disable warnings."},
-                            {"verbose", 'v', "", "", false, "Verbose output."},
-                            {"help", 'h', "", "", false, "Display this help message."}};
-                    return std::vector<MainOption>(std::begin(opts), std::end(opts));
-                }());
+        std::stringstream header;
+        header << "============================================================================" << std::endl;
+        header << "souffle2lb -- translating souffle programs to Logicblox programs." << std::endl;
+        header << "Usage: souffle2lb [OPTION] FILE." << std::endl;
+        header << "----------------------------------------------------------------------------" << std::endl;
+        header << "Options:" << std::endl;
+
+        std::stringstream footer;
+        footer << "----------------------------------------------------------------------------" << std::endl;
+        footer << "Version: " << PACKAGE_VERSION << "" << std::endl;
+        footer << "----------------------------------------------------------------------------" << std::endl;
+        footer << "Copyright (c) 2016-18 The Souffle Developers." << std::endl;
+        footer << "Copyright (c) 2013-16 Oracle and/or its affiliates." << std::endl;
+        footer << "All rights reserved." << std::endl;
+        footer << "============================================================================" << std::endl;
+
+        // command line options, the environment will be filled with the arguments passed to them, or
+        // the empty string if they take none
+        // main option, the datalog program itself, has an empty key
+        std::vector<MainOption> opts{{"", 0, "", "", false, ""},
+                {"include-dir", 'I', "DIR", ".", true, "Specify directory for include files."},
+                {"output", 'o', "FILE", "", false, "Generate bddbddb Datalog program"},
+                {"debug-report", 'r', "FILE", "", false, "Write HTML debug report to <FILE>."},
+                {"no-warn", 'w', "", "", false, "Disable warnings."},
+                {"verbose", 'v', "", "", false, "Verbose output."},
+                {"help", 'h', "", "", false, "Display this help message."}};
+        Global::config().processArgs(argc, argv, header.str(), footer.str(), opts);
 
         // ------ command line arguments -------------
 
