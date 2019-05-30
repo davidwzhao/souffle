@@ -154,6 +154,7 @@ ADD_EXECUTABLE(souffle
         ./src/test/ram_executor_test.cpp
         ./src/ComponentModel.cpp
         ./src/ProvenanceTransformer.cpp
+        ./src/IncrementalTransformer.cpp
         ./src/InterpreterRecords.cpp
         ./src/Interpreter.cpp
         ./src/AstTransforms.cpp

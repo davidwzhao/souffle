@@ -100,6 +100,7 @@ souffle_sources = \
               IODirectives.h                            \
               IOSystem.h                                \
               RamIndexAnalysis.cpp   RamIndexAnalysis.h \
+              IncrementalTransformer.cpp                \
               InlineRelationsTransformer.cpp            \
               Interpreter.h       						\
               InterpreterContext.h                      \
