@@ -218,6 +218,19 @@ private:
 };
 
 /**
+ * Transformation pass to add incremental evaluation instrumentation
+ */
+class IncrementalTransformer : public AstTransformer {
+public:
+    std::string getName() const override {
+        return "IncrementalTransformer";
+    }
+
+private:
+    bool transform(AstTranslationUnit& translationUnit) override;
+};
+
+/**
  * Transformation pass to remove constant boolean constraints
  * Should be called after any transformation that may generate boolean constraints
  */
