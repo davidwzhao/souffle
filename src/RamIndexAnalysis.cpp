@@ -281,9 +281,9 @@ void RamIndexAnalysis::run(const RamTranslationUnit& translationUnit) {
         } else if (const auto* exists = dynamic_cast<const RamExistenceCheck*>(&node)) {
             MinIndexSelection& indexes = getIndexes(exists->getRelation());
             indexes.addSearch(getSearchSignature(exists));
-        } else if (const auto* provExists = dynamic_cast<const RamProvenanceExistenceCheck*>(&node)) {
-            MinIndexSelection& indexes = getIndexes(provExists->getRelation());
-            indexes.addSearch(getSearchSignature(provExists));
+        } else if (const auto* subsumptionExists = dynamic_cast<const RamSubsumptionExistenceCheck*>(&node)) {
+            MinIndexSelection& indexes = getIndexes(subsumptionExists->getRelation());
+            indexes.addSearch(getSearchSignature(subsumptionExists));
         } else if (const auto* ramRel = dynamic_cast<const RamRelation*>(&node)) {
             MinIndexSelection& indexes = getIndexes(*ramRel);
             indexes.addSearch(getSearchSignature(ramRel));
@@ -386,7 +386,7 @@ SearchSignature RamIndexAnalysis::getSearchSignature(const RamIndexRelationSearc
 }
 
 SearchSignature RamIndexAnalysis::getSearchSignature(
-        const RamProvenanceExistenceCheck* provExistCheck) const {
+        const RamSubsumptionExistenceCheck* provExistCheck) const {
     const auto values = provExistCheck->getValues();
     SearchSignature res = 0;
     // values.size() - 1 because we discard the height annotation

@@ -243,8 +243,8 @@ void LVMCode::print() const {
                 ip += 4;
                 break;
             }
-            case LVM_ProvenanceExistenceCheck: {
-                printf("%ld\tLVM_ProvenanceExitenceChekck\t\n", ip);
+            case LVM_SubsumptionExistenceCheck: {
+                printf("%ld\tLVM_SubsumptionExistenceCheck\t\n", ip);
                 printf("\tTarget: %s\tTypes: %s\n", symbolTable.resolve(code[ip + 1]).c_str(),
                         symbolTable.resolve(code[ip + 2]).c_str());
                 ip += 4;

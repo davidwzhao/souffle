@@ -227,13 +227,14 @@ protected:
  * Subclass of Literal that represents a negated atom, * e.g., !parent(x,y).
  * A Negated atom occurs in a body of clause and cannot occur in a head of a clause.
  *
- * Specialised for provenance: used for existence check that tuple doesn't already exist
+ * Specialised for subsumption: used for existence check that tuple payload doesn't already exist
  */
-class AstProvenanceNegation : public AstLiteral {
+class AstSubsumptionNegation : public AstLiteral {
 public:
-    AstProvenanceNegation(std::unique_ptr<AstAtom> atom) : atom(std::move(atom)) {}
+    AstSubsumptionNegation(std::unique_ptr<AstAtom> atom, size_t subsumptionFields)
+            : atom(std::move(atom)), subsumptionFields(subsumptionFields) {}
 
-    ~AstProvenanceNegation() override = default;
+    ~AstSubsumptionNegation() override = default;
 
     /** Returns the nested atom as the referenced atom */
     const AstAtom* getAtom() const override {
@@ -245,6 +246,11 @@ public:
         return atom.get();
     }
 
+    /** Return the number of subsumption fields */
+    size_t getNumSubsumptionFields() const {
+        return subsumptionFields;
+    }
+
     /** Output to a given stream */
     void print(std::ostream& os) const override {
         os << "prov!";
@@ -252,8 +258,9 @@ public:
     }
 
     /** Creates a clone if this AST sub-structure */
-    AstProvenanceNegation* clone() const override {
-        auto* res = new AstProvenanceNegation(std::unique_ptr<AstAtom>(atom->clone()));
+    AstSubsumptionNegation* clone() const override {
+        auto* res = new AstSubsumptionNegation(
+                std::unique_ptr<AstAtom>(atom->clone()), getNumSubsumptionFields());
         res->setSrcLoc(getSrcLoc());
         return res;
     }
@@ -272,11 +279,14 @@ protected:
     /** A pointer to the negated Atom */
     std::unique_ptr<AstAtom> atom;
 
+    /** The number of fields used for subsumption */
+    size_t subsumptionFields;
+
     /** Implements the node comparison for this node type */
     bool equal(const AstNode& node) const override {
-        assert(dynamic_cast<const AstProvenanceNegation*>(&node));
-        const auto& other = static_cast<const AstProvenanceNegation&>(node);
-        return *atom == *other.atom;
+        assert(dynamic_cast<const AstSubsumptionNegation*>(&node));
+        const auto& other = static_cast<const AstSubsumptionNegation&>(node);
+        return *atom == *other.atom && getNumSubsumptionFields() == other.getNumSubsumptionFields();
     }
 };
 

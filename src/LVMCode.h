@@ -81,7 +81,7 @@ enum LVM_Type {
     LVM_Negation,
     LVM_EmptinessCheck,
     LVM_ExistenceCheck,
-    LVM_ProvenanceExistenceCheck,
+    LVM_SubsumptionExistenceCheck,
     LVM_Constraint,
     LVM_True,
     LVM_False,

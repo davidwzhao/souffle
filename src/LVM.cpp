@@ -614,7 +614,7 @@ void LVM::execute(std::unique_ptr<LVMCode>& codeStream, InterpreterContext& ctxt
 
                 break;
             }
-            case LVM_ProvenanceExistenceCheck: {
+            case LVM_SubsumptionExistenceCheck: {
                 size_t relId = code[ip + 1];
                 std::string relationName = relationEncoder.decodeRelation(relId);
                 std::string patterns = symbolTable.resolve(code[ip + 2]);

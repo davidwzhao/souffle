@@ -289,10 +289,10 @@ protected:
         code->push_back(getIndexPos(exists));
     }
 
-    void visitProvenanceExistenceCheck(
-            const RamProvenanceExistenceCheck& provExists, size_t exitAddress) override {
-        auto values = provExists.getValues();
-        auto arity = provExists.getRelation().getArity();
+    void visitSubsumptionExistenceCheck(
+            const RamSubsumptionExistenceCheck& subsumptionExists, size_t exitAddress) override {
+        auto values = subsumptionExists.getValues();
+        auto arity = subsumptionExists.getRelation().getArity();
         std::string types;
         for (size_t i = 0; i < arity - 2; ++i) {
             if (!isRamUndefValue(values[i])) {
@@ -300,10 +300,10 @@ protected:
             }
             types += (isRamUndefValue(values[i]) ? "_" : "V");
         }
-        code->push_back(LVM_ProvenanceExistenceCheck);
-        code->push_back(relationEncoder.encodeRelation(provExists.getRelation().getName()));
+        code->push_back(LVM_SubsumptionExistenceCheck);
+        code->push_back(relationEncoder.encodeRelation(subsumptionExists.getRelation().getName()));
         code->push_back(symbolTable.lookup(types));
-        code->push_back(getIndexPos(provExists));
+        code->push_back(getIndexPos(subsumptionExists));
     }
 
     void visitConstraint(const RamConstraint& relOp, size_t exitAddress) override {

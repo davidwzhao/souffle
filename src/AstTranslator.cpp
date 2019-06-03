@@ -372,14 +372,14 @@ std::unique_ptr<RamCondition> AstTranslator::translateConstraint(
         }
 
         /** for provenance negation */
-        std::unique_ptr<RamCondition> visitProvenanceNegation(const AstProvenanceNegation& neg) override {
+        std::unique_ptr<RamCondition> visitSubsumptionNegation(const AstSubsumptionNegation& neg) override {
             // get contained atom
             const AstAtom* atom = neg.getAtom();
             auto arity = atom->getArity();
 
             // account for two extra provenance columns
             if (Global::config().has("provenance")) {
-                arity -= 2;
+                arity -= neg.getNumSubsumptionFields();
             }
 
             std::vector<std::unique_ptr<RamExpression>> values;
@@ -390,15 +390,22 @@ std::unique_ptr<RamCondition> AstTranslator::translateConstraint(
                 values.push_back(translator.translateValue(arg, index));
             }
 
+            for (size_t i = arity; i < atom->getArity(); i++) {
+                values.push_back(std::make_unique<RamUndefValue>());
+            }
+
+            /*
             // we don't care about the provenance columns when doing the existence check
             if (Global::config().has("provenance")) {
                 values.push_back(std::make_unique<RamUndefValue>());
+                values.push_back(std::make_unique<RamUndefValue>());
                 // add the height annotation for provenanceNotExists
-                values.push_back(translator.translateValue(atom->getArgument(arity + 1), index));
+                // values.push_back(translator.translateValue(atom->getArgument(arity + 1), index));
             }
+            */
 
             // add constraint
-            return std::make_unique<RamNegation>(std::make_unique<RamProvenanceExistenceCheck>(
+            return std::make_unique<RamNegation>(std::make_unique<RamSubsumptionExistenceCheck>(
                     translator.translateRelation(atom), std::move(values)));
         }
     };
@@ -591,13 +598,15 @@ std::unique_ptr<RamOperation> AstTranslator::ProvenanceClauseTranslator::createO
         } else if (auto con = dynamic_cast<AstBinaryConstraint*>(lit)) {
             values.push_back(translator.translateValue(con->getLHS(), valueIndex));
             values.push_back(translator.translateValue(con->getRHS(), valueIndex));
-        } else if (auto neg = dynamic_cast<AstProvenanceNegation*>(lit)) {
-            for (size_t i = 0; i < neg->getAtom()->getArguments().size() - 2; ++i) {
+        } else if (auto neg = dynamic_cast<AstSubsumptionNegation*>(lit)) {
+            for (size_t i = 0; i < neg->getAtom()->getArguments().size() - neg->getNumSubsumptionFields();
+                    ++i) {
                 auto arg = neg->getAtom()->getArguments()[i];
                 values.push_back(translator.translateValue(arg, valueIndex));
             }
-            values.push_back(std::make_unique<RamNumber>(-1));
-            values.push_back(std::make_unique<RamNumber>(-1));
+            for (size_t i = neg->getAtom()->getArguments().size(); i < neg->getNumSubsumptionFields(); ++i) {
+                values.push_back(std::make_unique<RamNumber>(-1));
+            }
         }
     }
 
@@ -1094,8 +1103,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                 r1->getHead()->setName(relNew[rel]->get()->getName());
                 r1->getAtoms()[j]->setName(relDelta[atomRelation]->get()->getName());
                 if (Global::config().has("provenance")) {
-                    r1->addToBody(std::make_unique<AstProvenanceNegation>(
-                            std::unique_ptr<AstAtom>(cl->getHead()->clone())));
+                    r1->addToBody(std::make_unique<AstSubsumptionNegation>(
+                            std::unique_ptr<AstAtom>(cl->getHead()->clone()), 2));
                 } else {
                     if (r1->getHead()->getArity() > 0)
                         r1->addToBody(std::make_unique<AstNegation>(

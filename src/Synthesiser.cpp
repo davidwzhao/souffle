@@ -175,8 +175,8 @@ std::set<const RamRelation*> Synthesiser::getReferencedRelations(const RamOperat
             res.insert(&agg->getRelation());
         } else if (auto exists = dynamic_cast<const RamExistenceCheck*>(&node)) {
             res.insert(&exists->getRelation());
-        } else if (auto provExists = dynamic_cast<const RamProvenanceExistenceCheck*>(&node)) {
-            res.insert(&provExists->getRelation());
+        } else if (auto subsumptionExists = dynamic_cast<const RamSubsumptionExistenceCheck*>(&node)) {
+            res.insert(&subsumptionExists->getRelation());
         } else if (auto project = dynamic_cast<const RamProject*>(&node)) {
             res.insert(&project->getRelation());
         }
@@ -1313,11 +1313,11 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             PRINT_END_COMMENT(out);
         }
 
-        void visitProvenanceExistenceCheck(
-                const RamProvenanceExistenceCheck& provExists, std::ostream& out) override {
+        void visitSubsumptionExistenceCheck(
+                const RamSubsumptionExistenceCheck& subsumptionExists, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
             // get some details
-            const auto& rel = provExists.getRelation();
+            const auto& rel = subsumptionExists.getRelation();
             auto relName = synthesiser.getRelationName(rel);
             auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(rel) + ")";
             auto arity = rel.getArity();
@@ -1327,10 +1327,10 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "auto existenceCheck = " << relName << "->"
                 << "equalRange";
             // out << synthesiser.toIndex(ne.getSearchSignature());
-            out << "_" << isa->getSearchSignature(&provExists);
+            out << "_" << isa->getSearchSignature(&subsumptionExists);
             out << "(Tuple<RamDomain," << arity << ">({{";
-            for (size_t i = 0; i < provExists.getValues().size() - 1; i++) {
-                RamExpression* val = provExists.getValues()[i];
+            for (size_t i = 0; i < subsumptionExists.getValues().size() - 1; i++) {
+                RamExpression* val = subsumptionExists.getValues()[i];
                 if (!isRamUndefValue(val)) {
                     visit(*val, out);
                 } else {
@@ -1341,11 +1341,14 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // extra 0 for provenance height annotation
             out << "0";
 
-            out << "}})," << ctxName << ");\n";
-            out << "if (existenceCheck.empty()) return false; else return (*existenceCheck.begin())["
-                << arity - 1 << "] <= ";
-            visit(*(provExists.getValues()[arity - 1]), out);
-            out << ";}()\n";
+            out << "}})," << ctxName << ").empty();\n";
+            out << "return !existenceCheck;}()\n";
+            /*
+        out << "if (existenceCheck.empty()) return false; else return (*existenceCheck.begin())["
+            << arity - 1 << "] <= ";
+        visit(*(subsumptionExists.getValues()[arity - 1]), out);
+        out << ";}()\n";
+        */
             PRINT_END_COMMENT(out);
         }
 

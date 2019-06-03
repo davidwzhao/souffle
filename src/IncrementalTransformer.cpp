@@ -151,7 +151,9 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
                         atom->addArgument(std::make_unique<AstVariable>("@iteration_" + std::to_string(i)));
                         atom->addArgument(std::make_unique<AstVariable>("@count_" + std::to_string(i)));
                         bodyLevels.push_back(new AstVariable("@iteration_" + std::to_string(i)));
-                        clause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT, std::make_unique<AstVariable>("@count_" + std::to_string(i)), std::make_unique<AstNumberConstant>(0)));
+                        clause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
+                                std::make_unique<AstVariable>("@count_" + std::to_string(i)),
+                                std::make_unique<AstNumberConstant>(0)));
                     }
                 }
 
@@ -173,18 +175,21 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
                     if (auto atom = dynamic_cast<AstAtom*>(lit)) {
                         atom->addArgument(std::make_unique<AstVariable>("@iteration_" + std::to_string(i)));
                         atom->addArgument(std::make_unique<AstVariable>("@count_" + std::to_string(i)));
-                        negativeUpdateBodyLevels.push_back(new AstVariable("@iteration_" + std::to_string(i)));
+                        negativeUpdateBodyLevels.push_back(
+                                new AstVariable("@iteration_" + std::to_string(i)));
                         negativeUpdateBodyCounts.push_back(new AstVariable("@count_" + std::to_string(i)));
                     }
-
                 }
 
                 // add two provenance columns to head lit
-                negativeUpdateClause->getHead()->addArgument(std::unique_ptr<AstArgument>(getNextLevelNumber(negativeUpdateBodyLevels)));
+                negativeUpdateClause->getHead()->addArgument(
+                        std::unique_ptr<AstArgument>(getNextLevelNumber(negativeUpdateBodyLevels)));
                 negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(-1));
 
                 // add constraint saying that at least one body atom must be negative
-                negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE, std::unique_ptr<AstArgument>(getMinBodyCounts(negativeUpdateBodyCounts)), std::make_unique<AstNumberConstant>(0)));
+                negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,
+                        std::unique_ptr<AstArgument>(getMinBodyCounts(negativeUpdateBodyCounts)),
+                        std::make_unique<AstNumberConstant>(0)));
 
                 relation->addClause(std::unique_ptr<AstClause>(negativeUpdateClause));
             }

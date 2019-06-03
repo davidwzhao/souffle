@@ -95,7 +95,7 @@ struct RamVisitor : public ram_visitor_tag {
         FORWARD(False);
         FORWARD(EmptinessCheck);
         FORWARD(ExistenceCheck);
-        FORWARD(ProvenanceExistenceCheck);
+        FORWARD(SubsumptionExistenceCheck);
         FORWARD(Conjunction);
         FORWARD(Negation);
         FORWARD(Constraint);
@@ -228,7 +228,7 @@ protected:
     LINK(Negation, Condition);
     LINK(Constraint, Condition);
     LINK(ExistenceCheck, AbstractExistenceCheck);
-    LINK(ProvenanceExistenceCheck, AbstractExistenceCheck);
+    LINK(SubsumptionExistenceCheck, AbstractExistenceCheck);
     LINK(EmptinessCheck, Condition);
     LINK(AbstractExistenceCheck, Condition);
 

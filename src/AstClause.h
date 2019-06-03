@@ -262,7 +262,7 @@ public:
 
     /** Return the number of elements in the body of the Clause */
     size_t getBodySize() const {
-        return atoms.size() + negations.size() + provNegations.size() + constraints.size();
+        return atoms.size() + negations.size() + subsumptionNegations.size() + constraints.size();
     }
 
     /** Return the i-th Literal in body of the clause */
@@ -370,8 +370,8 @@ public:
         for (const auto& cur : negations) {
             res->negations.emplace_back(cur->clone());
         }
-        for (const auto& cur : provNegations) {
-            res->provNegations.emplace_back(cur->clone());
+        for (const auto& cur : subsumptionNegations) {
+            res->subsumptionNegations.emplace_back(cur->clone());
         }
         for (const auto& cur : constraints) {
             res->constraints.emplace_back(cur->clone());
@@ -390,7 +390,7 @@ public:
         for (auto& lit : negations) {
             lit = map(std::move(lit));
         }
-        for (auto& lit : provNegations) {
+        for (auto& lit : subsumptionNegations) {
             lit = map(std::move(lit));
         }
         for (auto& lit : constraints) {
@@ -419,7 +419,7 @@ public:
         for (auto& cur : negations) {
             res.push_back(cur.get());
         }
-        for (auto& cur : provNegations) {
+        for (auto& cur : subsumptionNegations) {
             res.push_back(cur.get());
         }
         for (auto& cur : constraints) {
@@ -439,7 +439,7 @@ protected:
     std::vector<std::unique_ptr<AstNegation>> negations;
 
     /** The provenance negations in the body of this clause */
-    std::vector<std::unique_ptr<AstProvenanceNegation>> provNegations;
+    std::vector<std::unique_ptr<AstSubsumptionNegation>> subsumptionNegations;
 
     /** The constraints in the body of this clause */
     std::vector<std::unique_ptr<AstConstraint>> constraints;

@@ -348,12 +348,12 @@ bool RAMI::evalCond(const RamCondition& cond, const InterpreterContext& ctxt) {
             return range.first != range.second;  // if there is something => done
         }
 
-        bool visitProvenanceExistenceCheck(const RamProvenanceExistenceCheck& provExists) override {
-            const InterpreterRelation& rel = interpreter.getRelation(provExists.getRelation());
+        bool visitSubsumptionExistenceCheck(const RamSubsumptionExistenceCheck& subsumptionExists) override {
+            const InterpreterRelation& rel = interpreter.getRelation(subsumptionExists.getRelation());
 
             // construct the pattern tuple
             auto arity = rel.getArity();
-            auto values = provExists.getValues();
+            auto values = subsumptionExists.getValues();
 
             // for partial we search for lower and upper boundaries
             RamDomain low[arity];
@@ -370,7 +370,7 @@ bool RAMI::evalCond(const RamCondition& cond, const InterpreterContext& ctxt) {
             high[arity - 1] = MAX_RAM_DOMAIN;
 
             // obtain index
-            auto idx = rel.getIndex(interpreter.isa->getSearchSignature(&provExists));
+            auto idx = rel.getIndex(interpreter.isa->getSearchSignature(&subsumptionExists));
             auto range = idx->lowerUpperBound(low, high);
             return range.first != range.second;  // if there is something => done
         }
