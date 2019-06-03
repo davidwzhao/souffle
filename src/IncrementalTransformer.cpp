@@ -42,9 +42,11 @@ namespace souffle {
 bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
     auto program = translationUnit.getProgram();
 
+    /*
     std::cout << "before:\n";
     program->print(std::cout);
     std::cout << std::endl;
+    */
 
     // get next level number
     auto getNextLevelNumber = [&](std::vector<AstArgument*> levels) {
@@ -127,8 +129,8 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
 
             // if fact, level number is 0
             if (clause->isFact()) {
-                clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
-                clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
+                // clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
+                // clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
             } else {
                 // make a clone of clause for negative update version
                 auto negativeUpdateClause = clause->clone();
@@ -196,9 +198,11 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
         }
     }
 
+    /*
     std::cout << "after:\n";
     program->print(std::cout);
     std::cout << std::endl;
+    */
     return true;
 }
 

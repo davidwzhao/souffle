@@ -1402,12 +1402,15 @@ public:
                         return insert(k, hints);
                     }
 
+                    std::cout << "found same tuple: " << k << std::endl;
+
                     // update provenance information
                     if (typeid(Comparator) != typeid(WeakComparator) && less(k, *pos)) {
                         if (!cur->lock.try_upgrade_to_write(cur_lease)) {
                             // start again
                             return insert(k, hints);
                         }
+                        std::cout << "updating tuple: " << k << std::endl;
                         update(*pos, k);
                         cur->lock.end_write();
                         return true;
@@ -1457,12 +1460,15 @@ public:
                     return insert(k, hints);
                 }
 
+                std::cout << "found same tuple: " << k << std::endl;
+
                 // update provenance information
                 if (typeid(Comparator) != typeid(WeakComparator) && less(k, *(pos - 1))) {
                     if (!cur->lock.try_upgrade_to_write(cur_lease)) {
                         // start again
                         return insert(k, hints);
                     }
+                    std::cout << "updating tuple: " << k << std::endl;
                     update(*(pos - 1), k);
                     cur->lock.end_write();
                     return true;

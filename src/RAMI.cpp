@@ -358,16 +358,18 @@ bool RAMI::evalCond(const RamCondition& cond, const InterpreterContext& ctxt) {
             // for partial we search for lower and upper boundaries
             RamDomain low[arity];
             RamDomain high[arity];
-            for (size_t i = 0; i < arity - 2; i++) {
+            for (size_t i = 0; i < arity; i++) {
                 low[i] =
                         !isRamUndefValue(values[i]) ? interpreter.evalExpr(*values[i], ctxt) : MIN_RAM_DOMAIN;
                 high[i] = !isRamUndefValue(values[i]) ? low[i] : MAX_RAM_DOMAIN;
             }
 
+            /*
             low[arity - 2] = MIN_RAM_DOMAIN;
             low[arity - 1] = MIN_RAM_DOMAIN;
             high[arity - 2] = MAX_RAM_DOMAIN;
             high[arity - 1] = MAX_RAM_DOMAIN;
+            */
 
             // obtain index
             auto idx = rel.getIndex(interpreter.isa->getSearchSignature(&subsumptionExists));

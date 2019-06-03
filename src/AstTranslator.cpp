@@ -377,10 +377,8 @@ std::unique_ptr<RamCondition> AstTranslator::translateConstraint(
             const AstAtom* atom = neg.getAtom();
             auto arity = atom->getArity();
 
-            // account for two extra provenance columns
-            if (Global::config().has("provenance")) {
-                arity -= neg.getNumSubsumptionFields();
-            }
+            // account for extra subsumption annotation columns
+            arity -= neg.getNumSubsumptionFields();
 
             std::vector<std::unique_ptr<RamExpression>> values;
 
@@ -1105,6 +1103,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                 if (Global::config().has("provenance")) {
                     r1->addToBody(std::make_unique<AstSubsumptionNegation>(
                             std::unique_ptr<AstAtom>(cl->getHead()->clone()), 2));
+                } else if (Global::config().has("incremental")) {
+                    r1->addToBody(std::make_unique<AstSubsumptionNegation>(
+                            std::unique_ptr<AstAtom>(cl->getHead()->clone()), 1));
                 } else {
                     if (r1->getHead()->getArity() > 0)
                         r1->addToBody(std::make_unique<AstNegation>(

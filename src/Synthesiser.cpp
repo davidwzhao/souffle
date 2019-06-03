@@ -1790,7 +1790,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
 
         bool isProvInfo = raw_name.find("@info") != std::string::npos;
         auto relationType = SynthesiserRelation::getSynthesiserRelation(
-                rel, idxAnalysis->getIndexes(rel), Global::config().has("provenance") && !isProvInfo);
+                rel, idxAnalysis->getIndexes(rel), Global::config().has("incremental") && !isProvInfo);
 
         generateRelationTypeStruct(os, std::move(relationType));
     });
