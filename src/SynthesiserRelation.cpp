@@ -171,7 +171,8 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
 
         out << "struct updater_" << getTypeName() << " {\n";
         out << "void update(t_tuple& old_t, const t_tuple& new_t) {\n";
-        out << "old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
+        out << "if (new_t[" << arity - 1 << "] <= 0) old_t[" << arity - 1 << "] -= 1; else old_t[" << arity - 1 << "] += 1;\n";
+        // out << "old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
         out << "}\n";
         out << "};\n";
     }

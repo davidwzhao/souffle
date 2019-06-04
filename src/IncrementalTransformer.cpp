@@ -186,7 +186,7 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
                 // add two provenance columns to head lit
                 negativeUpdateClause->getHead()->addArgument(
                         std::unique_ptr<AstArgument>(getNextLevelNumber(negativeUpdateBodyLevels)));
-                negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(-1));
+                negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
 
                 // add constraint saying that at least one body atom must be negative
                 negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,
