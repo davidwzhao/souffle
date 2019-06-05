@@ -391,6 +391,38 @@ protected:
 };
 
 /**
+ * Calls a subroutine for a complex condition
+ */
+class RamSubroutineCondition : public RamCondition {
+public:
+    RamSubroutineCondition(std::string subroutineName) : subroutineName(subroutineName) {}
+
+    /** Get relation */
+    const std::string& getSubroutineName() const {
+        return subroutineName;
+    }
+
+    void print(std::ostream& os) const override {
+        os << "(" << subroutineName << "())";
+    }
+
+    RamSubroutineCondition* clone() const override {
+        return new RamSubroutineCondition(subroutineName);
+    }
+
+protected:
+    /** Subroutine name */
+    std::string subroutineName;
+
+    bool equal(const RamNode& node) const override {
+        assert(nullptr != dynamic_cast<const RamSubroutineCondition*>(&node));
+        const auto& other = static_cast<const RamSubroutineCondition&>(node);
+        return getSubroutineName() == other.getSubroutineName();
+    }
+};
+
+
+/**
  * @brief Convert terms of a conjunction to a list
  * @param A RAM condition
  * @param A list of RAM conditions

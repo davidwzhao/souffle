@@ -1352,6 +1352,18 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             PRINT_END_COMMENT(out);
         }
 
+        void visitSubroutineCondition(const RamSubroutineCondition& cond, std::ostream& out) override {
+            PRINT_BEGIN_COMMENT(out);
+            out << "[&]() -> bool {\n";
+            out << "std::vector<RamDomain> args;\n";
+            out << "std::vector<RamDomain> ret;\n";
+            out << "std::vector<RamDomain> err;\n";
+            out << "executeSubroutine(" << cond.getSubroutineName() << ");\n";
+            out << "if (ret[0] == 0) return false; else return true;\n";
+            out << "}();\n";
+            PRINT_END_COMMENT(out);
+        }
+
         // -- values --
         void visitNumber(const RamNumber& num, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
@@ -1626,6 +1638,11 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                     out << "err.push_back(false);\n";
                 }
             }
+            visitNestedOperation(ret, out);
+        }
+
+        void visitReturn(const RamReturn& ret, std::ostream& out) override {
+            out << "return;\n";
         }
 
 #ifdef USE_MPI
@@ -2246,7 +2263,8 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     os << "}\n";  // end of getSymbolTable() method
 
     // TODO: generate code for subroutines
-    if (Global::config().has("provenance")) {
+    // if (Global::config().has("provenance")) {
+    if (!prog.getSubroutines().empty()) {
         // generate subroutine adapter
         os << "void executeSubroutine(std::string name, const std::vector<RamDomain>& args, "
               "std::vector<RamDomain>& ret, std::vector<bool>& err) override {\n";
