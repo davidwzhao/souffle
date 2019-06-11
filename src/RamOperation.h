@@ -904,10 +904,10 @@ protected:
 };
 
 /** A statement for returning from a ram subroutine */
-class RamReturnValue : public RamNestedOperation {
+class RamReturnValue : public RamOperation {
 public:
-    RamReturnValue(std::vector<std::unique_ptr<RamExpression>> vals, std::unique_ptr<RamOperation> nested)
-            : RamNestedOperation(std::move(nested)), expressions(std::move(vals)) {}
+    RamReturnValue(std::vector<std::unique_ptr<RamExpression>> vals, bool immediateReturn = false)
+            : RamOperation(), expressions(std::move(vals)), immediateReturn(immediateReturn) {}
 
     void print(std::ostream& os, int tabpos) const override {
         os << times(" ", tabpos);
@@ -918,11 +918,19 @@ public:
                 os << ", ";
             }
         }
-        os << ")" << std::endl;
+        os << ")";
+        if (getImmediateReturn()) {
+            os << " NOW";
+        }
+        os << std::endl;
     }
 
     std::vector<RamExpression*> getValues() const {
         return toPtrVector(expressions);
+    }
+
+    bool getImmediateReturn() const {
+        return immediateReturn;
     }
 
     std::vector<const RamNode*> getChildNodes() const override {
@@ -938,7 +946,7 @@ public:
         for (auto& cur : expressions) {
             newValues.emplace_back(cur->clone());
         }
-        return new RamReturnValue(std::move(newValues), std::unique_ptr<RamOperation>(getOperation().clone()));
+        return new RamReturnValue(std::move(newValues));
     }
 
     void apply(const RamNodeMapper& map) override {
@@ -951,36 +959,14 @@ protected:
     /** Return expressions */
     std::vector<std::unique_ptr<RamExpression>> expressions;
 
+    /** Flag for whether this should return immediately from the subroutine */
+    bool immediateReturn;
+
     bool equal(const RamNode& node) const override {
         assert(nullptr != dynamic_cast<const RamReturnValue*>(&node));
         const auto& other = static_cast<const RamReturnValue&>(node);
-        return equal_targets(expressions, other.expressions);
+        return equal_targets(expressions, other.expressions) && getImmediateReturn() == other.getImmediateReturn();
     }
 };
-
-/**
- * Return statement to return from a subroutine
- */
-class RamReturn : public RamOperation {
-public:
-    RamReturn()
-            : RamOperation() {}
-
-    void print(std::ostream& os, int tabpos) const override {
-        os << times(" ", tabpos);
-        os << "RETURN" << std::endl;
-    }
-
-    RamReturn* clone() const override {
-        return new RamReturn();
-    }
-
-protected:
-    bool equal(const RamNode& node) const override {
-        assert(nullptr != dynamic_cast<const RamReturn*>(&node));
-        return true;
-    }
-};
-
 
 }  // namespace souffle

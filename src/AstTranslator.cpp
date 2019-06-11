@@ -608,7 +608,7 @@ std::unique_ptr<RamOperation> AstTranslator::ProvenanceClauseTranslator::createO
         }
     }
 
-    return std::make_unique<RamReturnValue>(std::move(values), nullptr);
+    return std::make_unique<RamReturnValue>(std::move(values));
 }
 
 std::unique_ptr<RamCondition> AstTranslator::ClauseTranslator::createCondition(
@@ -1372,7 +1372,7 @@ std::unique_ptr<RamStatement> AstTranslator::makeNegationSubproofSubroutine(cons
             auto searchFilter = std::make_unique<RamFilter>(
                     std::make_unique<RamExistenceCheck>(
                             std::unique_ptr<RamRelationReference>(relRef->clone()), std::move(query)),
-                    std::make_unique<RamReturnValue>(std::move(returnValue), nullptr));
+                    std::make_unique<RamReturnValue>(std::move(returnValue)));
 
             // now, return the values of the atoms, with a separator
             // between atom number and atom
@@ -1387,7 +1387,7 @@ std::unique_ptr<RamStatement> AstTranslator::makeNegationSubproofSubroutine(cons
             auto atomSequence = std::make_unique<RamSequence>();
             atomSequence->add(std::make_unique<RamQuery>(std::move(searchFilter)));
             atomSequence->add(
-                    std::make_unique<RamQuery>(std::make_unique<RamReturnValue>(std::move(returnAtom), nullptr)));
+                    std::make_unique<RamQuery>(std::make_unique<RamReturnValue>(std::move(returnAtom))));
 
             // append search to the sequence
             searchSequence->add(std::move(atomSequence));
@@ -1404,7 +1404,7 @@ std::unique_ptr<RamStatement> AstTranslator::makeNegationSubproofSubroutine(cons
 
             // create a filter
             auto filter = std::make_unique<RamFilter>(
-                    std::move(condition), std::make_unique<RamReturnValue>(std::move(returnValue), nullptr));
+                    std::move(condition), std::make_unique<RamReturnValue>(std::move(returnValue)));
 
             // now, return the values of the literal, with a separator
             // between atom number and atom
@@ -1425,7 +1425,7 @@ std::unique_ptr<RamStatement> AstTranslator::makeNegationSubproofSubroutine(cons
             auto litSequence = std::make_unique<RamSequence>();
             litSequence->add(std::make_unique<RamQuery>(std::move(filter)));
             litSequence->add(
-                    std::make_unique<RamQuery>(std::make_unique<RamReturnValue>(std::move(returnLit), nullptr)));
+                    std::make_unique<RamQuery>(std::make_unique<RamReturnValue>(std::move(returnLit))));
 
             // append search to the sequence
             searchSequence->add(std::move(litSequence));
@@ -1689,7 +1689,7 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                     // make a filter that returns false
                     std::vector<std::unique_ptr<RamExpression>> returnFalseValue;
                     returnFalseValue.push_back(std::make_unique<RamNumber>(0));
-                    auto returnFilter = std::make_unique<RamFilter>(std::move(notExistenceCheck), std::make_unique<RamReturnValue>(std::move(returnFalseValue), std::make_unique<RamReturn>()));
+                    auto returnFilter = std::make_unique<RamFilter>(std::move(notExistenceCheck), std::make_unique<RamReturnValue>(std::move(returnFalseValue), true));
 
                     // make scan
                     auto scan = std::make_unique<RamScan>(translateNewRelation(rel), tupleId, std::move(returnFilter));
@@ -1698,7 +1698,7 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                     // make the true branch, i.e. return true for exiting if no new tuples are found
                     std::vector<std::unique_ptr<RamExpression>> returnTrueValue;
                     returnTrueValue.push_back(std::make_unique<RamNumber>(1));
-                    auto returnTrue = std::make_unique<RamQuery>(std::make_unique<RamReturnValue>(std::move(returnTrueValue), nullptr));
+                    auto returnTrue = std::make_unique<RamQuery>(std::make_unique<RamReturnValue>(std::move(returnTrueValue)));
 
                     // make full subroutine
                     auto exitCondSubroutine = std::make_unique<RamSequence>();

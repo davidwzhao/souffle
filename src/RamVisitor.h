@@ -106,7 +106,6 @@ struct RamVisitor : public ram_visitor_tag {
         FORWARD(Break);
         FORWARD(Project);
         FORWARD(ReturnValue);
-        FORWARD(Return);
         FORWARD(UnpackRecord);
         FORWARD(ParallelScan);
         FORWARD(Scan);
@@ -201,7 +200,6 @@ protected:
 
     // -- operations --
     LINK(Project, Operation);
-    LINK(Return, Operation);
     LINK(UnpackRecord, Search);
     LINK(Scan, RelationSearch);
     LINK(ParallelScan, Scan);
@@ -216,7 +214,7 @@ protected:
     LINK(IndexAggregate, IndexRelationSearch);
     LINK(IndexRelationSearch, RelationSearch);
     LINK(Search, NestedOperation);
-    LINK(ReturnValue, NestedOperation);
+    LINK(ReturnValue, Operation);
     LINK(Filter, AbstractConditional);
     LINK(Break, AbstractConditional);
     LINK(AbstractConditional, NestedOperation);

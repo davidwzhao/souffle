@@ -1357,10 +1357,10 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "[&]() -> bool {\n";
             out << "std::vector<RamDomain> args;\n";
             out << "std::vector<RamDomain> ret;\n";
-            out << "std::vector<RamDomain> err;\n";
-            out << "executeSubroutine(" << cond.getSubroutineName() << ");\n";
+            out << "std::vector<bool> err;\n";
+            out << "executeSubroutine(\"" << cond.getSubroutineName() << "\", args, ret, err);\n";
             out << "if (ret[0] == 0) return false; else return true;\n";
-            out << "}();\n";
+            out << "}()\n";
             PRINT_END_COMMENT(out);
         }
 
@@ -1638,11 +1638,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                     out << "err.push_back(false);\n";
                 }
             }
-            visitNestedOperation(ret, out);
-        }
-
-        void visitReturn(const RamReturn& ret, std::ostream& out) override {
-            out << "return;\n";
+            if (ret.getImmediateReturn()) {
+                out << "return;\n";
+            }
         }
 
 #ifdef USE_MPI

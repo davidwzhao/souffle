@@ -1405,7 +1405,7 @@ public:
                     std::cout << "found same tuple: " << k << std::endl;
 
                     // update provenance information
-                    if (typeid(Comparator) != typeid(WeakComparator) && less(k, *pos)) {
+                    if (typeid(Comparator) != typeid(WeakComparator)/* && less(k, *pos)*/) {
                         if (!cur->lock.try_upgrade_to_write(cur_lease)) {
                             // start again
                             return insert(k, hints);
@@ -1463,7 +1463,7 @@ public:
                 std::cout << "found same tuple: " << k << std::endl;
 
                 // update provenance information
-                if (typeid(Comparator) != typeid(WeakComparator) && less(k, *(pos - 1))) {
+                if (typeid(Comparator) != typeid(WeakComparator)/* && less(k, *(pos - 1))*/) {
                     if (!cur->lock.try_upgrade_to_write(cur_lease)) {
                         // start again
                         return insert(k, hints);
@@ -1611,7 +1611,7 @@ public:
                 // early exit for sets
                 if (isSet && pos != b && weak_equal(*pos, k)) {
                     // update provenance information
-                    if (typeid(Comparator) != typeid(WeakComparator) && less(k, *pos)) {
+                    if (typeid(Comparator) != typeid(WeakComparator)/* && less(k, *pos)*/) {
                         update(*pos, k);
                         return true;
                     }
@@ -1637,7 +1637,7 @@ public:
             // early exit for sets
             if (isSet && pos != a && weak_equal(*(pos - 1), k)) {
                 // update provenance information
-                if (typeid(Comparator) != typeid(WeakComparator) && less(k, *(pos - 1))) {
+                if (typeid(Comparator) != typeid(WeakComparator) /*&& less(k, *(pos - 1))*/) {
                     update(*(pos - 1), k);
                     return true;
                 }
