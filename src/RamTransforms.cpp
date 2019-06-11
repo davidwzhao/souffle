@@ -817,4 +817,34 @@ bool ParallelTransformer::parallelizeOperations(RamProgram& program) {
     return changed;
 }
 
+bool IncrementalRamTransformer::incrementalTransformer(RamProgram& program) {
+    program.addSubroutine("negative_evaluation", std::unique_ptr<RamStatement>(program.getMain().clone()));
+
+    struct ReplaceExitConditionsMapper : public RamNodeMapper {
+        ReplaceExitConditionsMapper() {}
+
+        std::unique_ptr<RamNode> operator()(std::unique_ptr<RamNode> node) override {
+            if (auto cond = dynamic_cast<RamSubroutineCondition*>(node.get())) {
+                return std::make_unique<RamSubroutineCondition>("negation_" + cond->getSubroutineName());
+            }
+
+            node->apply(*this);
+            return node;
+        }
+    };
+
+    ReplaceExitConditionsMapper replaceExitConds;
+    program.getMain().apply(replaceExitConds);
+
+    // now clone and modify the actual exit condition subroutines
+    int newTupleId = 0;
+    int tupleId = 1;
+    for (auto subroutine : program.getSubroutines()) {
+
+
+    }
+
+    return true;
+}
+
 }  // end of namespace souffle
