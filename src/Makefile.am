@@ -195,6 +195,7 @@ soufflepublic_HEADERS = \
                         EquivalenceRelation.h 	\
                         IODirectives.h          \
                         IOSystem.h              \
+                        Incremental.h           \
                         IterUtils.h             \
                         LambdaBTree.h           \
                         Logger.h                \

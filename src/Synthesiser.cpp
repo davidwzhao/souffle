@@ -1759,6 +1759,10 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         os << "#include \"souffle/Explain.h\"\n";
     }
 
+    if (Global::config().has("incremental")) {
+        os << "#include \"souffle/Incremental.h\"\n";
+    }
+
     if (Global::config().has("live-profile")) {
         os << "#include <thread>\n";
         os << "#include \"souffle/profile/Tui.h\"\n";
@@ -2381,6 +2385,10 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         os << "explain(obj, false);\n";
     } else if (Global::config().get("provenance") == "explore") {
         os << "explain(obj, true);\n";
+    }
+
+    if (Global::config().has("incremental")) {
+        os << "startIncremental(obj);\n";
     }
     os << "return 0;\n";
     os << "} catch(std::exception &e) { souffle::SignalHandler::instance()->error(e.what());}\n";

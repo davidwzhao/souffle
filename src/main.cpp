@@ -25,6 +25,7 @@
 #include "ErrorReport.h"
 #include "Explain.h"
 #include "Global.h"
+#include "Incremental.h"
 #include "Interpreter.h"
 #include "InterpreterInterface.h"
 #include "LVM.h"

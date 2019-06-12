@@ -82,6 +82,7 @@ ADD_EXECUTABLE(souffle
         ./src/AstNode.h
         ./src/CompiledSouffle.h
         ./src/ExplainTree.h
+        ./src/Incremental.h
         ./src/IOSystem.h
         ./src/AstUtils.h
         ./src/WriteStream.h

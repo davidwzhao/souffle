@@ -1631,8 +1631,8 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
             }
         }
 
-        // if provenance is not enabled...
-        if (!Global::config().has("provenance")) {
+        // if provenance and incremental are both not enabled...
+        if (!Global::config().has("provenance") && !Global::config().has("incremental")) {
             // if a communication engine is enabled...
             if (Global::config().has("engine")) {
                 // drop all internal relations
@@ -1719,7 +1719,7 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                     auto findOldTuples = std::make_unique<RamScan>(translateRelation(rel), innerTupleId, std::move(equalityFilter));
 
                     // make a condition that says the negative exit cond should only be evaluated if count of the new tuple is negative
-                    auto negativeFilterCond = std::make_unique<RamConstraint>(BinaryConstraintOp::LT, std::make_unique<RamElementAccess>(tupleId, rel->getArity() - 1), std::make_unique<RamNumber>(0));
+                    auto negativeFilterCond = std::make_unique<RamConstraint>(BinaryConstraintOp::LE, std::make_unique<RamElementAccess>(tupleId, rel->getArity() - 1), std::make_unique<RamNumber>(0));
                     auto negativeFilter = std::make_unique<RamFilter>(std::move(negativeFilterCond), std::move(findOldTuples));
 
                     // find tuples in new relation
