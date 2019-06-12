@@ -521,23 +521,4 @@ protected:
     }
 };
 
-class IncrementalRamTransformer : public RamTransformer {
-public:
-    std::string getName() const override {
-        return "IncrementalRamTransformer";
-    }
-
-    /**
-     * @brief Parallelize operations
-     * @param program Program that is transformed
-     * @return Flag showing whether the program has been changed by the transformation
-     */
-    bool incrementalTransformer(RamProgram& program);
-
-protected:
-    bool transform(RamTranslationUnit& translationUnit) override {
-        return incrementalTransformer(*translationUnit.getProgram());
-    }
-};
-
 }  // end of namespace souffle

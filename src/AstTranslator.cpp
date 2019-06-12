@@ -1673,6 +1673,7 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                 size_t tupleId = 0;
 
                 for (const auto& rel : allInterns) {
+                    // make the positive evaluation exit condition
                     std::vector<std::unique_ptr<RamExpression>> existenceCheckValues;
 
                     for (size_t i = 0; i < rel->getArity() - 2; i++) {
@@ -1691,9 +1692,40 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                     returnFalseValue.push_back(std::make_unique<RamNumber>(0));
                     auto returnFilter = std::make_unique<RamFilter>(std::move(notExistenceCheck), std::make_unique<RamReturnValue>(std::move(returnFalseValue), true));
 
+                    // make a condition that says the positive exit cond should only be evaluated if count of the new tuple is positive
+                    auto positiveFilterCond = std::make_unique<RamConstraint>(BinaryConstraintOp::GT, std::make_unique<RamElementAccess>(tupleId, rel->getArity() - 1), std::make_unique<RamNumber>(0));
+                    auto positiveFilter = std::make_unique<RamFilter>(std::move(positiveFilterCond), std::move(returnFilter));
                     // make scan
-                    auto scan = std::make_unique<RamScan>(translateNewRelation(rel), tupleId, std::move(returnFilter));
-                    auto exitCond = std::make_unique<RamQuery>(std::move(scan));
+                    auto scan = std::make_unique<RamScan>(translateNewRelation(rel), tupleId, std::move(positiveFilter));
+                    auto positiveExitCond = std::make_unique<RamQuery>(std::move(scan));
+
+                    // make the negative evaluation exit condition
+                    size_t innerTupleId = 1;
+                    auto countForDeletion = std::make_unique<RamConstraint>(BinaryConstraintOp::EQ, std::make_unique<RamElementAccess>(innerTupleId, rel->getArity() - 1), std::make_unique<RamNumber>(1));
+
+                    // condition to find tuple in original relation matching the tuple in the new relation
+                    std::vector<std::unique_ptr<RamCondition>> equalityConditions;
+                    equalityConditions.push_back(std::move(countForDeletion));
+                    for (size_t i = 0; i < rel->getArity() - 1; i++) {
+                        equalityConditions.push_back(std::make_unique<RamConstraint>(BinaryConstraintOp::EQ, std::make_unique<RamElementAccess>(tupleId, i), std::make_unique<RamElementAccess>(innerTupleId, i)));
+                    }
+
+                    auto equalityCondition = toCondition(toConstPtrVector(equalityConditions));
+                    std::vector<std::unique_ptr<RamExpression>> returnFalseValueNegation;
+                    returnFalseValueNegation.push_back(std::make_unique<RamNumber>(0));
+                    auto equalityFilter = std::make_unique<RamFilter>(std::move(equalityCondition), std::make_unique<RamReturnValue>(std::move(returnFalseValueNegation), true));
+
+                    // find tuples in old relation matching new relation
+                    auto findOldTuples = std::make_unique<RamScan>(translateRelation(rel), innerTupleId, std::move(equalityFilter));
+
+                    // make a condition that says the negative exit cond should only be evaluated if count of the new tuple is negative
+                    auto negativeFilterCond = std::make_unique<RamConstraint>(BinaryConstraintOp::LT, std::make_unique<RamElementAccess>(tupleId, rel->getArity() - 1), std::make_unique<RamNumber>(0));
+                    auto negativeFilter = std::make_unique<RamFilter>(std::move(negativeFilterCond), std::move(findOldTuples));
+
+                    // find tuples in new relation
+                    auto negativeScan = std::make_unique<RamScan>(translateNewRelation(rel), tupleId, std::move(negativeFilter));
+
+                    auto negativeExitCond = std::make_unique<RamQuery>(std::move(negativeScan));
 
                     // make the true branch, i.e. return true for exiting if no new tuples are found
                     std::vector<std::unique_ptr<RamExpression>> returnTrueValue;
@@ -1702,7 +1734,8 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
 
                     // make full subroutine
                     auto exitCondSubroutine = std::make_unique<RamSequence>();
-                    exitCondSubroutine->add(std::move(exitCond));
+                    exitCondSubroutine->add(std::move(positiveExitCond));
+                    exitCondSubroutine->add(std::move(negativeExitCond));
                     exitCondSubroutine->add(std::move(returnTrue));
 
                     ramProg->addSubroutine(getSubroutineName(rel), std::move(exitCondSubroutine));
