@@ -31,7 +31,7 @@ class Incremental {
 public:
     SouffleProgram& prog;
 
-    Incremental(SouffleProgram& prog) : prog(prog) {}
+    Incremental(SouffleProgram& prog) : prog(prog), currentEpoch(0) {}
     ~Incremental() = default;
 
     /* Process a command, a return value of true indicates to continue, returning false indicates to break (if
@@ -93,6 +93,8 @@ public:
     }
 
 private:
+    int currentEpoch;
+
     void addTuple(const std::string& relName, const std::vector<std::string>& tup) {
         auto rel = prog.getRelation(relName);
         if (tup.size() != rel->getArity()) {
@@ -112,17 +114,26 @@ private:
 
         rel->insert(newTuple);
 
+        // epoch number
+        auto epochRel = prog.getRelation("+current_epoch");
+        tuple epochNumber(epochRel);
+        std::cout << "inserting new epoch: " << currentEpoch << std::endl;
+        epochNumber << currentEpoch;
+        epochRel->insert(epochNumber);
+
         // run program until fixpoint
         prog.run();
     }
 
     void insertTuple(const std::string& relName, std::vector<std::string> tup) {
+        tup.push_back(std::to_string(++currentEpoch));
         tup.push_back("0");
         tup.push_back("1");
         addTuple(relName, tup);
     }
 
     void removeTuple(const std::string& relName, std::vector<std::string> tup) {
+        tup.push_back(std::to_string(++currentEpoch));
         tup.push_back("0");
         tup.push_back("-1");
         addTuple(relName, tup);

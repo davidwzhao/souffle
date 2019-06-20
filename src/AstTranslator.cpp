@@ -1676,7 +1676,7 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                     // make the positive evaluation exit condition
                     std::vector<std::unique_ptr<RamExpression>> existenceCheckValues;
 
-                    for (size_t i = 0; i < rel->getArity() - 2; i++) {
+                    for (size_t i = 0; i < rel->getArity() - 3; i++) {
                         existenceCheckValues.push_back(std::make_unique<RamElementAccess>(tupleId, i, translateNewRelation(rel)));
                     }
 

@@ -1737,6 +1737,9 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     const RamProgram& prog = *translationUnit.getProgram();
     auto* idxAnalysis = translationUnit.getAnalysis<RamIndexAnalysis>();
 
+    prog.print(std::cout);
+    std::cout << std::endl;
+
     // ---------------------------------------------------------------
     //                      Code Generation
     // ---------------------------------------------------------------
@@ -1807,7 +1810,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         const RamRelation& rel = create.getRelation();
         const std::string& raw_name = rel.getName();
 
-        bool isProvInfo = raw_name.find("@info") != std::string::npos;
+        bool isProvInfo = raw_name.find("@info") != std::string::npos || raw_name.find("+current_epoch") != std::string::npos;
         auto relationType = SynthesiserRelation::getSynthesiserRelation(
                 rel, idxAnalysis->getIndexes(rel), Global::config().has("incremental") && !isProvInfo);
 
