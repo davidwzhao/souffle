@@ -1706,7 +1706,7 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                     // condition to find tuple in original relation matching the tuple in the new relation
                     std::vector<std::unique_ptr<RamCondition>> equalityConditions;
                     equalityConditions.push_back(std::move(countForDeletion));
-                    for (size_t i = 0; i < rel->getArity() - 1; i++) {
+                    for (size_t i = 0; i < rel->getArity() - 2; i++) {
                         equalityConditions.push_back(std::make_unique<RamConstraint>(BinaryConstraintOp::EQ, std::make_unique<RamElementAccess>(tupleId, i), std::make_unique<RamElementAccess>(innerTupleId, i)));
                     }
 

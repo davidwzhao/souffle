@@ -93,7 +93,7 @@ void SynthesiserDirectRelation::computeIndices() {
             // and also add provenance annotations to the indices
             if (isProvenance) {
                 // expand index to be full
-                for (size_t i = 0; i < getArity() - 1; i++) {
+                for (size_t i = 0; i < getArity() - 2; i++) {
                     if (curIndexElems.find(i) == curIndexElems.end()) {
                         ind.push_back(i);
                     }
@@ -104,15 +104,13 @@ void SynthesiserDirectRelation::computeIndices() {
                     ind.erase(std::find(ind.begin(), ind.end(), getArity() - 1));
                 }
 
-                /*
                 if (curIndexElems.find(getArity() - 2) != curIndexElems.end()) {
                     ind.erase(std::find(ind.begin(), ind.end(), getArity() - 2));
                 }
-                */
 
-                // add provenance annotations to the index, but in reverse order
+                // add provenance annotations to the index, but NOT in reverse order
+                ind.push_back(getArity() - 2);
                 ind.push_back(getArity() - 1);
-                // ind.push_back(getArity() - 2);
             } else {
                 // expand index to be full
                 for (size_t i = 0; i < getArity(); i++) {
@@ -171,7 +169,15 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
 
         out << "struct updater_" << getTypeName() << " {\n";
         out << "void update(t_tuple& old_t, const t_tuple& new_t) {\n";
-        out << "if (new_t[" << arity - 1 << "] <= 0) old_t[" << arity - 1 << "] -= 1; else old_t[" << arity - 1 << "] += 1;\n";
+        out << "if (new_t[" << arity - 1 << "] <= 0) {\n";
+        out << "if (old_t[" << arity - 1 << "] >= 1) {\n";
+        out << "old_t[" << arity - 1 << "] -= 1;\n";
+        out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
+        out << "}\n";
+        out << "} else {\n";
+        out << "old_t[" << arity - 1 << "] += 1;\n";
+        out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
+        out << "}\n";
         // out << "old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
         out << "}\n";
         out << "};\n";
@@ -191,7 +197,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
             out << "using t_ind_" << i << " = btree_set<t_tuple, index_utils::comparator<" << join(ind);
             out << ">, std::allocator<t_tuple>, 256, typename "
                    "souffle::detail::default_strategy<t_tuple>::type, index_utils::comparator<";
-            out << join(ind.begin(), ind.end() - 1) << ">, updater_" << getTypeName() << ">;\n";
+            out << join(ind.begin(), ind.end() - 2) << ">, updater_" << getTypeName() << ">;\n";
 
             // without provenance, some indices may be not full, so we use btree_multiset for those
         } else {

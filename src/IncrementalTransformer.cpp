@@ -95,9 +95,9 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
     // go through each relation and its rules to add annotations
     for (auto relation : program->getRelations()) {
         relation->addAttribute(
-                std::make_unique<AstAttribute>(std::string("@epoch"), AstTypeIdentifier("number")));
-        relation->addAttribute(
                 std::make_unique<AstAttribute>(std::string("@iteration"), AstTypeIdentifier("number")));
+        relation->addAttribute(
+                std::make_unique<AstAttribute>(std::string("@epoch"), AstTypeIdentifier("number")));
         relation->addAttribute(
                 std::make_unique<AstAttribute>(std::string("@count"), AstTypeIdentifier("number")));
 
@@ -163,11 +163,11 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
 
                     // add two provenance columns to lit; first is rule num, second is level num
                     if (auto atom = dynamic_cast<AstAtom*>(lit)) {
-                        atom->addArgument(std::make_unique<AstVariable>("@epoch_" + std::to_string(i)));
                         atom->addArgument(std::make_unique<AstVariable>("@iteration_" + std::to_string(i)));
+                        atom->addArgument(std::make_unique<AstVariable>("@epoch_" + std::to_string(i)));
                         atom->addArgument(std::make_unique<AstVariable>("@count_" + std::to_string(i)));
-                        bodyEpochs.push_back(new AstVariable("@epoch_" + std::to_string(i)));
                         bodyLevels.push_back(new AstVariable("@iteration_" + std::to_string(i)));
+                        bodyEpochs.push_back(new AstVariable("@epoch_" + std::to_string(i)));
                         clause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
                                 std::make_unique<AstVariable>("@count_" + std::to_string(i)),
                                 std::make_unique<AstNumberConstant>(0)));
@@ -175,8 +175,8 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
                 }
 
                 // add three incremental columns to head lit
-                clause->getHead()->addArgument(std::unique_ptr<AstAggregator>(maxEpochAggregator->clone()));
                 clause->getHead()->addArgument(std::unique_ptr<AstArgument>(getNextLevelNumber(bodyLevels)));
+                clause->getHead()->addArgument(std::unique_ptr<AstAggregator>(maxEpochAggregator->clone()));
                 clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
 
                 clause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ, std::unique_ptr<AstArgument>(combineBodyCounts(bodyEpochs, FunctorOp::MAX)), std::unique_ptr<AstAggregator>(maxEpochAggregator->clone())));
@@ -194,20 +194,20 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
 
                     // add two provenance columns to lit; first is rule num, second is level num
                     if (auto atom = dynamic_cast<AstAtom*>(lit)) {
-                        atom->addArgument(std::make_unique<AstVariable>("@epoch_" + std::to_string(i)));
                         atom->addArgument(std::make_unique<AstVariable>("@iteration_" + std::to_string(i)));
+                        atom->addArgument(std::make_unique<AstVariable>("@epoch_" + std::to_string(i)));
                         atom->addArgument(std::make_unique<AstVariable>("@count_" + std::to_string(i)));
-                        negativeUpdateBodyEpochs.push_back(new AstVariable("@epoch_" + std::to_string(i)));
                         negativeUpdateBodyLevels.push_back(
                                 new AstVariable("@iteration_" + std::to_string(i)));
+                        negativeUpdateBodyEpochs.push_back(new AstVariable("@epoch_" + std::to_string(i)));
                         negativeUpdateBodyCounts.push_back(new AstVariable("@count_" + std::to_string(i)));
                     }
                 }
 
                 // add three incremental columns to head lit
-                negativeUpdateClause->getHead()->addArgument(std::unique_ptr<AstAggregator>(maxEpochAggregator->clone()));
                 negativeUpdateClause->getHead()->addArgument(
                         std::unique_ptr<AstArgument>(getNextLevelNumber(negativeUpdateBodyLevels)));
+                negativeUpdateClause->getHead()->addArgument(std::unique_ptr<AstAggregator>(maxEpochAggregator->clone()));
                 negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
 
                 // add constraint saying that at least one body atom must be negative

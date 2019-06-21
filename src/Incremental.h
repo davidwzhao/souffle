@@ -126,15 +126,15 @@ private:
     }
 
     void insertTuple(const std::string& relName, std::vector<std::string> tup) {
-        tup.push_back(std::to_string(++currentEpoch));
         tup.push_back("0");
+        tup.push_back(std::to_string(++currentEpoch));
         tup.push_back("1");
         addTuple(relName, tup);
     }
 
     void removeTuple(const std::string& relName, std::vector<std::string> tup) {
-        tup.push_back(std::to_string(++currentEpoch));
         tup.push_back("0");
+        tup.push_back(std::to_string(++currentEpoch));
         tup.push_back("-1");
         addTuple(relName, tup);
     }

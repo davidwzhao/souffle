@@ -1338,7 +1338,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 }
                 out << ",";
             }
-            // extra 0 for provenance height annotation
+            // extra 0s for provenance height annotation
             out << "0";
 
             out << "}})," << ctxName << ").empty();\n";
@@ -1932,7 +1932,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         bool isDelta = rel.isTemp() && raw_name.find("@delta") != std::string::npos;
         bool isProvInfo = raw_name.find("@info") != std::string::npos;
         auto relationType = SynthesiserRelation::getSynthesiserRelation(
-                rel, idxAnalysis->getIndexes(rel), Global::config().has("provenance") && !isProvInfo);
+                rel, idxAnalysis->getIndexes(rel), Global::config().has("incremental") && !isProvInfo);
         tempType = isDelta ? relationType->getTypeName() : tempType;
         const std::string& type = (rel.isTemp()) ? tempType : relationType->getTypeName();
 
