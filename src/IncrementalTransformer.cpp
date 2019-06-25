@@ -208,7 +208,7 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
                 negativeUpdateClause->getHead()->addArgument(
                         std::unique_ptr<AstArgument>(getNextLevelNumber(negativeUpdateBodyLevels)));
                 negativeUpdateClause->getHead()->addArgument(std::unique_ptr<AstAggregator>(maxEpochAggregator->clone()));
-                negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
+                negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(-1));
 
                 // add constraint saying that at least one body atom must be negative
                 negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,

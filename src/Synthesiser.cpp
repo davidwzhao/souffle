@@ -1329,7 +1329,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // out << synthesiser.toIndex(ne.getSearchSignature());
             out << "_" << isa->getSearchSignature(&subsumptionExists);
             out << "(Tuple<RamDomain," << arity << ">({{";
-            for (size_t i = 0; i < subsumptionExists.getValues().size() - 1; i++) {
+            for (size_t i = 0; i < subsumptionExists.getValues().size() - 2; i++) {
                 RamExpression* val = subsumptionExists.getValues()[i];
                 if (!isRamUndefValue(val)) {
                     visit(*val, out);
@@ -1339,10 +1339,23 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << ",";
             }
             // extra 0s for provenance height annotation
-            out << "0";
+            out << "0,0";
 
-            out << "}})," << ctxName << ").empty();\n";
-            out << "return !existenceCheck;}()\n";
+            out << "}})," << ctxName << ");\n";
+
+            // if deletion, then return true if either:
+            // (1) tuple doesn't exist
+            // (2) tuple exists with count of zero
+            RamExpression* val = subsumptionExists.getValues()[subsumptionExists.getValues().size() - 1];
+            if (!isRamUndefValue(val)) {
+                out << "if (";
+                visit(*val, out);
+                out << " <= 0) {\n";
+                out << "if (existenceCheck.empty()) return true;\n";
+                out << "else return (*existenceCheck.begin())[" << arity - 1 << "] <= 0;}\n";
+            }
+            out << "else return !existenceCheck.empty();}()\n";
+            
             /*
         out << "if (existenceCheck.empty()) return false; else return (*existenceCheck.begin())["
             << arity - 1 << "] <= ";
