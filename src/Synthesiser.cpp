@@ -1329,7 +1329,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // out << synthesiser.toIndex(ne.getSearchSignature());
             out << "_" << isa->getSearchSignature(&subsumptionExists);
             out << "(Tuple<RamDomain," << arity << ">({{";
-            for (size_t i = 0; i < subsumptionExists.getValues().size() - 2; i++) {
+            for (size_t i = 0; i < subsumptionExists.getValues().size() - 1; i++) {
                 RamExpression* val = subsumptionExists.getValues()[i];
                 if (!isRamUndefValue(val)) {
                     visit(*val, out);
@@ -1339,7 +1339,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << ",";
             }
             // extra 0s for provenance height annotation
-            out << "0,0";
+            out << "0";
 
             out << "}})," << ctxName << ");\n";
 

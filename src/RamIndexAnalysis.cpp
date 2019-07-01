@@ -390,7 +390,7 @@ SearchSignature RamIndexAnalysis::getSearchSignature(
     const auto values = provExistCheck->getValues();
     SearchSignature res = 0;
     // values.size() - 1 because we discard the height annotation
-    for (int i = 0; i < (int)values.size() - 1; i++) {
+    for (int i = 0; i < (int)values.size() - 2; i++) {
         if (!isRamUndefValue(values[i])) {
             res |= (1 << i);
         }
