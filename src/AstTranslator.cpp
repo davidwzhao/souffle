@@ -1686,6 +1686,7 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                 for (const auto& rel : allInterns) {
                     auto makePositiveExitSubroutine = [&]() {
                         size_t tupleId = 0;
+                        size_t currentTupleId = 1;
 
                         std::vector<std::unique_ptr<RamExpression>> existenceCheckValues;
 
@@ -1695,6 +1696,8 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
 
                         // two undef values for the round and count annotations
                         existenceCheckValues.push_back(std::make_unique<RamUndefValue>());
+                        existenceCheckValues.push_back(std::make_unique<RamUndefValue>());
+                        // existenceCheckValues.push_back(std::make_unique<RamElementAccess>(tupleId, rel->getArity() - 2, translateNewRelation(rel)));
                         existenceCheckValues.push_back(std::make_unique<RamUndefValue>());
 
                         // make a not existence check
@@ -1706,11 +1709,33 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                         auto returnFilter = std::make_unique<RamFilter>(std::move(notExistenceCheck), std::make_unique<RamReturnValue>(std::move(returnFalseValue), true));
 
                         // make a condition that says the positive exit cond should only be evaluated if count of the new tuple is positive
+                        /*
                         auto positiveFilterCond = std::make_unique<RamConstraint>(BinaryConstraintOp::GT, std::make_unique<RamElementAccess>(tupleId, rel->getArity() - 1), std::make_unique<RamNumber>(0));
                         auto positiveFilter = std::make_unique<RamFilter>(std::move(positiveFilterCond), std::move(returnFilter));
+                        */
                         // make scan
-                        auto scan = std::make_unique<RamScan>(translateNewRelation(rel), tupleId, std::move(positiveFilter));
-                        auto positiveExitCond = std::make_unique<RamQuery>(std::move(scan));
+                        auto scan = std::make_unique<RamScan>(translateNewRelation(rel), tupleId, std::move(returnFilter));
+                        auto positiveExitCondIfNotExist = std::make_unique<RamQuery>(std::move(scan));
+
+                        // if the tuple exists, then return false if it is a different epoch
+                        auto sameEpochCheck = std::make_unique<RamConstraint>(BinaryConstraintOp::NE, std::make_unique<RamElementAccess>(currentTupleId, rel->getArity() - 2), std::make_unique<RamElementAccess>(tupleId, rel->getArity() - 2));
+                        std::vector<std::unique_ptr<RamExpression>> returnFalseValueDiffEpoch;
+                        returnFalseValueDiffEpoch.push_back(std::make_unique<RamNumber>(0));
+                        auto sameEpochFilter = std::make_unique<RamFilter>(std::move(sameEpochCheck), std::make_unique<RamReturnValue>(std::move(returnFalseValueDiffEpoch), true));
+
+                        // make filter that ensures the payload matches the current tuple
+                        std::vector<std::unique_ptr<RamCondition>> equalityConditions;
+                        for (size_t i = 0; i < rel->getArity() - 3; i++) {
+                            equalityConditions.push_back(std::make_unique<RamConstraint>(BinaryConstraintOp::EQ, std::make_unique<RamElementAccess>(tupleId, i), std::make_unique<RamElementAccess>(currentTupleId, i)));
+                        }
+
+                        auto equalityCondition = toCondition(toConstPtrVector(equalityConditions));
+                        auto equalityFilter = std::make_unique<RamFilter>(std::move(equalityCondition), std::move(sameEpochFilter));
+
+                        auto sameEpochCurrentScan = std::make_unique<RamScan>(translateRelation(rel), currentTupleId, std::move(equalityFilter));
+                        auto sameEpochScan = std::make_unique<RamScan>(translateNewRelation(rel), tupleId, std::move(sameEpochCurrentScan));
+
+                        auto positiveExitCondIfExist = std::make_unique<RamQuery>(std::move(sameEpochScan));
 
                         // make a condition that says the negative exit cond should only be evaluated if count of the new tuple is negative
                         auto negativeFilterCond = std::make_unique<RamConstraint>(BinaryConstraintOp::LE, std::make_unique<RamElementAccess>(tupleId, rel->getArity() - 1), std::make_unique<RamNumber>(0));
@@ -1730,7 +1755,8 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                         // make full subroutine
                         auto exitCondSubroutine = std::make_unique<RamSequence>();
                         exitCondSubroutine->add(std::move(negativeExitCond));
-                        exitCondSubroutine->add(std::move(positiveExitCond));
+                        exitCondSubroutine->add(std::move(positiveExitCondIfNotExist));
+                        exitCondSubroutine->add(std::move(positiveExitCondIfExist));
                         exitCondSubroutine->add(std::move(returnTrue));
 
                         return exitCondSubroutine;

@@ -1352,10 +1352,18 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 visit(*val, out);
                 out << " <= 0) {\n";
                 out << "if (existenceCheck.empty()) return true;\n";
-                out << "else return (*existenceCheck.begin())[" << arity - 1 << "] <= 0;}\n";
+                out << "else return (*existenceCheck.begin())[" << arity - 1 << "] <= 0;\n";
+                out << "} else {\n";
+                out << "if (existenceCheck.empty()) return false;\n";
+                out << "else return (*existenceCheck.begin())[" << arity - 2 << "] >= ";
+                visit(subsumptionExists.getValues()[subsumptionExists.getValues().size() - 2], out);
+                out << ";\n";
+                out << "}\n";
+                out << "}()\n";
+            } else {
+                out << "return !existenceCheck.empty();}()\n";
             }
-            out << "else return !existenceCheck.empty();}()\n";
-            
+
             /*
         out << "if (existenceCheck.empty()) return false; else return (*existenceCheck.begin())["
             << arity - 1 << "] <= ";
