@@ -1017,6 +1017,14 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
     std::map<const AstRelation*, std::unique_ptr<RamRelationReference>> relDelta;
     std::map<const AstRelation*, std::unique_ptr<RamRelationReference>> relNew;
 
+    /* construct exit conditions for odd and even iteration */
+    auto addCondition = [](std::unique_ptr<RamCondition>& cond, std::unique_ptr<RamCondition> clause) {
+        cond = ((cond) ? std::make_unique<RamConjunction>(std::move(cond), std::move(clause))
+                       : std::move(clause));
+    };
+
+    std::unique_ptr<RamCondition> incrementalDeletionExitCondition;
+
     /* Compute non-recursive clauses for relations in scc and push
        the results in their delta tables. */
     for (const AstRelation* rel : scc) {
@@ -1038,9 +1046,19 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                 return "deletion_inc_exit_" + rel->getName().getName();
             };
 
-            appendStmt(updateRelTable, std::make_unique<RamExit>(std::make_unique<RamSubroutineCondition>(getDeletionSubroutineName(rel))));
+            addCondition(incrementalDeletionExitCondition, std::make_unique<RamSubroutineCondition>(getDeletionSubroutineName(rel)));
         }
 
+        /* Add update operations of relations to parallel statements */
+        updateTable->add(std::move(updateRelTable));
+    }
+
+    if (Global::config().has("incremental")) {
+        updateTable->add(std::make_unique<RamExit>(std::move(incrementalDeletionExitCondition)));
+    }
+
+    for (const AstRelation* rel : scc) {
+        std::unique_ptr<RamStatement> updateRelTable;
         appendStmt(updateRelTable,
                         std::make_unique<RamSwap>(
                                 std::unique_ptr<RamRelationReference>(relDelta[rel]->clone()),
@@ -1074,6 +1092,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
         /* Add update operations of relations to parallel statements */
         updateTable->add(std::move(updateRelTable));
     }
+
 
     // --- build main loop ---
 
@@ -1188,12 +1207,6 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
         /* add rule computations of a relation to parallel statement */
         loopSeq->add(std::move(loopRelSeq));
     }
-
-    /* construct exit conditions for odd and even iteration */
-    auto addCondition = [](std::unique_ptr<RamCondition>& cond, std::unique_ptr<RamCondition> clause) {
-        cond = ((cond) ? std::make_unique<RamConjunction>(std::move(cond), std::move(clause))
-                       : std::move(clause));
-    };
 
     std::unique_ptr<RamCondition> exitCond;
     if (Global::config().has("incremental")) {

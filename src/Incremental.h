@@ -106,7 +106,10 @@ private:
 
         for (size_t i = 0; i < rel->getArity(); i++) {
             if (*rel->getAttrType(i) == 's') {
-                newTuple << tup[i];
+                // remove quotation marks
+                if (tup[i].size() >= 2 && tup[i][0] == '"' && tup[i][tup[i].size() - 1] == '"') {
+                    newTuple << tup[i].substr(1, tup[i].size() - 2);
+                }
             } else {
                 newTuple << (std::stoi(tup[i]));
             }
