@@ -1050,15 +1050,17 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
         }
 
         /* Add update operations of relations to parallel statements */
-        updateTable->add(std::move(updateRelTable));
-    }
+        // updateTable->add(std::move(updateRelTable));
+    // }
 
+    /*
     if (Global::config().has("incremental")) {
         updateTable->add(std::make_unique<RamExit>(std::move(incrementalDeletionExitCondition)));
     }
+    */
 
-    for (const AstRelation* rel : scc) {
-        std::unique_ptr<RamStatement> updateRelTable;
+    // for (const AstRelation* rel : scc) {
+        // std::unique_ptr<RamStatement> updateRelTable;
         appendStmt(updateRelTable,
                         std::make_unique<RamSwap>(
                                 std::unique_ptr<RamRelationReference>(relDelta[rel]->clone()),
@@ -1209,6 +1211,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
     }
 
     std::unique_ptr<RamCondition> exitCond;
+    /*
     if (Global::config().has("incremental")) {
         auto getSubroutineName = [](const AstRelation* rel) {
             return "inc_exit_" + rel->getName().getName();
@@ -1218,11 +1221,12 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
             addCondition(exitCond, std::make_unique<RamSubroutineCondition>(getSubroutineName(rel)));
         }
     } else {
+    */
         for (const AstRelation* rel : scc) {
             addCondition(exitCond, std::make_unique<RamEmptinessCheck>(
                                            std::unique_ptr<RamRelationReference>(relNew[rel]->clone())));
         }
-    }
+    // }
 
     /* construct fixpoint loop  */
     std::unique_ptr<RamStatement> res;

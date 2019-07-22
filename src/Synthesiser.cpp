@@ -1329,7 +1329,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // out << synthesiser.toIndex(ne.getSearchSignature());
             out << "_" << isa->getSearchSignature(&subsumptionExists);
             out << "(Tuple<RamDomain," << arity << ">({{";
-            for (size_t i = 0; i < subsumptionExists.getValues().size() - 2; i++) {
+            for (size_t i = 0; i < subsumptionExists.getValues().size() - 3; i++) {
                 RamExpression* val = subsumptionExists.getValues()[i];
                 if (!isRamUndefValue(val)) {
                     visit(*val, out);
@@ -1339,7 +1339,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << ",";
             }
             // extra 0s for provenance height annotation
-            out << "0,0";
+            out << "0,0,0";
 
             out << "}})," << ctxName << ");\n";
 
@@ -1351,12 +1351,36 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "if (";
                 visit(*val, out);
                 out << " <= 0) {\n";
+                // if tuple doesn't exist, then we cannot delete it
                 out << "if (existenceCheck.empty()) return true;\n";
-                out << "else return (*existenceCheck.begin())[" << arity - 1 << "] <= 0;\n";
+                // check iteration
+                out << "bool currentIter = false;\n";
+                out << "for (auto& tup : existenceCheck) {\n";
+                out << "if (tup[" << arity - 3 << "] == ";
+                visit(subsumptionExists.getValues()[subsumptionExists.getValues().size() - 3], out);
+                out << ") currentIter = true;\n";
+                out << "}\n";
+                out << "if (!currentIter) return true;\n";
+
+                /*
+                out << "for ((*existenceCheck.begin())[" << arity - 3 << "] != ";
+                visit(subsumptionExists.getValues()[subsumptionExists.getValues().size() - 3], out);
+                out << ") return true;\n";
+                */
+
+                // if tuple is already deleted, then we cannot delete it more
+                out << "if ((*existenceCheck.begin())[" << arity - 1 << "] <= 0) return true;\n";
+                out << "return false;\n";
+                // out << "else return (*existenceCheck.begin())[" << arity - 1 << "] <= 0;\n";
                 out << "} else {\n";
                 out << "if (existenceCheck.empty()) return false;\n";
-                out << "else return (*existenceCheck.begin())[" << arity - 2 << "] >= ";
+                /*
+                out << "else if ((*existenceCheck.begin())[" << arity - 2 << "] < ";
                 visit(subsumptionExists.getValues()[subsumptionExists.getValues().size() - 2], out);
+                out << ") return false;\n";
+                */
+                out << "else if ((*existenceCheck.begin())[" << arity - 1 << "] <= 0) return false;\n";
+                out << "return true;\n";
                 out << ";\n";
                 out << "}\n";
                 out << "}()\n";
