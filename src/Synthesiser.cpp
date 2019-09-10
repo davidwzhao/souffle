@@ -1298,7 +1298,8 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             }
 
             // else we conduct a range query
-            out << "!" << relName << "->"
+            // out << "!" << relName << "->"
+            out << "[&](){auto existenceCheck = " << relName << "->"
                 << "equalRange";
             out << "_" << isa->getSearchSignature(&exists);
             out << "(Tuple<RamDomain," << arity << ">({{";
@@ -1309,7 +1310,12 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                     out << "0";
                 }
             });
-            out << "}})," << ctxName << ").empty()" << after;
+            out << "}})," << ctxName << ");\n"; // .empty()" << after;
+            out << "for (auto& tup : existenceCheck) {\n";
+            out << "if (tup[" << arity - 1 << "] > 0) return true;\n";
+            out << "}\n";
+            out << "return false;\n";
+            out << "}()\n";
             PRINT_END_COMMENT(out);
         }
 
