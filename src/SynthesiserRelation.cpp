@@ -169,11 +169,20 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
 
         out << "struct updater_" << getTypeName() << " {\n";
         out << "void update(t_tuple& old_t, const t_tuple& new_t) {\n";
+        if (!relation.isTemp()) {
+            out << "if (new_t[" << arity - 2 << "] == old_t[" << arity - 2 << "]) return;\n";
+        }
         out << "if (new_t[" << arity - 1 << "] <= 0) {\n";
         // out << "if (old_t[" << arity - 1 << "] >= 1) {\n";
-        out << "if (old_t[" << arity - 1 << "] > 0) {\n";
+
+        if (!relation.isTemp()) {
+            out << "if (old_t[" << arity - 1 << "] > 0) {\n";
+        }
         out << "old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "] == 0 ? -1 : new_t[" << arity - 1 << "];\n";
-        out << "}\n";
+
+        if (!relation.isTemp()) {
+            out << "}\n";
+        }
         out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
         // out << "}\n";
         out << "} else {\n";

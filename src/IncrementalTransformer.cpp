@@ -177,10 +177,11 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
 
                 // add three incremental columns to head lit
                 clause->getHead()->addArgument(std::unique_ptr<AstArgument>(getNextLevelNumber(bodyLevels)));
-                clause->getHead()->addArgument(std::unique_ptr<AstAggregator>(maxEpochAggregator->clone()));
+                // clause->getHead()->addArgument(std::unique_ptr<AstAggregator>(maxEpochAggregator->clone()));
+                clause->getHead()->addArgument(std::unique_ptr<AstArgument>(combineBodyCounts(bodyEpochs, FunctorOp::MAX)));
                 clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
 
-                clause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ, std::unique_ptr<AstArgument>(combineBodyCounts(bodyEpochs, FunctorOp::MAX)), std::unique_ptr<AstAggregator>(maxEpochAggregator->clone())));
+                // clause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ, std::unique_ptr<AstArgument>(combineBodyCounts(bodyEpochs, FunctorOp::MAX)), std::unique_ptr<AstAggregator>(maxEpochAggregator->clone())));
 
                 // now, process the negative update version
                 std::vector<AstArgument*> negativeUpdateBodyEpochs;
@@ -208,7 +209,8 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
                 // add three incremental columns to head lit
                 negativeUpdateClause->getHead()->addArgument(
                         std::unique_ptr<AstArgument>(getNextLevelNumber(negativeUpdateBodyLevels)));
-                negativeUpdateClause->getHead()->addArgument(std::unique_ptr<AstAggregator>(maxEpochAggregator->clone()));
+                // negativeUpdateClause->getHead()->addArgument(std::unique_ptr<AstAggregator>(maxEpochAggregator->clone()));
+                negativeUpdateClause->getHead()->addArgument(std::unique_ptr<AstArgument>(combineBodyCounts(negativeUpdateBodyEpochs, FunctorOp::MAX)));
                 negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(-1));
 
                 // add constraint saying that at least one body atom must be negative
@@ -216,7 +218,7 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
                         std::unique_ptr<AstArgument>(combineBodyCounts(negativeUpdateBodyCounts, FunctorOp::MIN)),
                         std::make_unique<AstNumberConstant>(0)));
 
-                negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ, std::unique_ptr<AstArgument>(combineBodyCounts(negativeUpdateBodyEpochs, FunctorOp::MAX)), std::unique_ptr<AstAggregator>(maxEpochAggregator->clone())));
+                // negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ, std::unique_ptr<AstArgument>(combineBodyCounts(negativeUpdateBodyEpochs, FunctorOp::MAX)), std::unique_ptr<AstAggregator>(maxEpochAggregator->clone())));
 
                 relation->addClause(std::unique_ptr<AstClause>(negativeUpdateClause));
             }
