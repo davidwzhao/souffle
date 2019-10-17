@@ -1360,6 +1360,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 // if tuple doesn't exist, then we cannot delete it
                 out << "if (existenceCheck.empty()) return true;\n";
                 // check iteration
+                /*
                 out << "bool currentIter = false;\n";
                 out << "for (auto& tup : existenceCheck) {\n";
                 out << "if (tup[" << arity - 3 << "] == ";
@@ -1367,6 +1368,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << ") currentIter = true;\n";
                 out << "}\n";
                 out << "if (!currentIter) return true;\n";
+                */
 
                 /*
                 out << "for ((*existenceCheck.begin())[" << arity - 3 << "] != ";
@@ -1375,7 +1377,16 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 */
 
                 // if tuple is already deleted, then we cannot delete it more
-                out << "if ((*existenceCheck.begin())[" << arity - 1 << "] <= 0) return true;\n";
+                // out << "if ((*existenceCheck.begin())[" << arity - 1 << "] <= 0) return true;\n";
+                out << "bool update = false;\n";
+                out << "for (auto& tup : existenceCheck) {\n";
+                out << "if (tup[" << arity - 1 << "] > 0 && tup[" << arity - 3 << "] == ";
+                visit(subsumptionExists.getValues()[subsumptionExists.getValues().size() - 3], out);
+                out << " && std::abs(tup[" << arity - 2 << "]) < std::abs(";
+                visit(subsumptionExists.getValues()[subsumptionExists.getValues().size() - 2], out);
+                out << ")) update = true;\n";
+                out << "}\n";
+                out << "if (!update) return true;\n";
                 out << "return false;\n";
                 // out << "else return (*existenceCheck.begin())[" << arity - 1 << "] <= 0;\n";
                 out << "} else {\n";
@@ -1385,7 +1396,28 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 visit(subsumptionExists.getValues()[subsumptionExists.getValues().size() - 2], out);
                 out << ") return false;\n";
                 */
+                out << "bool update = true;\n";
+                out << "for (auto& tup : existenceCheck) {\n";
+                out << "if (tup[" << arity - 1 << "] > 0"; //  && tup[" << arity - 3 << "] == ";
+                // visit(subsumptionExists.getValues()[subsumptionExists.getValues().size() - 3], out);
+                out << ") update = false;\n";
+                out << "}\n";
+                out << "if (update) return false;\n";
+
+                out << "for (auto& tup : existenceCheck) {\n";
+                out << "if (std::abs(tup[" << arity - 2 << "]) < std::abs(";
+                visit(subsumptionExists.getValues()[subsumptionExists.getValues().size() - 2], out);
+                out << ") && tup[" << arity - 3 << "] == ";
+                visit(subsumptionExists.getValues()[subsumptionExists.getValues().size() - 3], out);
+                out << ") update = true;\n";
+                out << "}\n";
+                out << "if (update) return false;\n";
+                /*
                 out << "else if ((*existenceCheck.begin())[" << arity - 1 << "] <= 0) return false;\n";
+                out << "else if ((*existenceCheck.begin())[" << arity - 2 << "] != ";
+                visit(subsumptionExists.getValues()[subsumptionExists.getValues().size() - 2], out);
+                out << ") return false;\n";
+                */
                 out << "return true;\n";
                 out << ";\n";
                 out << "}\n";
@@ -1815,6 +1847,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
 
     if (Global::config().has("incremental")) {
         os << "#include \"souffle/Incremental.h\"\n";
+        os << "#include <cmath>\n";
     }
 
     if (Global::config().has("live-profile")) {

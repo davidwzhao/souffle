@@ -148,9 +148,13 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
                 // make a clone of clause for negative update version
                 auto negativeUpdateClause = clause->clone();
 
+                // also make a clone for the initial evaluation version
+                auto initialEvalClause = clause->clone();
+
                 // but first, process the normal version
-                std::vector<AstArgument*> bodyEpochs;
-                std::vector<AstArgument*> bodyLevels;
+                std::vector<AstArgument*> plusUpdateBodyEpochs;
+                std::vector<AstArgument*> plusUpdateBodyLevels;
+                std::vector<AstArgument*> plusUpdateBodyCounts;
 
                 for (size_t i = 0; i < clause->getBodyLiterals().size(); i++) {
                     auto lit = clause->getBodyLiterals()[i];
@@ -167,21 +171,76 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
                         atom->addArgument(std::make_unique<AstVariable>("@iteration_" + std::to_string(i)));
                         atom->addArgument(std::make_unique<AstVariable>("@epoch_" + std::to_string(i)));
                         atom->addArgument(std::make_unique<AstVariable>("@count_" + std::to_string(i)));
-                        bodyLevels.push_back(new AstVariable("@iteration_" + std::to_string(i)));
-                        bodyEpochs.push_back(new AstVariable("@epoch_" + std::to_string(i)));
+                        plusUpdateBodyLevels.push_back(new AstVariable("@iteration_" + std::to_string(i)));
+                        plusUpdateBodyEpochs.push_back(new AstVariable("@epoch_" + std::to_string(i)));
                         clause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
                                 std::make_unique<AstVariable>("@count_" + std::to_string(i)),
+                                std::make_unique<AstNumberConstant>(0)));
+
+                        plusUpdateBodyCounts.push_back(new AstVariable("@count_" + std::to_string(i)));
+
+                        clause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GE,
+                                std::make_unique<AstVariable>("@epoch_" + std::to_string(i)),
+                                std::make_unique<AstNumberConstant>(0)));
+                    }
+                }
+
+                /*
+                // add constraint saying that at least one plusUpdateBody atom must be negative
+                clause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
+                        std::unique_ptr<AstArgument>(combineBodyCounts(plusUpdateBodyCounts, FunctorOp::MIN)),
+                        std::make_unique<AstNumberConstant>(1)));
+                        */
+
+                // add three incremental columns to head lit
+                clause->getHead()->addArgument(std::unique_ptr<AstArgument>(getNextLevelNumber(plusUpdateBodyLevels)));
+                // clause->getHead()->addArgument(std::unique_ptr<AstAggregator>(maxEpochAggregator->clone()));
+                clause->getHead()->addArgument(std::unique_ptr<AstArgument>(combineBodyCounts(plusUpdateBodyEpochs, FunctorOp::MAX)));
+                clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
+
+                // clause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ, std::unique_ptr<AstArgument>(combineBodyCounts(bodyEpochs, FunctorOp::MAX)), std::unique_ptr<AstAggregator>(maxEpochAggregator->clone())));
+                /*
+                // now, process the plus update version
+                std::vector<AstArgument*> bodyEpochs;
+                std::vector<AstArgument*> bodyLevels;
+
+                for (size_t i = 0; i < initialEvalClause->getBodyLiterals().size(); i++) {
+                    auto lit = initialEvalClause->getBodyLiterals()[i];
+
+                    std::cout << "lit:\n";
+                    lit->print(std::cout);
+                    std::cout << std::endl;
+
+                    // add unnamed vars to each atom nested in arguments of lit
+                    lit->apply(M());
+
+                    // add two provenance columns to lit; first is rule num, second is level num
+                    if (auto atom = dynamic_cast<AstAtom*>(lit)) {
+                        atom->addArgument(std::make_unique<AstVariable>("@iteration_" + std::to_string(i)));
+                        atom->addArgument(std::make_unique<AstVariable>("@epoch_" + std::to_string(i)));
+                        atom->addArgument(std::make_unique<AstVariable>("@count_" + std::to_string(i)));
+                        bodyLevels.push_back(new AstVariable("@iteration_" + std::to_string(i)));
+                        bodyEpochs.push_back(new AstVariable("@epoch_" + std::to_string(i)));
+                        initialEvalClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
+                                std::make_unique<AstVariable>("@count_" + std::to_string(i)),
+                                std::make_unique<AstNumberConstant>(0)));
+
+                        // bodyCounts.push_back(std::make_unique<AstVariable>("@count_" + std::to_string(i)));
+
+                        initialEvalClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
+                                std::make_unique<AstVariable>("@epoch_" + std::to_string(i)),
                                 std::make_unique<AstNumberConstant>(0)));
                     }
                 }
 
                 // add three incremental columns to head lit
-                clause->getHead()->addArgument(std::unique_ptr<AstArgument>(getNextLevelNumber(bodyLevels)));
-                // clause->getHead()->addArgument(std::unique_ptr<AstAggregator>(maxEpochAggregator->clone()));
-                clause->getHead()->addArgument(std::unique_ptr<AstArgument>(combineBodyCounts(bodyEpochs, FunctorOp::MAX)));
-                clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
+                initialEvalClause->getHead()->addArgument(std::unique_ptr<AstArgument>(getNextLevelNumber(bodyLevels)));
+                // initialEvalClause->getHead()->addArgument(std::unique_ptr<AstAggregator>(maxEpochAggregator->clone()));
+                initialEvalClause->getHead()->addArgument(std::unique_ptr<AstArgument>(combineBodyCounts(bodyEpochs, FunctorOp::MAX)));
+                initialEvalClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
 
-                // clause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ, std::unique_ptr<AstArgument>(combineBodyCounts(bodyEpochs, FunctorOp::MAX)), std::unique_ptr<AstAggregator>(maxEpochAggregator->clone())));
+                relation->addClause(std::unique_ptr<AstClause>(initialEvalClause));
+                */
 
                 // now, process the negative update version
                 std::vector<AstArgument*> negativeUpdateBodyEpochs;
@@ -210,12 +269,17 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
                 negativeUpdateClause->getHead()->addArgument(
                         std::unique_ptr<AstArgument>(getNextLevelNumber(negativeUpdateBodyLevels)));
                 // negativeUpdateClause->getHead()->addArgument(std::unique_ptr<AstAggregator>(maxEpochAggregator->clone()));
-                negativeUpdateClause->getHead()->addArgument(std::unique_ptr<AstArgument>(combineBodyCounts(negativeUpdateBodyEpochs, FunctorOp::MAX)));
+                std::unique_ptr<AstArgument> negativeUpdateBodyEpochMin(combineBodyCounts(negativeUpdateBodyEpochs, FunctorOp::MIN));
+                negativeUpdateClause->getHead()->addArgument(std::unique_ptr<AstArgument>(negativeUpdateBodyEpochMin->clone()));
                 negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(-1));
 
                 // add constraint saying that at least one body atom must be negative
                 negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,
                         std::unique_ptr<AstArgument>(combineBodyCounts(negativeUpdateBodyCounts, FunctorOp::MIN)),
+                        std::make_unique<AstNumberConstant>(0)));
+
+                negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LT,
+                        std::unique_ptr<AstArgument>(negativeUpdateBodyEpochMin->clone()),
                         std::make_unique<AstNumberConstant>(0)));
 
                 // negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ, std::unique_ptr<AstArgument>(combineBodyCounts(negativeUpdateBodyEpochs, FunctorOp::MAX)), std::unique_ptr<AstAggregator>(maxEpochAggregator->clone())));

@@ -170,7 +170,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         out << "struct updater_" << getTypeName() << " {\n";
         out << "void update(t_tuple& old_t, const t_tuple& new_t) {\n";
         if (!relation.isTemp()) {
-            out << "if (new_t[" << arity - 2 << "] == old_t[" << arity - 2 << "]) return;\n";
+            out << "if (std::abs(new_t[" << arity - 2 << "]) <= std::abs(old_t[" << arity - 2 << "])) return;\n";
         }
         out << "if (new_t[" << arity - 1 << "] <= 0) {\n";
         // out << "if (old_t[" << arity - 1 << "] >= 1) {\n";
@@ -186,6 +186,11 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
         // out << "}\n";
         out << "} else {\n";
+        // if newly inserted tuple has count > 1, then it must already have count > 0
+        // and therefore the insertion should not affect subsequent derivations
+        if (!relation.isTemp()) {
+            out << "if (std::abs(new_t[" << arity - 1 << "]) > 1) return;\n";
+        }
         out << "old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
         out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
         out << "}\n";
