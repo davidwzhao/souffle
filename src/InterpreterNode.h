@@ -42,7 +42,7 @@ enum InterpreterNodeType {
     I_Negation,
     I_EmptinessCheck,
     I_ExistenceCheck,
-    I_ProvenanceExistenceCheck,
+    I_SubsumptionExistenceCheck,
     I_Constraint,
     I_TupleOperation,
     I_Scan,

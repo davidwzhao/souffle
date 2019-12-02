@@ -365,12 +365,12 @@ public:
 };
 
 /**
- * @class RamProvenanceExistenceCheck
- * @brief Provenance Existence check for a relation
+ * @class RamSubsumptionExistenceCheck
+ * @brief Subsumption Existence check for a relation
  */
-class RamProvenanceExistenceCheck : public RamAbstractExistenceCheck {
+class RamSubsumptionExistenceCheck : public RamAbstractExistenceCheck {
 public:
-    RamProvenanceExistenceCheck(
+    RamSubsumptionExistenceCheck(
             std::unique_ptr<RamRelationReference> relRef, std::vector<std::unique_ptr<RamExpression>> vals)
             : RamAbstractExistenceCheck(std::move(relRef), std::move(vals)) {}
 
@@ -387,12 +387,12 @@ public:
            << ") prov∈ " << getRelation().getName();
     }
 
-    RamProvenanceExistenceCheck* clone() const override {
+    RamSubsumptionExistenceCheck* clone() const override {
         std::vector<std::unique_ptr<RamExpression>> newValues;
         for (auto& cur : values) {
             newValues.emplace_back(cur->clone());
         }
-        return new RamProvenanceExistenceCheck(
+        return new RamSubsumptionExistenceCheck(
                 std::unique_ptr<RamRelationReference>(relationRef->clone()), std::move(newValues));
     }
 };

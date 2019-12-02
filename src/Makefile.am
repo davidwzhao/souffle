@@ -102,6 +102,7 @@ souffle_sources = \
               IODirectives.h                            \
               IOSystem.h                                \
               RamIndexAnalysis.cpp  RamIndexAnalysis.h  \
+              IncrementalTransformer.cpp                \
               InlineRelationsTransformer.cpp            \
               LogStatement.h                            \
 	      InterpreterIndex.h            InterpreterIndex.cpp	\
@@ -195,6 +196,7 @@ soufflepublic_HEADERS = \
                         EquivalenceRelation.h 	\
                         IODirectives.h          \
                         IOSystem.h              \
+                        Incremental.h           \
                         IterUtils.h             \
                         LambdaBTree.h           \
                         Logger.h                \

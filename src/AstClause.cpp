@@ -34,8 +34,8 @@ void AstClause::addToBody(std::unique_ptr<AstLiteral> l) {
         atoms.emplace_back(static_cast<AstAtom*>(l.release()));
     } else if (dynamic_cast<AstNegation*>(l.get())) {
         negations.emplace_back(static_cast<AstNegation*>(l.release()));
-    } else if (dynamic_cast<AstProvenanceNegation*>(l.get())) {
-        provNegations.emplace_back(static_cast<AstProvenanceNegation*>(l.release()));
+    } else if (dynamic_cast<AstSubsumptionNegation*>(l.get())) {
+        subsumptionNegations.emplace_back(static_cast<AstSubsumptionNegation*>(l.release()));
     } else if (dynamic_cast<AstConstraint*>(l.get())) {
         constraints.emplace_back(static_cast<AstConstraint*>(l.release()));
     } else {
@@ -58,10 +58,10 @@ AstLiteral* AstClause::getBodyLiteral(size_t idx) const {
         return negations[idx].get();
     }
     idx -= negations.size();
-    if (idx < provNegations.size()) {
-        return provNegations[idx].get();
+    if (idx < subsumptionNegations.size()) {
+        return subsumptionNegations[idx].get();
     }
-    idx -= provNegations.size();
+    idx -= subsumptionNegations.size();
     return constraints[idx].get();
 }
 
@@ -73,7 +73,7 @@ std::vector<AstLiteral*> AstClause::getBodyLiterals() const {
     for (auto& cur : negations) {
         res.push_back(cur.get());
     }
-    for (auto& cur : provNegations) {
+    for (auto& cur : subsumptionNegations) {
         res.push_back(cur.get());
     }
     for (auto& cur : constraints) {

@@ -40,7 +40,7 @@ int RamComplexityAnalysis::getComplexity(const RamNode* node) const {
         }
 
         // provenance existence check
-        int visitProvenanceExistenceCheck(const RamProvenanceExistenceCheck& provExists) override {
+        int visitSubsumptionExistenceCheck(const RamSubsumptionExistenceCheck& provExists) override {
             return 2;
         }
 

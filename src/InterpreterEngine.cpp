@@ -468,7 +468,7 @@ RamDomain InterpreterEngine::execute(const InterpreterNode* node, InterpreterCon
         return ctxt.getView(viewPos)->contains(TupleRef(low, arity), TupleRef(high, arity));
         ESAC(ExistenceCheck)
 
-        CASE(ProvenanceExistenceCheck)
+        CASE(SubsumptionExistenceCheck)
         // construct the pattern tuple
         size_t arity = cur->getRelation().getArity();
 
@@ -488,7 +488,7 @@ RamDomain InterpreterEngine::execute(const InterpreterNode* node, InterpreterCon
         // obtain view
         size_t viewPos = node->getData(0);
         return ctxt.getView(viewPos)->contains(TupleRef(low, arity), TupleRef(high, arity));
-        ESAC(ProvenanceExistenceCheck)
+        ESAC(SubsumptionExistenceCheck)
 
         CASE(Constraint)
         switch (cur->getOperator()) {

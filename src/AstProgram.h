@@ -232,6 +232,7 @@ private:
     friend class ComponentInstantiationTransformer;
     friend class ParserDriver;
     friend class ProvenanceTransformer;
+    friend class IncrementalTransformer;
 
     /** Program types  */
     std::map<AstTypeIdentifier, std::unique_ptr<AstType>> types;

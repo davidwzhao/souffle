@@ -380,7 +380,7 @@ std::unique_ptr<RamCondition> AstTranslator::translateConstraint(
         }
 
         /** for provenance negation */
-        std::unique_ptr<RamCondition> visitProvenanceNegation(const AstProvenanceNegation& neg) override {
+        std::unique_ptr<RamCondition> visitSubsumptionNegation(const AstSubsumptionNegation& neg) override {
             // get contained atom
             const AstAtom* atom = neg.getAtom();
             auto arity = atom->getArity();
@@ -411,7 +411,7 @@ std::unique_ptr<RamCondition> AstTranslator::translateConstraint(
             }
 
             // add constraint
-            return std::make_unique<RamNegation>(std::make_unique<RamProvenanceExistenceCheck>(
+            return std::make_unique<RamNegation>(std::make_unique<RamSubsumptionExistenceCheck>(
                     translator.translateRelation(atom), std::move(values)));
         }
     };
@@ -608,7 +608,7 @@ std::unique_ptr<RamOperation> AstTranslator::ProvenanceClauseTranslator::createO
         } else if (auto con = dynamic_cast<AstBinaryConstraint*>(lit)) {
             values.push_back(translator.translateValue(con->getLHS(), valueIndex));
             values.push_back(translator.translateValue(con->getRHS(), valueIndex));
-        } else if (auto neg = dynamic_cast<AstProvenanceNegation*>(lit)) {
+        } else if (auto neg = dynamic_cast<AstSubsumptionNegation*>(lit)) {
             size_t numberOfHeights = getNumberOfHeights(neg->getAtom(), translator.program);
 
             // non provenance arguments
@@ -1123,8 +1123,12 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                 r1->getHead()->setName(relNew[rel]->get()->getName());
                 r1->getAtoms()[j]->setName(relDelta[atomRelation]->get()->getName());
                 if (Global::config().has("provenance")) {
-                    r1->addToBody(std::make_unique<AstProvenanceNegation>(
-                            std::unique_ptr<AstAtom>(cl->getHead()->clone())));
+                    size_t numberOfHeights = rel->numberOfHeightParameters();
+                    r1->addToBody(std::make_unique<AstSubsumptionNegation>(
+                            std::unique_ptr<AstAtom>(cl->getHead()->clone()), 1 + numberOfHeights));
+                } else if (Global::config().has("incremental")) {
+                    r1->addToBody(std::make_unique<AstSubsumptionNegation>(
+                            std::unique_ptr<AstAtom>(cl->getHead()->clone()), 1));
                 } else {
                     if (r1->getHead()->getArity() > 0)
                         r1->addToBody(std::make_unique<AstNegation>(
@@ -1617,7 +1621,7 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
         }
 
         // if provenance is not enabled...
-        if (!Global::config().has("provenance")) {
+        if (!Global::config().has("provenance") && !Global::config().has("incremental")) {
             // if a communication engine is enabled...
             if (Global::config().has("engine")) {
                 // drop all internal relations

@@ -57,7 +57,7 @@ public:
             } else if (const auto* exists = dynamic_cast<const RamExistenceCheck*>(&node)) {
                 encodeIndexPos(*exists);
                 encodeView(exists);
-            } else if (const auto* provExists = dynamic_cast<const RamProvenanceExistenceCheck*>(&node)) {
+            } else if (const auto* provExists = dynamic_cast<const RamSubsumptionExistenceCheck*>(&node)) {
                 encodeIndexPos(*provExists);
                 encodeView(provExists);
             }
@@ -146,7 +146,7 @@ public:
                 I_ExistenceCheck, &exists, std::move(children), std::move(data));
     }
 
-    NodePtr visitProvenanceExistenceCheck(const RamProvenanceExistenceCheck& provExists) override {
+    NodePtr visitSubsumptionExistenceCheck(const RamSubsumptionExistenceCheck& provExists) override {
         NodePtrVec children;
         for (const auto& value : provExists.getValues()) {
             children.push_back(visit(value));
@@ -154,7 +154,7 @@ public:
         std::vector<size_t> data;
         data.push_back(encodeView(&provExists));
         return std::make_unique<InterpreterNode>(
-                I_ProvenanceExistenceCheck, &provExists, std::move(children), std::move(data));
+                I_SubsumptionExistenceCheck, &provExists, std::move(children), std::move(data));
     }
 
     // -- comparison operators --
