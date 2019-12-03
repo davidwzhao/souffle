@@ -184,6 +184,7 @@ int main(int argc, char** argv) {
                 {"pragma", 'P', "OPTIONS", "", false, "Set pragma options."},
                 {"provenance", 't', "[ none | explain | explore | subtreeHeights ]", "", false,
                         "Enable provenance instrumentation and interaction."},
+                {"incremental", '\5', "", "", false, "Enable incremental evaluation."},
                 {"engine", 'e', "[ file | mpi ]", "", false,
                         "Specify communication engine for distributed execution."},
                 {"hostfile", '\2', "FILE", "", false,
@@ -417,6 +418,10 @@ int main(int argc, char** argv) {
     auto provenancePipeline = std::make_unique<PipelineTransformer>(std::make_unique<ConditionalTransformer>(
             Global::config().has("provenance"), std::make_unique<ProvenanceTransformer>()));
 
+    // Incremental pipeline
+    auto incrementalPipeline = std::make_unique<PipelineTransformer>(std::make_unique<ConditionalTransformer>(
+            Global::config().has("incremental"), std::make_unique<IncrementalTransformer>()));
+
     // Main pipeline
     auto pipeline = std::make_unique<PipelineTransformer>(std::make_unique<AstComponentChecker>(),
             std::make_unique<ComponentInstantiationTransformer>(),
@@ -442,7 +447,8 @@ int main(int argc, char** argv) {
             std::make_unique<RemoveRedundantSumsTransformer>(),
             std::make_unique<RemoveEmptyRelationsTransformer>(),
             std::make_unique<ReorderLiteralsTransformer>(), std::move(magicPipeline),
-            std::make_unique<AstExecutionPlanChecker>(), std::move(provenancePipeline));
+            std::make_unique<AstExecutionPlanChecker>(), std::move(provenancePipeline),
+            std::move(incrementalPipeline));
 
     // Disable unwanted transformations
     if (Global::config().has("disable-transformers")) {
