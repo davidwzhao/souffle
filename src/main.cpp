@@ -184,7 +184,7 @@ int main(int argc, char** argv) {
                 {"pragma", 'P', "OPTIONS", "", false, "Set pragma options."},
                 {"provenance", 't', "[ none | explain | explore | subtreeHeights ]", "", false,
                         "Enable provenance instrumentation and interaction."},
-                {"incremental", '\5', "", "", false, "Enable incremental evaluation."},
+                {"incremental", '\6', "", "", false, "Enable incremental evaluation."},
                 {"engine", 'e', "[ file | mpi ]", "", false,
                         "Specify communication engine for distributed execution."},
                 {"hostfile", '\2', "FILE", "", false,
