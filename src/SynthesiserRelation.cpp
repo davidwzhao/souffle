@@ -238,7 +238,8 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
                 out << "using t_ind_" << i << " = btree_set<t_tuple, index_utils::comparator<" << join(ind);
                 out << ">, std::allocator<t_tuple>, 256, typename "
                        "souffle::detail::default_strategy<t_tuple>::type, index_utils::comparator<";
-                out << join(ind.begin(), ind.end() - 1 - numberOfHeights) << ">, updater_" << getTypeName()
+                // out << join(ind.begin(), ind.end() - 1 - numberOfHeights) << ">, updater_" << getTypeName()
+                out << join(ind.begin(), ind.end() - 2) << ">, updater_" << getTypeName()
                     << ">;\n";
             } else {  // index for top down phase
                 out << "using t_ind_" << i << " = btree_set<t_tuple, index_utils::comparator<" << join(ind);

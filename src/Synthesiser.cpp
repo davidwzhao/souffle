@@ -1329,7 +1329,8 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // out << synthesiser.toIndex(ne.getSearchSignature());
             out << "_" << isa->getSearchSignature(&subsumptionExists);
             out << "(Tuple<RamDomain," << arity << ">{{";
-            for (size_t i = 0; i < subsumptionExists.getValues().size() - numberOfHeights; i++) {
+            // for (size_t i = 0; i < subsumptionExists.getValues().size() - numberOfHeights; i++) {
+            for (size_t i = 0; i < subsumptionExists.getValues().size() - 3; i++) {
                 RamExpression* val = subsumptionExists.getValues()[i];
                 if (!isRamUndefValue(val)) {
                     visit(*val, out);
@@ -1338,18 +1339,91 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 }
                 out << ",";
             }
+            /*
             // extra 0 for provenance height annotations
             for (size_t i = 0; i < numberOfHeights - 1; i++) {
                 out << "0,";
             }
             out << "0";
+            */
+
+            // extra 0s for incremental annotations
+            out << "0,0,0";
 
             out << "}}," << ctxName << ");\n";
+
+            // get the iteration number
+            RamExpression* iteration = subsumptionExists.getValues()[subsumptionExists.getValues().size() - 3];
+
+            // get the value signifying whether the tuple is addition or deletion
+            RamExpression* diff = subsumptionExists.getValues()[subsumptionExists.getValues().size() - 1];
+
+            if (!isRamUndefValue(diff)) {
+
+                // check whether tuple is deletion
+                out << "if (";
+                visit(*diff, out);
+                out << " <= 0) {\n";
+
+                // if deletion, then return true (i.e., don't insert) if either:
+                // (1) tuple doesn't exist
+                // (2) tuple exists with count of zero
+
+                // if tuple doesn't exist, then we can't delete it
+                out << "if (existenceCheck.empty()) return true;\n";
+
+                // otherwise, only update if there is a tuple with non-zero count
+                // iterate through all tuples matching the payload
+                out << "for (auto& tup : existenceCheck) {\n";
+
+                // check that the iteration matches
+                out << "if (tup[" << arity - 3 << "] == ";
+                visit(*iteration, out);
+
+                // and that the count is positive
+                out << " && tup[" << arity - 1 << "] > 0) ";
+
+                // if these hold, then we can update
+                out << "return false;\n";
+                out << "}\n";
+
+                // else, don't update
+                out << "return true;\n";
+
+                // if addition, we check the previous count:
+                // (1) return false (i.e., update) if either existenceCheck is empty, or the only tuples found in existenceCheck have a 0 current count
+                out << "} else {\n";
+
+                // if tuple doesn't exist, then we insert it
+                out << "if (existenceCheck.empty()) return false;\n";
+
+                // otherwise, only insert if all tuples have zero count
+                // iterate through all tuples matching the payload
+                out << "for (auto& tup : existenceCheck) {\n";
+
+                // and that the count is positive
+                // out << " && tup[" << arity - 1 << "] > 0) ";
+                out << "if (tup[" << arity - 1 << "] > 0) ";
+
+                // if these hold, then we don't update
+                out << "return true;\n";
+                out << "}\n";
+
+                // else, update
+                out << "return false;\n";
+
+                // end of if statement
+                out << "}\n";
+            }
+
+
+            /*
             out << "if (existenceCheck.empty()) return false; else return ((*existenceCheck.begin())["
                 << arity - numberOfHeights << "] <= ";
 
             visit(*(subsumptionExists.getValues()[arity - numberOfHeights]), out);
             out << ")";
+            */
             if (numberOfHeights > 1) {
                 out << " &&  !("
                     << "(*existenceCheck.begin())[" << arity - numberOfHeights << "] == ";
@@ -1740,7 +1814,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
 
         bool isProvInfo = raw_name.find("@info") != std::string::npos;
         auto relationType = SynthesiserRelation::getSynthesiserRelation(
-                rel, idxAnalysis->getIndexes(rel), Global::config().has("provenance") && !isProvInfo);
+                rel, idxAnalysis->getIndexes(rel), (Global::config().has("provenance") || Global::config().has("incremental")) && !isProvInfo);
 
         generateRelationTypeStruct(os, std::move(relationType));
     });
