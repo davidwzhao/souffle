@@ -182,8 +182,8 @@ std::unique_ptr<AstClause> makePositiveUpdateClause(const AstClause& clause) {
     // first is the iteration number, which we get by adding 1 to the max iteration number over the body atoms
     positiveUpdateClause->getHead()->addArgument(std::make_unique<AstIntrinsicFunctor>(FunctorOp::ADD, std::make_unique<AstNumberConstant>(1), std::unique_ptr<AstArgument>(applyFunctorToVars(bodyLevels, FunctorOp::MAX))));
 
-    // second is the previous epoch's count, which we set to 1 (meaning it previously existed), enforcing that we only update tuples that existed previously
-    positiveUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
+    // second is the previous epoch's count, which we set to 0, signifying that we are updating the head tuple
+    positiveUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
 
     // third is the current epoch's count, which we set to 1, triggering an increment in the count
     positiveUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
@@ -203,7 +203,7 @@ std::unique_ptr<AstClause> makePositiveUpdateClause(const AstClause& clause) {
 }
 
 /**
- * This transforms a clause to process new generation of new tuples
+ * This transforms a clause to process generation of new tuples in an epoch after the body tuples are already stable
  */
 std::unique_ptr<AstClause> makePositiveGenerationClause(const AstClause& clause) {
     // make a clone of the clause
@@ -238,11 +238,17 @@ std::unique_ptr<AstClause> makePositiveGenerationClause(const AstClause& clause)
     // first is the iteration number, which we get by adding 1 to the max iteration number over the body atoms
     positiveGenerationClause->getHead()->addArgument(std::make_unique<AstIntrinsicFunctor>(FunctorOp::ADD, std::make_unique<AstNumberConstant>(1), std::unique_ptr<AstArgument>(applyFunctorToVars(bodyLevels, FunctorOp::MAX))));
 
-    // second is the previous epoch's count, which we set to 0 (meaning it previously did not exist), so we only insert new tuples
-    positiveGenerationClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
+    // second is the previous epoch's count, which we set to 1, signifying that this tuple should have always existed, but was not generated in a prior epoch for some other reason
+    positiveGenerationClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
 
     // third is the current epoch's count, which we set to 1, inserting a new tuple with positive count
     positiveGenerationClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
+
+    // add constraint to the rule saying that at least one body atom must have been updated in the current epoch
+    // we do this by doing min(count_cur_1 - count_prev_1, count_cur_2 - count_prev_2, ...) > 0
+    for (auto bodyCountDiff : bodyCountDiffs) {
+        positiveGenerationClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ, std::unique_ptr<AstArgument>(bodyCountDiff), std::make_unique<AstNumberConstant>(0)));
+    }
 
     // add constraint to the rule saying that all body atoms must have positive count
     positiveGenerationClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,

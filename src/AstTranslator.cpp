@@ -384,6 +384,9 @@ std::unique_ptr<RamCondition> AstTranslator::translateConstraint(
             // get contained atom
             const AstAtom* atom = neg.getAtom();
             auto arity = atom->getArity();
+            auto subsumptionArity = arity - neg.getNumSubsumptionFields();
+
+            /*
             auto numberOfHeightParameters = getNumberOfHeights(atom, translator.program);
 
             // account for extra provenance columns
@@ -393,15 +396,18 @@ std::unique_ptr<RamCondition> AstTranslator::translateConstraint(
                 // level numbers
                 arity -= numberOfHeightParameters;
             }
+            */
 
             std::vector<std::unique_ptr<RamExpression>> values;
 
+            // for (size_t i = 0; i < subsumptionArity; i++) {
             for (size_t i = 0; i < arity; i++) {
                 const auto& arg = atom->getArgument(i);
                 // for (const auto& arg : atom->getArguments()) {
                 values.push_back(translator.translateValue(arg, index));
             }
 
+            /*
             // we don't care about the provenance columns when doing the existence check
             if (Global::config().has("provenance")) {
                 values.push_back(std::make_unique<RamUndefValue>());
@@ -409,6 +415,7 @@ std::unique_ptr<RamCondition> AstTranslator::translateConstraint(
                 for (size_t h = 0; h < numberOfHeightParameters; h++)
                     values.push_back(translator.translateValue(atom->getArgument(arity + h + 1), index));
             }
+            */
 
             // add constraint
             return std::make_unique<RamNegation>(std::make_unique<RamSubsumptionExistenceCheck>(
