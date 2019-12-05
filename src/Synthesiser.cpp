@@ -491,9 +491,14 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
         void visitExit(const RamExit& exit, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
-            out << "if(";
-            visit(exit.getCondition(), out);
-            out << ") break;\n";
+            if (exit.isInLoop()) {
+                out << "if(";
+                visit(exit.getCondition(), out);
+                out << ") break;\n";
+            } else {
+                visit(exit.getCondition(), out);
+                out << ";\n";
+            }
             PRINT_END_COMMENT(out);
         }
 
@@ -1453,6 +1458,19 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             PRINT_END_COMMENT(out);
         }
 
+        void visitSubroutineCondition(const RamSubroutineCondition& cond, std::ostream& out) override {
+            PRINT_BEGIN_COMMENT(out);
+            out << "[&]() -> bool {\n";
+            out << "std::vector<RamDomain> args;\n";
+            out << "std::vector<RamDomain> ret;\n";
+            out << "std::vector<bool> err;\n";
+            out << "executeSubroutine(\"" << cond.getSubroutineName() << "\", args, ret, err);\n";
+            out << "if (ret.size() == 0) return false;\n";
+            out << "if (ret[0] == 0) return false; else return true;\n";
+            out << "}()\n";
+            PRINT_END_COMMENT(out);
+        }
+
         // -- values --
         void visitNumber(const RamNumber& num, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
@@ -1768,6 +1786,10 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         os << "#include \"souffle/Explain.h\"\n";
     }
 
+    if (Global::config().has("incremental")) {
+        os << "#include <mutex>\n";
+    }
+
     if (Global::config().has("live-profile")) {
         os << "#include <thread>\n";
         os << "#include \"souffle/profile/Tui.h\"\n";
@@ -1910,7 +1932,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         bool isDelta = rel.isTemp() && raw_name.find("@delta") != std::string::npos;
         bool isProvInfo = raw_name.find("@info") != std::string::npos;
         auto relationType = SynthesiserRelation::getSynthesiserRelation(
-                rel, idxAnalysis->getIndexes(rel), Global::config().has("provenance") && !isProvInfo);
+                rel, idxAnalysis->getIndexes(rel), (Global::config().has("provenance") || Global::config().has("incremental")) && !isProvInfo);
         tempType = isDelta ? relationType->getTypeName() : tempType;
         const std::string& type = (rel.isTemp()) ? tempType : relationType->getTypeName();
 
@@ -2089,6 +2111,15 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         os << "EXIT:{}";
     }
 
+    /*
+    if (Global::config().has("incremental")) {
+        os << "std::vector<RamDomain> args;\n";
+        os << "std::vector<RamDomain> ret;\n";
+        os << "std::vector<bool> err;\n";
+        os << "executeSubroutine(\"incremental_cleanup\", args, ret, err);\n";
+    }
+    */
+
     if (Global::config().has("profile")) {
         os << "}\n";
         os << "ProfileEventSingleton::instance().stopTimer();\n";
@@ -2250,7 +2281,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     os << "}\n";  // end of getSymbolTable() method
 
     // TODO: generate code for subroutines
-    if (Global::config().has("provenance")) {
+    if (Global::config().has("provenance") || Global::config().has("incremental")) {
         if (Global::config().get("provenance") == "subtreeHeights") {
             // method that populates provenance indices
             os << "void copyIndex() {\n";

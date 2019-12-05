@@ -153,8 +153,9 @@ void SynthesiserDirectRelation::computeIndices() {
                 }
 
                 // add provenance annotations to the index, but in reverse order
-                ind.push_back(getArity() - relation.getNumberOfHeights());
+                // TODO (taipan-snake): for incremental, these should be in correct order
                 ind.push_back(getArity() - relation.getNumberOfHeights() - 1);
+                ind.push_back(getArity() - relation.getNumberOfHeights());
                 masterIndex = 0;
             }
 
@@ -214,9 +215,15 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         out << "struct updater_" << getTypeName() << " {\n";
         out << "void update(t_tuple& old_t, const t_tuple& new_t) {\n";
 
+        /*
         for (size_t i = arity - numberOfHeights - 1; i < arity; i++) {
             out << "old_t[" << i << "] = new_t[" << i << "];\n";
         }
+        */
+
+        out << "if (new_t[" << arity - 2 << "] < 0) old_t[" << arity - 2 << "] = old_t[" << arity - 1 << "];\n";
+
+        out << "else old_t[" << arity - 1 << "] == new_t[" << arity - 1 << "];\n";
 
         out << "}\n";
         out << "};\n";

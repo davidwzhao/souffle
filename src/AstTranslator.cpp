@@ -1234,6 +1234,43 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
     return nullptr;
 }
 
+std::unique_ptr<RamStatement> AstTranslator::makeIncrementalCleanupSubroutine(const AstProgram& program) {
+    // create a RamSequence for cleaning up all relations
+    auto cleanupSequence = std::make_unique<RamSequence>();
+
+    for (const auto& relation : program.getRelations()) {
+        // update every tuple in relation so that the previous and current counts match
+        // FOR t0 in relation:
+        //   INSERT (t0.0, t0.2, ..., -1, -1)
+        // insert -1 as both counts and handle this case in the B-Tree update method
+
+        // make a RamRelationReference to be used to build the subroutine
+        auto relationReference = translateRelation(relation);
+        
+        // the subroutine needs to be built from inside out
+        // build the insertion step first
+        std::vector<std::unique_ptr<RamExpression>> updateTuple;
+        
+        // insert the original tuple
+        for (size_t i = 0; i < relation->getArity() - 2; i++) {
+            updateTuple.push_back(std::make_unique<RamTupleElement>(0, i));
+        }
+
+        // insert -1 for both counts
+        updateTuple.push_back(std::make_unique<RamNumber>(-1));
+        updateTuple.push_back(std::make_unique<RamNumber>(-1));
+
+        // create the projection
+        auto insertUpdate = std::make_unique<RamProject>(std::unique_ptr<RamRelationReference>(relationReference->clone()), std::move(updateTuple));
+
+        // create the scan
+        auto cleanupScan = std::make_unique<RamScan>(std::unique_ptr<RamRelationReference>(relationReference->clone()), 0, std::move(insertUpdate));
+        cleanupSequence->add(std::make_unique<RamQuery>(std::move(cleanupScan)));
+    }
+
+    return cleanupSequence;
+}
+
 /** make a subroutine to search for subproofs */
 std::unique_ptr<RamStatement> AstTranslator::makeSubproofSubroutine(const AstClause& clause) {
     // make intermediate clause with constraints
@@ -1652,13 +1689,26 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
         }
 
         if (current) {
+            // add the cleanup subroutine
+            if (Global::config().has("incremental")) {
+                // make subroutine condition, don't actually use return value
+                auto cleanupCond = std::make_unique<RamSubroutineCondition>("incremental_cleanup");
+
+                // put it into a RamExit
+                appendStmt(current, std::make_unique<RamExit>(std::move(cleanupCond), false));
+            }
+
             // append the current SCC as a stratum to the sequence
             appendStmt(res, std::make_unique<RamStratum>(std::move(current), indexOfScc));
 
             // increment the index of the current SCC
             indexOfScc++;
         }
+
     }
+
+    /*
+    */
 
     // add main timer if profiling
     if (res && Global::config().has("profile")) {
@@ -1687,6 +1737,11 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                     relName.str() + "_" + std::to_string(clause.getClauseNum()) + "_negation_subproof";
             ramProg->addSubroutine(negationSubroutineLabel, makeNegationSubproofSubroutine(clause));
         });
+    }
+
+    // add cleanup subroutine for incremental
+    if (Global::config().has("incremental")) {
+        ramProg->addSubroutine("incremental_cleanup", makeIncrementalCleanupSubroutine(*translationUnit.getProgram()));
     }
 }
 

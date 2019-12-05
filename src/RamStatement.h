@@ -704,12 +704,17 @@ protected:
  */
 class RamExit : public RamStatement {
 public:
-    RamExit(std::unique_ptr<RamCondition> c) : condition(std::move(c)) {}
+    RamExit(std::unique_ptr<RamCondition> c, bool inLoop = true) : condition(std::move(c)), inLoop(inLoop) {}
 
     /** @brief Get exit condition */
     const RamCondition& getCondition() const {
         assert(condition);
         return *condition;
+    }
+
+    /** @brief Get whether exit is in a loop */
+    const bool isInLoop() const {
+        return inLoop;
     }
 
     void print(std::ostream& os, int tabpos) const override {
@@ -731,6 +736,9 @@ public:
 protected:
     /** exit condition */
     std::unique_ptr<RamCondition> condition;
+
+    /** whether the exit is actually in a loop */
+    bool inLoop;
 
     bool equal(const RamNode& node) const override {
         assert(nullptr != dynamic_cast<const RamExit*>(&node));

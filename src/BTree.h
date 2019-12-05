@@ -1400,7 +1400,8 @@ public:
                     }
 
                     // update provenance information
-                    if (typeid(Comparator) != typeid(WeakComparator) && less(k, *pos)) {
+                    // if (typeid(Comparator) != typeid(WeakComparator) && less(k, *pos)) {
+                    if (typeid(Comparator) != typeid(WeakComparator)) {
                         if (!cur->lock.try_upgrade_to_write(cur_lease)) {
                             // start again
                             return insert(k, hints);
@@ -1455,7 +1456,8 @@ public:
                 }
 
                 // update provenance information
-                if (typeid(Comparator) != typeid(WeakComparator) && less(k, *(pos - 1))) {
+                // if (typeid(Comparator) != typeid(WeakComparator) && less(k, *(pos - 1))) {
+                if (typeid(Comparator) != typeid(WeakComparator)) {
                     if (!cur->lock.try_upgrade_to_write(cur_lease)) {
                         // start again
                         return insert(k, hints);
@@ -1602,7 +1604,8 @@ public:
                 // early exit for sets
                 if (isSet && pos != b && weak_equal(*pos, k)) {
                     // update provenance information
-                    if (typeid(Comparator) != typeid(WeakComparator) && less(k, *pos)) {
+                    // if (typeid(Comparator) != typeid(WeakComparator) && less(k, *pos)) {
+                    if (typeid(Comparator) != typeid(WeakComparator)) {
                         update(*pos, k);
                         return true;
                     }
@@ -1628,7 +1631,8 @@ public:
             // early exit for sets
             if (isSet && pos != a && weak_equal(*(pos - 1), k)) {
                 // update provenance information
-                if (typeid(Comparator) != typeid(WeakComparator) && less(k, *(pos - 1))) {
+                // if (typeid(Comparator) != typeid(WeakComparator) && less(k, *(pos - 1))) {
+                if (typeid(Comparator) != typeid(WeakComparator)) {
                     update(*(pos - 1), k);
                     return true;
                 }

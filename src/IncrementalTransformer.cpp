@@ -189,9 +189,9 @@ std::unique_ptr<AstClause> makePositiveUpdateClause(const AstClause& clause) {
     positiveUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
 
     // add constraint to the rule saying that at least one body atom must have been updated in the current epoch
-    // we do this by doing min(count_cur_1 - count_prev_1, count_cur_2 - count_prev_2, ...) > 0
+    // we do this by doing max(count_cur_1 - count_prev_1, count_cur_2 - count_prev_2, ...) > 0
     positiveUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
-                std::unique_ptr<AstArgument>(applyFunctorToVars(bodyCountDiffs, FunctorOp::MIN)),
+                std::unique_ptr<AstArgument>(applyFunctorToVars(bodyCountDiffs, FunctorOp::MAX)),
                 std::make_unique<AstNumberConstant>(0)));
 
     // add constraint to the rule saying that all body atoms must have positive count
