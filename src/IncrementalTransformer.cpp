@@ -99,6 +99,7 @@ std::unique_ptr<AstClause> makeNegativeUpdateClause(const AstClause& clause) {
 
     // store the body counts to allow building arguments in the head atom
     std::vector<AstArgument*> bodyLevels;
+    std::vector<AstArgument*> bodyPreviousCounts;
     std::vector<AstArgument*> bodyCountDiffs;
     std::vector<AstArgument*> bodyCounts;
 
@@ -117,6 +118,7 @@ std::unique_ptr<AstClause> makeNegativeUpdateClause(const AstClause& clause) {
             
             // store the iterations and body counts to build arguments later
             bodyLevels.push_back(new AstVariable("@iteration_" + std::to_string(i)));
+            bodyPreviousCounts.push_back(new AstVariable("@prev_count_" + std::to_string(i)));
             bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i))));
             bodyCounts.push_back(new AstVariable("@current_count_" + std::to_string(i)));
         }
@@ -131,6 +133,12 @@ std::unique_ptr<AstClause> makeNegativeUpdateClause(const AstClause& clause) {
 
     // third is the current epoch's count, which we set to -1, triggering a decrement in the count
     negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(-1));
+
+    // add constraint to the rule saying that all body tuples must have existed prior,
+    // i.e. tuples that are deleted in prior epochs shouldn't be deleted again
+    negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
+                std::unique_ptr<AstArgument>(applyFunctorToVars(bodyPreviousCounts, FunctorOp::MIN)),
+                std::make_unique<AstNumberConstant>(0)));
 
     // add constraint to the rule saying that at least one body atom must have been updated in the current epoch
     // we do this by doing min(count_cur_1 - count_prev_1, count_cur_2 - count_prev_2, ...) < 0
@@ -173,7 +181,13 @@ std::unique_ptr<AstClause> makePositiveUpdateClause(const AstClause& clause) {
             
             // store the iterations and body counts to build arguments later
             bodyLevels.push_back(new AstVariable("@iteration_" + std::to_string(i)));
-            bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i))));
+
+            // TODO: comment this properly, it's really messed up
+            // basically we want to encode 1 if (diff > 0 && prev_count == 0), 0 otherwise
+            // we do this by (BNOT(prev_count BOR 0) LAND (count - prev_count))
+            bodyCountDiffs.push_back((new AstIntrinsicFunctor(FunctorOp::LAND, 
+                            (std::make_unique<AstIntrinsicFunctor>(FunctorOp::LNOT, std::make_unique<AstIntrinsicFunctor>(FunctorOp::BOR, std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)), std::make_unique<AstNumberConstant>(0)))),
+                            (std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)))))));
             bodyCounts.push_back(new AstVariable("@current_count_" + std::to_string(i)));
         }
     }

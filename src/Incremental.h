@@ -31,7 +31,7 @@ class Incremental {
 public:
     SouffleProgram& prog;
 
-    Incremental(SouffleProgram& prog) : prog(prog), currentEpoch(0) {}
+    Incremental(SouffleProgram& prog) : prog(prog) {} // , currentEpoch(0) {}
     ~Incremental() = default;
 
     /* Process a command, a return value of true indicates to continue, returning false indicates to break (if
@@ -59,6 +59,8 @@ public:
             }
             query = parseTuple(command[1]);
             removeTuple(query.first, query.second);
+        } else if (command[0] == "commit") {
+            commit();
         } else if (command[0] == "exit" || command[0] == "q") {
             return false;
         } else {
@@ -68,6 +70,7 @@ public:
                     "----------\n"
                     "insert <relation>(<element1>, <element2>, ...): Inserts a new tuple\n"
                     "remove <relation>(<element1>, <element2>, ...): Removes an existing tuple\n"
+                    "commit: Re-runs the Datalog program incrementally to apply changes\n"
                     "exit: Exits this interface\n\n");
         }
 
@@ -93,7 +96,7 @@ public:
     }
 
 private:
-    int currentEpoch;
+    // int currentEpoch;
 
     void addTuple(const std::string& relName, const std::vector<std::string>& tup) {
         auto rel = prog.getRelation(relName);
@@ -117,27 +120,33 @@ private:
 
         rel->insert(newTuple);
 
+        /*
         // epoch number
         auto epochRel = prog.getRelation("+current_epoch");
         tuple epochNumber(epochRel);
         std::cout << "inserting new epoch: " << currentEpoch << std::endl;
         epochNumber << currentEpoch;
         epochRel->insert(epochNumber);
+        */
 
         // run program until fixpoint
+        // prog.run();
+    }
+
+    void commit() {
         prog.run();
     }
 
     void insertTuple(const std::string& relName, std::vector<std::string> tup) {
         tup.push_back("0");
-        tup.push_back(std::to_string(++currentEpoch));
+        tup.push_back("0");
         tup.push_back("1");
         addTuple(relName, tup);
     }
 
     void removeTuple(const std::string& relName, std::vector<std::string> tup) {
         tup.push_back("0");
-        tup.push_back(std::to_string(-(++currentEpoch)));
+        tup.push_back("1");
         tup.push_back("-1");
         addTuple(relName, tup);
     }

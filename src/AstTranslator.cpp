@@ -1658,6 +1658,15 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                 }
             }
 
+            // add the cleanup subroutine
+            if (Global::config().has("incremental") && indexOfScc == sccGraph.getNumberOfSCCs() - 1) {
+                // make subroutine condition, don't actually use return value
+                auto cleanupCond = std::make_unique<RamSubroutineCondition>("incremental_cleanup");
+
+                // put it into a RamExit
+                appendStmt(current, std::make_unique<RamExit>(std::move(cleanupCond), false));
+            }
+
             // store all internal output relations to the output dir with a .csv extension
             for (const auto& relation : internOuts) {
                 makeRamStore(current, relation, "output-dir", ".csv");
@@ -1689,15 +1698,6 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
         }
 
         if (current) {
-            // add the cleanup subroutine
-            if (Global::config().has("incremental")) {
-                // make subroutine condition, don't actually use return value
-                auto cleanupCond = std::make_unique<RamSubroutineCondition>("incremental_cleanup");
-
-                // put it into a RamExit
-                appendStmt(current, std::make_unique<RamExit>(std::move(cleanupCond), false));
-            }
-
             // append the current SCC as a stratum to the sequence
             appendStmt(res, std::make_unique<RamStratum>(std::move(current), indexOfScc));
 

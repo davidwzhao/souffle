@@ -226,7 +226,9 @@ struct default_strategy<std::tuple<Ts...>> : public linear {};
  */
 template <typename T>
 struct updater {
-    void update(T& /* old_t */, const T& /* new_t */) {}
+    bool update(T& /* old_t */, const T& /* new_t */) {
+        return false;
+    }
 };
 
 /**
@@ -282,8 +284,8 @@ protected:
     /* -------------- updater utilities ------------- */
 
     mutable Updater upd;
-    void update(Key& old_k, const Key& new_k) {
-        upd.update(old_k, new_k);
+    bool update(Key& old_k, const Key& new_k) {
+        return upd.update(old_k, new_k);
     }
 
     /* -------------- the node type ----------------- */
@@ -1406,9 +1408,9 @@ public:
                             // start again
                             return insert(k, hints);
                         }
-                        update(*pos, k);
+                        bool ret = update(*pos, k);
                         cur->lock.end_write();
-                        return true;
+                        return ret;
                     }
 
                     // we found the element => no check of lock necessary
@@ -1462,9 +1464,9 @@ public:
                         // start again
                         return insert(k, hints);
                     }
-                    update(*(pos - 1), k);
+                    bool ret = update(*(pos - 1), k);
                     cur->lock.end_write();
-                    return true;
+                    return ret;
                 }
 
                 // we found the element => done
@@ -1606,8 +1608,7 @@ public:
                     // update provenance information
                     // if (typeid(Comparator) != typeid(WeakComparator) && less(k, *pos)) {
                     if (typeid(Comparator) != typeid(WeakComparator)) {
-                        update(*pos, k);
-                        return true;
+                        return update(*pos, k);
                     }
 
                     return false;
@@ -1633,8 +1634,7 @@ public:
                 // update provenance information
                 // if (typeid(Comparator) != typeid(WeakComparator) && less(k, *(pos - 1))) {
                 if (typeid(Comparator) != typeid(WeakComparator)) {
-                    update(*(pos - 1), k);
-                    return true;
+                    return update(*(pos - 1), k);
                 }
 
                 return false;

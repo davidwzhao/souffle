@@ -1361,13 +1361,16 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             RamExpression* iteration = subsumptionExists.getValues()[subsumptionExists.getValues().size() - 3];
 
             // get the value signifying whether the tuple is addition or deletion
-            RamExpression* diff = subsumptionExists.getValues()[subsumptionExists.getValues().size() - 1];
+            RamExpression* prevCount = subsumptionExists.getValues()[subsumptionExists.getValues().size() - 2];
 
-            if (!isRamUndefValue(diff)) {
+            // get the value signifying whether the tuple is addition or deletion
+            RamExpression* count = subsumptionExists.getValues()[subsumptionExists.getValues().size() - 1];
+
+            if (!isRamUndefValue(count)) {
 
                 // check whether tuple is deletion
                 out << "if (";
-                visit(*diff, out);
+                visit(*count, out);
                 out << " <= 0) {\n";
 
                 // if deletion, then return true (i.e., don't insert) if either:
@@ -1408,14 +1411,21 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
                 // and that the count is positive
                 // out << " && tup[" << arity - 1 << "] > 0) ";
-                out << "if (tup[" << arity - 1 << "] > 0) ";
+                out << "if (tup[" << arity - 3 << "] < ";
+                visit(*iteration, out);
+                out << " && tup[" << arity - 1 << "] > 0) ";
 
                 // if these hold, then we don't update
                 out << "return true;\n";
                 out << "}\n";
 
-                // else, update
-                out << "return false;\n";
+                // else, update if it's an actual update and not a previous insertion
+                out << "if (";
+                visit(*prevCount, out);
+                out << " == ";
+                visit(*count, out);
+                out << ") return true;\n";
+                out << "else return false;\n";
 
                 // end of if statement
                 out << "}\n";
@@ -1788,6 +1798,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
 
     if (Global::config().has("incremental")) {
         os << "#include <mutex>\n";
+        os << "#include \"souffle/Incremental.h\"\n";
     }
 
     if (Global::config().has("live-profile")) {
@@ -2410,6 +2421,10 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         os << "explain(obj, false, true);\n";
     } else if (Global::config().get("provenance") == "explore") {
         os << "explain(obj, true, false);\n";
+    }
+
+    if (Global::config().has("incremental")) {
+        os << "startIncremental(obj);\n";
     }
     os << "return 0;\n";
     os << "} catch(std::exception &e) { souffle::SignalHandler::instance()->error(e.what());}\n";

@@ -213,7 +213,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
     // generate an updater class for provenance
     if (isProvenance) {
         out << "struct updater_" << getTypeName() << " {\n";
-        out << "void update(t_tuple& old_t, const t_tuple& new_t) {\n";
+        out << "bool update(t_tuple& old_t, const t_tuple& new_t) {\n";
 
         /*
         for (size_t i = arity - numberOfHeights - 1; i < arity; i++) {
@@ -221,9 +221,14 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         }
         */
 
+        if (!relation.isTemp()) {
+            out << "if (new_t[" << arity - 2 << "] == 1 && new_t[" << arity - 1 << "] > 0) return false;\n";
+        }
+
         out << "if (new_t[" << arity - 2 << "] < 0) old_t[" << arity - 2 << "] = old_t[" << arity - 1 << "];\n";
 
-        out << "else old_t[" << arity - 1 << "] == new_t[" << arity - 1 << "];\n";
+        out << "else old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
+        out << "return true;\n";
 
         out << "}\n";
         out << "};\n";
