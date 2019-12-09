@@ -1420,12 +1420,16 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "}\n";
 
                 // else, update if it's an actual update and not a previous insertion
+                /*
                 out << "if (";
                 visit(*prevCount, out);
                 out << " == ";
                 visit(*count, out);
                 out << ") return true;\n";
                 out << "else return false;\n";
+                */
+
+                out << "return false;\n";
 
                 // end of if statement
                 out << "}\n";
