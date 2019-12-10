@@ -128,8 +128,8 @@ std::unique_ptr<AstClause> makeNegativeUpdateClause(const AstClause& clause) {
     // first is the iteration number, which we get by adding 1 to the max iteration number over the body atoms
     negativeUpdateClause->getHead()->addArgument(std::make_unique<AstIntrinsicFunctor>(FunctorOp::ADD, std::make_unique<AstNumberConstant>(1), std::unique_ptr<AstArgument>(applyFunctorToVars(bodyLevels, FunctorOp::MAX))));
 
-    // second is the previous epoch's count, which we set to 1 (meaning it previously existed), enforcing that we only delete tuples that existed previously
-    negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
+    // second is the previous epoch's count, which we set to 0 signifying that we are updating the head tuple
+    negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
 
     // third is the current epoch's count, which we set to -1, triggering a decrement in the count
     negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(-1));

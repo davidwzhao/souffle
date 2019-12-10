@@ -1419,17 +1419,25 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "return true;\n";
                 out << "}\n";
 
-                // else, update if it's an actual update and not a previous insertion
-                /*
+                // check if this is an update of a previously generated tuple
                 out << "if (";
                 visit(*prevCount, out);
                 out << " == ";
                 visit(*count, out);
-                out << ") return true;\n";
-                out << "else return false;\n";
-                */
+                out << ") {\n";
 
+                // if it is intended to be inserting a new tuple
+                // do a check if there is a tuple in the current iteration with positive count
+                out << "for (auto& tup : existenceCheck) {\n";
+                out << "if (tup[" << arity - 3 << "] == ";
+                visit(*iteration, out);
+                out << " && tup[" << arity - 1 << "] > 0) return true;\n";
+                out << "}\n";
                 out << "return false;\n";
+                out << "}\n";
+                    
+                // if it's an actual update, then process it
+                out << "else return false;\n";
 
                 // end of if statement
                 out << "}\n";
