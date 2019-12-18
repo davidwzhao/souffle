@@ -296,6 +296,10 @@ std::unique_ptr<RamExpression> AstTranslator::translateValue(
             return std::make_unique<RamAutoIncrement>();
         }
 
+        std::unique_ptr<RamExpression> visitIterationNumber(const AstIterationNumber&) override {
+            return std::make_unique<RamIterationNumber>();
+        }
+
         std::unique_ptr<RamExpression> visitRecordInit(const AstRecordInit& init) override {
             std::vector<std::unique_ptr<RamExpression>> values;
             for (const auto& cur : init.getArguments()) {
