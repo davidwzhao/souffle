@@ -291,6 +291,23 @@ public:
 };
 
 /**
+ * @class RamIterationNumber
+ * @brief Get the iteration number of a loop.
+ *
+ * Note that this should only exist inside a loop.
+ */
+class RamIterationNumber : public RamExpression {
+public:
+    void print(std::ostream& os) const override {
+        os << "iternum()";
+    }
+
+    RamIterationNumber* clone() const override {
+        return new RamIterationNumber();
+    }
+};
+
+/**
  * @class RamUndefValue
  * @brief An undefined expression
  *

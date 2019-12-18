@@ -164,6 +164,39 @@ protected:
 };
 
 /**
+ * Subclass of Argument that represents a counter (for projections only)
+ */
+class AstIterationNumber : public AstArgument {
+public:
+    AstIterationNumber() : AstArgument() {}
+
+    /** Print argument to the given output stream */
+    void print(std::ostream& os) const override {
+        os << "iternum()";
+    }
+
+    /** Creates a clone of this AST sub-structure */
+    AstIterationNumber* clone() const override {
+        auto* res = new AstIterationNumber();
+        res->setSrcLoc(getSrcLoc());
+        return res;
+    }
+
+    /** Mutates this node */
+    void apply(const AstNodeMapper& /*mapper*/) override {
+        // no sub-nodes to consider within constants
+    }
+
+protected:
+    /** Implements the node comparison for this node type */
+    bool equal(const AstNode& node) const override {
+        assert(nullptr != dynamic_cast<const AstIterationNumber*>(&node));
+        return true;
+    }
+};
+
+
+/**
  * Subclass of Argument that represents a datalog constant value
  */
 class AstConstant : public AstArgument {

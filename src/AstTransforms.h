@@ -230,6 +230,30 @@ public:
     }
 
 private:
+    /**
+     * Generate a version of a clause that process tuple deletions
+     *
+     * @param clause the clause to be transformed
+     * @return an instrumented version of clause that process tuple deletions
+     */
+    std::unique_ptr<AstClause> makeNegativeUpdateClause(const AstClause& clause);
+
+    /**
+     * Generate a version of a clause that process tuple insertions
+     *
+     * @param clause the clause to be transformed
+     * @return an instrumented version of clause that process tuple insertions
+     */
+    std::unique_ptr<AstClause> makePositiveUpdateClause(const AstClause& clause);
+
+    /**
+     * Generate a version of a clause that generates hidden tuples
+     *
+     * @param clause the clause to be transformed
+     * @return an instrumented version of clause that process tuple generations
+     */
+    std::unique_ptr<AstClause> makePositiveGenerationClause(const AstClause& clause);
+
     bool transform(AstTranslationUnit& translationUnit) override;
 };
 

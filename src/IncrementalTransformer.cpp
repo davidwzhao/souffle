@@ -93,7 +93,7 @@ AstArgument* applyFunctorToVars(std::vector<AstArgument*> levels, FunctorOp op) 
 /**
  * This transforms a clause to process tuple deletions
  */
-std::unique_ptr<AstClause> makeNegativeUpdateClause(const AstClause& clause) {
+std::unique_ptr<AstClause> IncrementalTransformer::makeNegativeUpdateClause(const AstClause& clause) {
     // make a clone of the clause
     auto negativeUpdateClause = clause.clone();
 
@@ -157,7 +157,7 @@ std::unique_ptr<AstClause> makeNegativeUpdateClause(const AstClause& clause) {
 /**
  * This transforms a clause to process tuple additions
  */
-std::unique_ptr<AstClause> makePositiveUpdateClause(const AstClause& clause) {
+std::unique_ptr<AstClause> IncrementalTransformer::makePositiveUpdateClause(const AstClause& clause) {
     // make a clone of the clause
     auto positiveUpdateClause = clause.clone();
 
@@ -219,7 +219,7 @@ std::unique_ptr<AstClause> makePositiveUpdateClause(const AstClause& clause) {
 /**
  * This transforms a clause to process generation of new tuples in an epoch after the body tuples are already stable
  */
-std::unique_ptr<AstClause> makePositiveGenerationClause(const AstClause& clause) {
+std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(const AstClause& clause) {
     // make a clone of the clause
     auto positiveGenerationClause = clause.clone();
 
