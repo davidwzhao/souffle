@@ -1121,7 +1121,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
             int version = 0;
             const auto& atoms = cl->getAtoms();
             for (size_t j = 0; j < atoms.size(); ++j) {
-                const AstAtom* atom = atoms[j];
+                AstAtom* atom = atoms[j];
                 const AstRelation* atomRelation = getAtomRelation(atom, program);
 
                 // only interested in atoms within the same SCC
@@ -1132,7 +1132,11 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                 // modify the processed rule to use relDelta and write to relNew
                 std::unique_ptr<AstClause> r1(cl->clone());
                 r1->getHead()->setName(relNew[rel]->get()->getName());
-                r1->getAtoms()[j]->setName(relDelta[atomRelation]->get()->getName());
+                // if we have incremental evaluation, we use iteration counts to simulate delta relations
+                // rather than explicitly having a separate relation
+                if (!Global::config().has("incremental")) {
+                    r1->getAtoms()[j]->setName(relDelta[atomRelation]->get()->getName());
+                }
                 if (Global::config().has("provenance")) {
                     size_t numberOfHeights = rel->numberOfHeightParameters();
                     r1->addToBody(std::make_unique<AstSubsumptionNegation>(
@@ -1140,6 +1144,15 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                 } else if (Global::config().has("incremental")) {
                     r1->addToBody(std::make_unique<AstSubsumptionNegation>(
                             std::unique_ptr<AstAtom>(cl->getHead()->clone()), 1));
+
+                    // simulate the delta relation with a constraint on the iteration number
+                    /*
+                    r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
+                                std::make_unique<AstVariable>("@iteration_" + std::to_string(j)),
+                                std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+                    */
+
+                    atom->setArgument(atom->getArity() - 3, std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1)));
                 } else {
                     if (r1->getHead()->getArity() > 0)
                         r1->addToBody(std::make_unique<AstNegation>(
@@ -1153,9 +1166,15 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                 // reduce R to P ...
                 for (size_t k = j + 1; k < atoms.size(); k++) {
                     if (isInSameSCC(getAtomRelation(atoms[k], program))) {
-                        AstAtom* cur = r1->getAtoms()[k]->clone();
-                        cur->setName(relDelta[getAtomRelation(atoms[k], program)]->get()->getName());
-                        r1->addToBody(std::make_unique<AstNegation>(std::unique_ptr<AstAtom>(cur)));
+                        if (Global::config().has("incremental")) {
+                            r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LT,
+                                        std::make_unique<AstVariable>("@iteration_" + std::to_string(k)),
+                                        std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+                        } else {
+                            AstAtom* cur = r1->getAtoms()[k]->clone();
+                            cur->setName(relDelta[getAtomRelation(atoms[k], program)]->get()->getName());
+                            r1->addToBody(std::make_unique<AstNegation>(std::unique_ptr<AstAtom>(cur)));
+                        }
                     }
                 }
 

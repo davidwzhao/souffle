@@ -147,11 +147,9 @@ std::unique_ptr<AstClause> IncrementalTransformer::makeNegativeUpdateClause(cons
 
     // add constraint to the rule saying that all body tuples must have existed prior,
     // i.e. tuples that are deleted in prior epochs shouldn't be deleted again
-    /*
     negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
                 std::unique_ptr<AstArgument>(applyFunctorToVars(bodyPreviousCounts, FunctorOp::MIN)),
                 std::make_unique<AstNumberConstant>(0)));
-                */
 
     // add constraint to the rule saying that at least one body atom must have been updated in the current epoch
     // we do this by doing min(count_cur_1 - count_prev_1, count_cur_2 - count_prev_2, ...) < 0
@@ -307,9 +305,11 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
 
     // add constraint to the rule saying that at least one body atom must have been updated in the current epoch
     // we do this by doing min(count_cur_1 - count_prev_1, count_cur_2 - count_prev_2, ...) > 0
+    /*
     for (auto bodyCountDiff : bodyCountDiffs) {
         positiveGenerationClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ, std::unique_ptr<AstArgument>(bodyCountDiff), std::make_unique<AstNumberConstant>(0)));
     }
+    */
 
     // add constraint to the rule saying that all body atoms must have positive count
     positiveGenerationClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
