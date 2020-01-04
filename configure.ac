@@ -297,6 +297,7 @@ AC_CONFIG_LINKS([include/souffle/EquivalenceRelation.h:src/EquivalenceRelation.h
 AC_CONFIG_LINKS([include/souffle/IODirectives.h:src/IODirectives.h])
 AC_CONFIG_LINKS([include/souffle/IOSystem.h:src/IOSystem.h])
 AC_CONFIG_LINKS([include/souffle/IterUtils.h:src/IterUtils.h])
+AC_CONFIG_LINKS([include/souffle/Incremental.h:src/Incremental.h])
 AC_CONFIG_LINKS([include/souffle/LambdaBTree.h:src/LambdaBTree.h])
 AC_CONFIG_LINKS([include/souffle/Logger.h:src/Logger.h])
 AC_CONFIG_LINKS([include/souffle/ParallelUtils.h:src/ParallelUtils.h])

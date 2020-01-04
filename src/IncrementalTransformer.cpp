@@ -113,13 +113,14 @@ std::unique_ptr<AstClause> makeNegativeUpdateClause(const AstClause& clause) {
         // add three incremental columns to lit; first is iteration number, second is count in previous epoch, third is count in current epoch
         if (auto atom = dynamic_cast<AstAtom*>(lit)) {
             atom->addArgument(std::make_unique<AstVariable>("@iteration_" + std::to_string(i)));
+            atom->addArgument(std::make_unique<AstVariable>("@current_epoch_" + std::to_string(i)));
             atom->addArgument(std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)));
             atom->addArgument(std::make_unique<AstVariable>("@current_count_" + std::to_string(i)));
             
             // store the iterations and body counts to build arguments later
             bodyLevels.push_back(new AstVariable("@iteration_" + std::to_string(i)));
             bodyPreviousCounts.push_back(new AstVariable("@prev_count_" + std::to_string(i)));
-            bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i))));
+            bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::MUL, std::make_unique<AstVariable>("@current_epoch_" + std::to_string(i)), std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)))));
             bodyCounts.push_back(new AstVariable("@current_count_" + std::to_string(i)));
         }
     }
@@ -128,10 +129,13 @@ std::unique_ptr<AstClause> makeNegativeUpdateClause(const AstClause& clause) {
     // first is the iteration number, which we get by adding 1 to the max iteration number over the body atoms
     negativeUpdateClause->getHead()->addArgument(std::make_unique<AstIntrinsicFunctor>(FunctorOp::ADD, std::make_unique<AstNumberConstant>(1), std::unique_ptr<AstArgument>(applyFunctorToVars(bodyLevels, FunctorOp::MAX))));
 
-    // second is the previous epoch's count, which we set to 0 signifying that we are updating the head tuple
+    // second is the epoch indicator, which is 1 for any newly inserted tuple
+    negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
+
+    // third is the previous epoch's count, which we set to 0 signifying that we are updating the head tuple
     negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
 
-    // third is the current epoch's count, which we set to -1, triggering a decrement in the count
+    // fourth is the current epoch's count, which we set to -1, triggering a decrement in the count
     negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(-1));
 
     // add constraint to the rule saying that all body tuples must have existed prior,
@@ -176,6 +180,7 @@ std::unique_ptr<AstClause> makePositiveUpdateClause(const AstClause& clause) {
         // add three incremental columns to lit; first is iteration number, second is count in previous epoch, third is count in current epoch
         if (auto atom = dynamic_cast<AstAtom*>(lit)) {
             atom->addArgument(std::make_unique<AstVariable>("@iteration_" + std::to_string(i)));
+            atom->addArgument(std::make_unique<AstVariable>("@current_epoch_" + std::to_string(i)));
             atom->addArgument(std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)));
             atom->addArgument(std::make_unique<AstVariable>("@current_count_" + std::to_string(i)));
             
@@ -185,7 +190,7 @@ std::unique_ptr<AstClause> makePositiveUpdateClause(const AstClause& clause) {
             // TODO: comment this properly, it's really messed up
             // basically we want to encode 1 if (diff > 0 && prev_count == 0), 0 otherwise
             // we do this by (BNOT(prev_count BOR 0) LAND (count - prev_count))
-            bodyCountDiffs.push_back((new AstIntrinsicFunctor(FunctorOp::LAND, 
+            bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::MUL, std::make_unique<AstVariable>("@current_epoch_" + std::to_string(i)), std::make_unique<AstIntrinsicFunctor>(FunctorOp::LAND, 
                             (std::make_unique<AstIntrinsicFunctor>(FunctorOp::LNOT, std::make_unique<AstIntrinsicFunctor>(FunctorOp::BOR, std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)), std::make_unique<AstNumberConstant>(0)))),
                             (std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)))))));
             bodyCounts.push_back(new AstVariable("@current_count_" + std::to_string(i)));
@@ -195,6 +200,9 @@ std::unique_ptr<AstClause> makePositiveUpdateClause(const AstClause& clause) {
     // add three incremental columns to head lit
     // first is the iteration number, which we get by adding 1 to the max iteration number over the body atoms
     positiveUpdateClause->getHead()->addArgument(std::make_unique<AstIntrinsicFunctor>(FunctorOp::ADD, std::make_unique<AstNumberConstant>(1), std::unique_ptr<AstArgument>(applyFunctorToVars(bodyLevels, FunctorOp::MAX))));
+
+    // first is the iteration number, which we get by adding 1 to the max iteration number over the body atoms
+    positiveUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
 
     // second is the previous epoch's count, which we set to 0, signifying that we are updating the head tuple
     positiveUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
@@ -238,6 +246,7 @@ std::unique_ptr<AstClause> makePositiveGenerationClause(const AstClause& clause)
         // add three incremental columns to lit; first is iteration number, second is count in previous epoch, third is count in current epoch
         if (auto atom = dynamic_cast<AstAtom*>(lit)) {
             atom->addArgument(std::make_unique<AstVariable>("@iteration_" + std::to_string(i)));
+            atom->addArgument(std::make_unique<AstVariable>("@current_epoch_" + std::to_string(i)));
             atom->addArgument(std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)));
             atom->addArgument(std::make_unique<AstVariable>("@current_count_" + std::to_string(i)));
             
@@ -251,6 +260,9 @@ std::unique_ptr<AstClause> makePositiveGenerationClause(const AstClause& clause)
     // add three incremental columns to head lit
     // first is the iteration number, which we get by adding 1 to the max iteration number over the body atoms
     positiveGenerationClause->getHead()->addArgument(std::make_unique<AstIntrinsicFunctor>(FunctorOp::ADD, std::make_unique<AstNumberConstant>(1), std::unique_ptr<AstArgument>(applyFunctorToVars(bodyLevels, FunctorOp::MAX))));
+
+    // first is the iteration number, which we get by adding 1 to the max iteration number over the body atoms
+    positiveGenerationClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
 
     // second is the previous epoch's count, which we set to 1, signifying that this tuple should have always existed, but was not generated in a prior epoch for some other reason
     positiveGenerationClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
@@ -330,6 +342,8 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
         relation->addAttribute(
                 std::make_unique<AstAttribute>(std::string("@iteration"), AstTypeIdentifier("number")));
         relation->addAttribute(
+                std::make_unique<AstAttribute>(std::string("@current_epoch_"), AstTypeIdentifier("number")));
+        relation->addAttribute(
                 std::make_unique<AstAttribute>(std::string("@prev_count"), AstTypeIdentifier("number")));
         relation->addAttribute(
                 std::make_unique<AstAttribute>(std::string("@current_count"), AstTypeIdentifier("number")));
@@ -382,6 +396,7 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
             // if fact, level number is 0
             if (clause->isFact()) {
                 clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
+                clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
                 clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
                 clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
             } else {

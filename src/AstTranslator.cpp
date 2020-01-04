@@ -1252,9 +1252,12 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalCleanupSubroutine(co
         std::vector<std::unique_ptr<RamExpression>> updateTuple;
         
         // insert the original tuple
-        for (size_t i = 0; i < relation->getArity() - 2; i++) {
+        for (size_t i = 0; i < relation->getArity() - 3; i++) {
             updateTuple.push_back(std::make_unique<RamTupleElement>(0, i));
         }
+
+        // say tuple is no longer updated in current epoch
+        updateTuple.push_back(std::make_unique<RamNumber>(0));
 
         // insert -1 for both counts
         updateTuple.push_back(std::make_unique<RamNumber>(-1));
