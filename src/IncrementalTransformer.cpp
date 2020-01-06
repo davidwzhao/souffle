@@ -121,6 +121,7 @@ std::unique_ptr<AstClause> makeNegativeUpdateClause(const AstClause& clause) {
             bodyLevels.push_back(new AstVariable("@iteration_" + std::to_string(i)));
             bodyPreviousCounts.push_back(new AstVariable("@prev_count_" + std::to_string(i)));
             bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::MUL, std::make_unique<AstVariable>("@current_epoch_" + std::to_string(i)), std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)))));
+
             bodyCounts.push_back(new AstVariable("@current_count_" + std::to_string(i)));
         }
     }

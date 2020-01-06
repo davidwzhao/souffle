@@ -1062,6 +1062,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                         std::make_unique<RamSwap>(
                                 std::unique_ptr<RamRelationReference>(relDelta[rel]->clone()),
                                 std::unique_ptr<RamRelationReference>(relNew[rel]->clone())),
+                        std::make_unique<RamSemiMerge>(
+                                std::unique_ptr<RamRelationReference>(relDelta[rel]->clone()),
+                                std::unique_ptr<RamRelationReference>(rrel[rel]->clone())),
                         std::make_unique<RamClear>(
                                 std::unique_ptr<RamRelationReference>(relNew[rel]->clone()))));
 
@@ -1112,6 +1115,17 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
             if (!recursiveClauses->recursive(cl)) {
                 continue;
             }
+
+            /*
+            // for incremental, merge new into delta before doing the positive generation rule
+            if (Global::config().has("incremental")) {
+                if (*(cl->getHead()->getArgument(cl->getHead()->getArity() - 2)) == AstNumberConstant(1)) {
+                    appendStmt(loopRelSeq, std::make_unique<RamSemiMerge>(
+                                std::unique_ptr<RamRelationReference>(relNew[rel]->clone()),
+                                std::unique_ptr<RamRelationReference>(relDelta[rel]->clone())));
+                }
+            }
+            */
 
             // each recursive rule results in several operations
             int version = 0;
