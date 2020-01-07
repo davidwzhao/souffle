@@ -1116,16 +1116,11 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                 continue;
             }
 
-            /*
-            // for incremental, merge new into delta before doing the positive generation rule
             if (Global::config().has("incremental")) {
                 if (*(cl->getHead()->getArgument(cl->getHead()->getArity() - 2)) == AstNumberConstant(1)) {
-                    appendStmt(loopRelSeq, std::make_unique<RamSemiMerge>(
-                                std::unique_ptr<RamRelationReference>(relNew[rel]->clone()),
-                                std::unique_ptr<RamRelationReference>(relDelta[rel]->clone())));
+                    continue;
                 }
             }
-            */
 
             // each recursive rule results in several operations
             int version = 0;
@@ -1200,6 +1195,109 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
             }
             assert(cl->getExecutionPlan() == nullptr || version > cl->getExecutionPlan()->getMaxVersion());
         }
+
+
+        /*
+         * NOTE: This is a super hacky method of making incremental evaluation work
+         * we want to process the 0,-1 and 0,1 count update rules separately from the 1,1
+         * tuple re-generation rules
+         *
+         * Essentially, we need to SemiMerge new into delta and then process the 1,1 rule,
+         * yeah, it's a bit of a mess...
+         */
+        if (Global::config().has("incremental")) {
+            appendStmt(loopRelSeq, std::make_unique<RamSemiMerge>(
+                        std::unique_ptr<RamRelationReference>(relNew[rel]->clone()),
+                        std::unique_ptr<RamRelationReference>(relDelta[rel]->clone())));
+
+            for (size_t i = 0; i < rel->clauseSize(); i++) {
+                AstClause* cl = rel->getClause(i);
+
+                // skip non-recursive clauses
+                if (!recursiveClauses->recursive(cl)) {
+                    continue;
+                }
+
+                // only process the 1,1 rules
+                if (*(cl->getHead()->getArgument(cl->getHead()->getArity() - 2)) != AstNumberConstant(1)) {
+                    continue;
+                }
+
+                // each recursive rule results in several operations
+                int version = 0;
+                const auto& atoms = cl->getAtoms();
+                for (size_t j = 0; j < atoms.size(); ++j) {
+                    const AstAtom* atom = atoms[j];
+                    const AstRelation* atomRelation = getAtomRelation(atom, program);
+
+                    // only interested in atoms within the same SCC
+                    if (!isInSameSCC(atomRelation)) {
+                        continue;
+                    }
+
+                    // modify the processed rule to use relDelta and write to relNew
+                    std::unique_ptr<AstClause> r1(cl->clone());
+                    r1->getHead()->setName(relNew[rel]->get()->getName());
+                    r1->getAtoms()[j]->setName(relDelta[atomRelation]->get()->getName());
+                    if (Global::config().has("provenance")) {
+                        size_t numberOfHeights = rel->numberOfHeightParameters();
+                        r1->addToBody(std::make_unique<AstSubsumptionNegation>(
+                                std::unique_ptr<AstAtom>(cl->getHead()->clone()), 1 + numberOfHeights));
+                    } else if (Global::config().has("incremental")) {
+                        r1->addToBody(std::make_unique<AstSubsumptionNegation>(
+                                std::unique_ptr<AstAtom>(cl->getHead()->clone()), 1));
+                    } else {
+                        if (r1->getHead()->getArity() > 0)
+                            r1->addToBody(std::make_unique<AstNegation>(
+                                    std::unique_ptr<AstAtom>(cl->getHead()->clone())));
+                    }
+
+                    // replace wildcards with variables (reduces indices when wildcards are used in recursive
+                    // atoms)
+                    nameUnnamedVariables(r1.get());
+
+                    // reduce R to P ...
+                    for (size_t k = j + 1; k < atoms.size(); k++) {
+                        if (isInSameSCC(getAtomRelation(atoms[k], program))) {
+                            AstAtom* cur = r1->getAtoms()[k]->clone();
+                            cur->setName(relDelta[getAtomRelation(atoms[k], program)]->get()->getName());
+                            r1->addToBody(std::make_unique<AstNegation>(std::unique_ptr<AstAtom>(cur)));
+                        }
+                    }
+
+                    std::unique_ptr<RamStatement> rule =
+                            ClauseTranslator(*this).translateClause(*r1, *cl, version);
+
+                    /* add logging */
+                    if (Global::config().has("profile")) {
+                        const std::string& relationName = toString(rel->getName());
+                        const SrcLocation& srcLocation = cl->getSrcLoc();
+                        const std::string clauseText = stringify(toString(*cl));
+                        const std::string logTimerStatement =
+                                LogStatement::tRecursiveRule(relationName, version, srcLocation, clauseText);
+                        const std::string logSizeStatement =
+                                LogStatement::nRecursiveRule(relationName, version, srcLocation, clauseText);
+                        rule = std::make_unique<RamSequence>(
+                                std::make_unique<RamLogRelationTimer>(std::move(rule), logTimerStatement,
+                                        std::unique_ptr<RamRelationReference>(relNew[rel]->clone())));
+                    }
+
+                    // add debug info
+                    std::ostringstream ds;
+                    ds << toString(*cl) << "\nin file ";
+                    ds << cl->getSrcLoc();
+                    rule = std::make_unique<RamDebugInfo>(std::move(rule), ds.str());
+
+                    // add to loop body
+                    appendStmt(loopRelSeq, std::move(rule));
+
+                    // increment version counter
+                    version++;
+                }
+                assert(cl->getExecutionPlan() == nullptr || version > cl->getExecutionPlan()->getMaxVersion());
+            }
+        }
+
 
         // if there was no rule, continue
         if (!loopRelSeq) {
