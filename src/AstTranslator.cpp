@@ -1094,6 +1094,11 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
         updateTable->add(std::move(updateRelTable));
     }
 
+    /**
+     * make a clone so that we can process 1,1 rules properly for incremental
+     */
+    std::unique_ptr<RamSequence> regenerateHiddenUpdateTable(updateTable->clone());
+
     // --- build main loop ---
 
     std::unique_ptr<RamParallel> loopSeq(new RamParallel());
@@ -1197,18 +1202,73 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
         }
 
 
-        /*
-         * NOTE: This is a super hacky method of making incremental evaluation work
-         * we want to process the 0,-1 and 0,1 count update rules separately from the 1,1
-         * tuple re-generation rules
-         *
-         * Essentially, we need to SemiMerge new into delta and then process the 1,1 rule,
-         * yeah, it's a bit of a mess...
-         */
-        if (Global::config().has("incremental")) {
-            appendStmt(loopRelSeq, std::make_unique<RamSemiMerge>(
-                        std::unique_ptr<RamRelationReference>(relNew[rel]->clone()),
-                        std::unique_ptr<RamRelationReference>(relDelta[rel]->clone())));
+        // if there was no rule, continue
+        if (!loopRelSeq) {
+            continue;
+        }
+
+        // label all versions
+        if (Global::config().has("profile")) {
+            const std::string& relationName = toString(rel->getName());
+            const SrcLocation& srcLocation = rel->getSrcLoc();
+            const std::string logTimerStatement = LogStatement::tRecursiveRelation(relationName, srcLocation);
+            const std::string logSizeStatement = LogStatement::nRecursiveRelation(relationName, srcLocation);
+            loopRelSeq = std::make_unique<RamLogRelationTimer>(std::move(loopRelSeq), logTimerStatement,
+                    std::unique_ptr<RamRelationReference>(relNew[rel]->clone()));
+        }
+
+        /* add rule computations of a relation to parallel statement */
+        loopSeq->add(std::move(loopRelSeq));
+    }
+
+    /* construct exit conditions for odd and even iteration */
+    auto addCondition = [](std::unique_ptr<RamCondition>& cond, std::unique_ptr<RamCondition> clause) {
+        cond = ((cond) ? std::make_unique<RamConjunction>(std::move(cond), std::move(clause))
+                       : std::move(clause));
+    };
+
+    std::unique_ptr<RamCondition> exitCond;
+    for (const AstRelation* rel : scc) {
+        addCondition(exitCond, std::make_unique<RamEmptinessCheck>(
+                                       std::unique_ptr<RamRelationReference>(relNew[rel]->clone())));
+    }
+
+    /* construct fixpoint loop  */
+    std::unique_ptr<RamStatement> res;
+    if (preamble) appendStmt(res, std::move(preamble));
+    if (!loopSeq->getStatements().empty() && exitCond && updateTable) {
+        appendStmt(res, std::make_unique<RamLoop>(std::move(loopSeq),
+                                std::make_unique<RamExit>(std::move(exitCond)), std::move(updateTable)));
+    }
+
+    /*
+     * NOTE: This is a super hacky method of making incremental evaluation work
+     * we want to process the 0,-1 and 0,1 count update rules separately from the 1,1
+     * tuple re-generation rules
+     *
+     * Essentially, we need to SemiMerge new into delta and then process the 1,1 rule,
+     * yeah, it's a bit of a mess...
+     */
+
+    if (Global::config().has("incremental")) {
+        std::unique_ptr<RamParallel> loopRegenerateHiddenSeq(new RamParallel());
+
+        std::unique_ptr<RamStatement> regenerateHiddenPreamble;
+
+        /* Compute temp for the current tables */
+        for (const AstRelation* rel : scc) {
+            appendStmt(regenerateHiddenPreamble,
+                    std::make_unique<RamClear>(
+                            std::unique_ptr<RamRelationReference>(relNew[rel]->clone())));
+            appendStmt(regenerateHiddenPreamble,
+                    std::make_unique<RamClear>(
+                            std::unique_ptr<RamRelationReference>(relDelta[rel]->clone())));
+            /* Generate merge operation for temp tables */
+            appendStmt(regenerateHiddenPreamble,
+                    std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(relDelta[rel]->clone()),
+                            std::unique_ptr<RamRelationReference>(rrel[rel]->clone())));
+
+            std::unique_ptr<RamStatement> loopRelSeq;
 
             for (size_t i = 0; i < rel->clauseSize(); i++) {
                 AstClause* cl = rel->getClause(i);
@@ -1296,47 +1356,47 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                 }
                 assert(cl->getExecutionPlan() == nullptr || version > cl->getExecutionPlan()->getMaxVersion());
             }
+
+            // if there was no rule, continue
+            if (!loopRelSeq) {
+                continue;
+            }
+
+            // label all versions
+            if (Global::config().has("profile")) {
+                const std::string& relationName = toString(rel->getName());
+                const SrcLocation& srcLocation = rel->getSrcLoc();
+                const std::string logTimerStatement = LogStatement::tRecursiveRelation(relationName, srcLocation);
+                const std::string logSizeStatement = LogStatement::nRecursiveRelation(relationName, srcLocation);
+                loopRelSeq = std::make_unique<RamLogRelationTimer>(std::move(loopRelSeq), logTimerStatement,
+                        std::unique_ptr<RamRelationReference>(relNew[rel]->clone()));
+            }
+
+            /* add rule computations of a relation to parallel statement */
+            loopRegenerateHiddenSeq->add(std::move(loopRelSeq));
         }
 
-
-        // if there was no rule, continue
-        if (!loopRelSeq) {
-            continue;
+        std::unique_ptr<RamCondition> regenerateHiddenExitCond;
+        for (const AstRelation* rel : scc) {
+            addCondition(regenerateHiddenExitCond, std::make_unique<RamEmptinessCheck>(
+                                           std::unique_ptr<RamRelationReference>(relNew[rel]->clone())));
         }
 
-        // label all versions
-        if (Global::config().has("profile")) {
-            const std::string& relationName = toString(rel->getName());
-            const SrcLocation& srcLocation = rel->getSrcLoc();
-            const std::string logTimerStatement = LogStatement::tRecursiveRelation(relationName, srcLocation);
-            const std::string logSizeStatement = LogStatement::nRecursiveRelation(relationName, srcLocation);
-            loopRelSeq = std::make_unique<RamLogRelationTimer>(std::move(loopRelSeq), logTimerStatement,
-                    std::unique_ptr<RamRelationReference>(relNew[rel]->clone()));
+        std::cout << "1,1 rules:" << std::endl;
+        loopRegenerateHiddenSeq->print(std::cout, 0);
+        std::cout << std::endl;
+        regenerateHiddenExitCond->print(std::cout);
+        std::cout << std::endl;
+        regenerateHiddenUpdateTable->print(std::cout, 0);
+
+        /* construct fixpoint loop  */
+        if (regenerateHiddenPreamble) appendStmt(res, std::move(regenerateHiddenPreamble));
+        if (!loopRegenerateHiddenSeq->getStatements().empty() && regenerateHiddenExitCond && regenerateHiddenUpdateTable) {
+            appendStmt(res, std::make_unique<RamLoop>(std::move(loopRegenerateHiddenSeq),
+                                    std::make_unique<RamExit>(std::move(regenerateHiddenExitCond)), std::move(regenerateHiddenUpdateTable)));
         }
-
-        /* add rule computations of a relation to parallel statement */
-        loopSeq->add(std::move(loopRelSeq));
     }
 
-    /* construct exit conditions for odd and even iteration */
-    auto addCondition = [](std::unique_ptr<RamCondition>& cond, std::unique_ptr<RamCondition> clause) {
-        cond = ((cond) ? std::make_unique<RamConjunction>(std::move(cond), std::move(clause))
-                       : std::move(clause));
-    };
-
-    std::unique_ptr<RamCondition> exitCond;
-    for (const AstRelation* rel : scc) {
-        addCondition(exitCond, std::make_unique<RamEmptinessCheck>(
-                                       std::unique_ptr<RamRelationReference>(relNew[rel]->clone())));
-    }
-
-    /* construct fixpoint loop  */
-    std::unique_ptr<RamStatement> res;
-    if (preamble) appendStmt(res, std::move(preamble));
-    if (!loopSeq->getStatements().empty() && exitCond && updateTable) {
-        appendStmt(res, std::make_unique<RamLoop>(std::move(loopSeq),
-                                std::make_unique<RamExit>(std::move(exitCond)), std::move(updateTable)));
-    }
     if (postamble) {
         appendStmt(res, std::move(postamble));
     }
