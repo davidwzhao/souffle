@@ -1122,7 +1122,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
             }
 
             if (Global::config().has("incremental")) {
-                if (*(cl->getHead()->getArgument(cl->getHead()->getArity() - 2)) == AstNumberConstant(1)) {
+                if (*(cl->getHead()->getArgument(cl->getHead()->getArity() - 1)) == AstNumberConstant(1)) {
                     continue;
                 }
             }
@@ -1255,6 +1255,12 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
         std::unique_ptr<RamStatement> regenerateHiddenPreamble;
 
+        // make subroutine condition, don't actually use return value
+        auto cleanupCond = std::make_unique<RamSubroutineCondition>("incremental_deletion_cleanup");
+
+        // put it into a RamExit
+        appendStmt(regenerateHiddenPreamble, std::make_unique<RamExit>(std::move(cleanupCond), false));
+
         /* Compute temp for the current tables */
         for (const AstRelation* rel : scc) {
             appendStmt(regenerateHiddenPreamble,
@@ -1279,7 +1285,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                 }
 
                 // only process the 1,1 rules
-                if (*(cl->getHead()->getArgument(cl->getHead()->getArity() - 2)) != AstNumberConstant(1)) {
+                if (*(cl->getHead()->getArgument(cl->getHead()->getArity() - 1)) != AstNumberConstant(1)) {
                     continue;
                 }
 
@@ -1406,7 +1412,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
     return nullptr;
 }
 
-std::unique_ptr<RamStatement> AstTranslator::makeIncrementalCleanupSubroutine(const AstProgram& program) {
+std::unique_ptr<RamStatement> AstTranslator::makeIncrementalDeletionCleanupSubroutine(const AstProgram& program) {
     // create a RamSequence for cleaning up all relations
     auto cleanupSequence = std::make_unique<RamSequence>();
 
@@ -1434,6 +1440,46 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalCleanupSubroutine(co
         // insert -1 for both counts
         updateTuple.push_back(std::make_unique<RamNumber>(-1));
         updateTuple.push_back(std::make_unique<RamNumber>(-1));
+
+        // create the projection
+        auto insertUpdate = std::make_unique<RamProject>(std::unique_ptr<RamRelationReference>(relationReference->clone()), std::move(updateTuple));
+
+        // create the scan
+        auto cleanupScan = std::make_unique<RamScan>(std::unique_ptr<RamRelationReference>(relationReference->clone()), 0, std::move(insertUpdate));
+        cleanupSequence->add(std::make_unique<RamQuery>(std::move(cleanupScan)));
+    }
+
+    return cleanupSequence;
+}
+
+std::unique_ptr<RamStatement> AstTranslator::makeIncrementalCleanupSubroutine(const AstProgram& program) {
+    // create a RamSequence for cleaning up all relations
+    auto cleanupSequence = std::make_unique<RamSequence>();
+
+    for (const auto& relation : program.getRelations()) {
+        // update every tuple in relation so that the previous and current counts match
+        // FOR t0 in relation:
+        //   INSERT (t0.0, t0.2, ..., -1, -1)
+        // insert -1 as both counts and handle this case in the B-Tree update method
+
+        // make a RamRelationReference to be used to build the subroutine
+        auto relationReference = translateRelation(relation);
+        
+        // the subroutine needs to be built from inside out
+        // build the insertion step first
+        std::vector<std::unique_ptr<RamExpression>> updateTuple;
+        
+        // insert the original tuple
+        for (size_t i = 0; i < relation->getArity() - 3; i++) {
+            updateTuple.push_back(std::make_unique<RamTupleElement>(0, i));
+        }
+
+        // say tuple is no longer updated in current epoch
+        updateTuple.push_back(std::make_unique<RamNumber>(0));
+
+        // insert -1 for both counts
+        updateTuple.push_back(std::make_unique<RamNumber>(-1));
+        updateTuple.push_back(std::make_unique<RamNumber>(0));
 
         // create the projection
         auto insertUpdate = std::make_unique<RamProject>(std::unique_ptr<RamRelationReference>(relationReference->clone()), std::move(updateTuple));
@@ -1917,6 +1963,7 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
     // add cleanup subroutine for incremental
     if (Global::config().has("incremental")) {
         ramProg->addSubroutine("incremental_cleanup", makeIncrementalCleanupSubroutine(*translationUnit.getProgram()));
+        ramProg->addSubroutine("incremental_deletion_cleanup", makeIncrementalDeletionCleanupSubroutine(*translationUnit.getProgram()));
     }
 }
 

@@ -45,6 +45,10 @@ enum class FunctorOp {
     LOR,   // logical or
     MAX,   // max of two numbers
     MIN,   // min of two numbers
+    LE,    // if first <= second
+    LT,    // if first < second
+    GE,    // if first >= second
+    GT,    // if first > second
     CAT,   // string concatenation
 
     /** Ternary Functor Operators */
@@ -81,6 +85,10 @@ inline bool isValidFunctorOpArity(FunctorOp op, size_t arity) {
         case FunctorOp::BXOR:
         case FunctorOp::LAND:
         case FunctorOp::LOR:
+        case FunctorOp::LE:
+        case FunctorOp::LT:
+        case FunctorOp::GE:
+        case FunctorOp::GT:
             return arity == 2;
 
         /** Ternary Functor Operators */
@@ -147,6 +155,14 @@ inline std::string getSymbolForFunctorOp(FunctorOp op) {
             return "max";
         case FunctorOp::MIN:
             return "min";
+        case FunctorOp::LE:
+            return "<=";
+        case FunctorOp::LT:
+            return "<";
+        case FunctorOp::GE:
+            return ">=";
+        case FunctorOp::GT:
+            return ">";
         case FunctorOp::CAT:
             return "cat";
 

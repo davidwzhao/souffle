@@ -120,7 +120,18 @@ std::unique_ptr<AstClause> makeNegativeUpdateClause(const AstClause& clause) {
             // store the iterations and body counts to build arguments later
             bodyLevels.push_back(new AstVariable("@iteration_" + std::to_string(i)));
             bodyPreviousCounts.push_back(new AstVariable("@prev_count_" + std::to_string(i)));
-            bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::MUL, std::make_unique<AstVariable>("@current_epoch_" + std::to_string(i)), std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)))));
+
+            // bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::MUL, std::make_unique<AstVariable>("@current_epoch_" + std::to_string(i)), std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)))));
+
+            // TODO: comment this properly, we want to encode that either the tuple exists, or it was deleted in the current epoch
+            // this is expressed as ((current_count > 0) or ((prev_count > 0) and (current_cout <= 0)))
+            bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::LOR,
+                        std::make_unique<AstIntrinsicFunctor>(FunctorOp::LAND,
+                            std::make_unique<AstIntrinsicFunctor>(FunctorOp::GT, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstNumberConstant>(0)),
+                            std::make_unique<AstIntrinsicFunctor>(FunctorOp::GT, std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)), std::make_unique<AstNumberConstant>(0))),
+                        std::make_unique<AstIntrinsicFunctor>(FunctorOp::LAND,
+                            std::make_unique<AstIntrinsicFunctor>(FunctorOp::GT, std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)), std::make_unique<AstNumberConstant>(0)),
+                            std::make_unique<AstIntrinsicFunctor>(FunctorOp::LE, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstNumberConstant>(0)))));
 
             bodyCounts.push_back(new AstVariable("@current_count_" + std::to_string(i)));
         }
@@ -141,15 +152,23 @@ std::unique_ptr<AstClause> makeNegativeUpdateClause(const AstClause& clause) {
 
     // add constraint to the rule saying that all body tuples must have existed prior,
     // i.e. tuples that are deleted in prior epochs shouldn't be deleted again
+    /*
     negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
                 std::unique_ptr<AstArgument>(applyFunctorToVars(bodyPreviousCounts, FunctorOp::MIN)),
                 std::make_unique<AstNumberConstant>(0)));
+                */
 
     // add constraint to the rule saying that at least one body atom must have been updated in the current epoch
     // we do this by doing min(count_cur_1 - count_prev_1, count_cur_2 - count_prev_2, ...) < 0
+    /*
     negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LT,
                 std::unique_ptr<AstArgument>(applyFunctorToVars(bodyCountDiffs, FunctorOp::MIN)),
                 std::make_unique<AstNumberConstant>(0)));
+                */
+
+    for (auto bodyCountDiff : bodyCountDiffs) {
+        negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::NE, std::unique_ptr<AstArgument>(bodyCountDiff), std::make_unique<AstNumberConstant>(0)));
+    }
 
     // add constraint to the rule saying that at least one body atom must have negative count
     negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,
@@ -188,12 +207,21 @@ std::unique_ptr<AstClause> makePositiveUpdateClause(const AstClause& clause) {
             // store the iterations and body counts to build arguments later
             bodyLevels.push_back(new AstVariable("@iteration_" + std::to_string(i)));
 
+            /*
             // TODO: comment this properly, it's really messed up
             // basically we want to encode 1 if (diff > 0 && prev_count == 0), 0 otherwise
             // we do this by (BNOT(prev_count BOR 0) LAND (count - prev_count))
             bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::MUL, std::make_unique<AstVariable>("@current_epoch_" + std::to_string(i)), std::make_unique<AstIntrinsicFunctor>(FunctorOp::LAND, 
                             (std::make_unique<AstIntrinsicFunctor>(FunctorOp::LNOT, std::make_unique<AstIntrinsicFunctor>(FunctorOp::BOR, std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)), std::make_unique<AstNumberConstant>(0)))),
                             (std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)))))));
+                            */
+
+            // TODO: comment this properly, we want to encode that the tuple has been inserted in the current epoch
+            // this is encoded as ((current_count > 0) and (prev_count <= 0))
+            bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::LAND,
+                            std::make_unique<AstIntrinsicFunctor>(FunctorOp::LE, std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)), std::make_unique<AstNumberConstant>(0)),
+                            std::make_unique<AstIntrinsicFunctor>(FunctorOp::GT, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstNumberConstant>(0))));
+
             bodyCounts.push_back(new AstVariable("@current_count_" + std::to_string(i)));
         }
     }

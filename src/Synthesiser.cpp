@@ -1709,6 +1709,38 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                     out << "})";
                     break;
                 }
+                case FunctorOp::LE: {
+                    out << "(";
+                    visit(op.getArgument(0), out);
+                    out << ") <= (";
+                    visit(op.getArgument(1), out);
+                    out << ")";
+                    break;
+                }
+                case FunctorOp::LT: {
+                    out << "(";
+                    visit(op.getArgument(0), out);
+                    out << ") < (";
+                    visit(op.getArgument(1), out);
+                    out << ")";
+                    break;
+                }
+                case FunctorOp::GE: {
+                    out << "(";
+                    visit(op.getArgument(0), out);
+                    out << ") >= (";
+                    visit(op.getArgument(1), out);
+                    out << ")";
+                    break;
+                }
+                case FunctorOp::GT: {
+                    out << "(";
+                    visit(op.getArgument(0), out);
+                    out << ") > (";
+                    visit(op.getArgument(1), out);
+                    out << ")";
+                    break;
+                }
 
                 // strings
                 case FunctorOp::CAT: {

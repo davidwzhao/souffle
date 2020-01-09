@@ -225,6 +225,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
             out << "if (new_t[" << arity - 2 << "] == 1 && new_t[" << arity - 1 << "] > 0) return false;\n";
         }
 
+        // this case comes from a SemiMerge, where -1 is used as a marker
         out << "if (new_t[" << arity - 3 << "] == -1) {\n";
         out << "old_t[" << arity - 1 << "] = new_t[" << arity - 1 << "];\n";
         out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
@@ -232,7 +233,14 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
 
         out << "old_t[" << arity - 3 << "] = new_t[" << arity - 3 << "];\n";
 
-        out << "if (new_t[" << arity - 2 << "] < 0) old_t[" << arity - 2 << "] = old_t[" << arity - 1 << "];\n";
+        // this case comes from the cleanup subroutine
+        out << "if (new_t[" << arity - 2 << "] < 0) {\n";
+        out << "if (new_t[" << arity - 1 << "] == 0) {\n";
+        out << "old_t[" << arity - 2 << "] = old_t[" << arity - 1 << "];\n";
+        out << "} else {\n";
+        out << "if (old_t[" << arity - 2 << "] > old_t[" << arity - 1 << "]) old_t[" << arity - 2 << "] = old_t[" << arity - 1 << "];\n";
+        out << "}\n";
+        out << "}\n";
 
         out << "else old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
         out << "return true;\n";

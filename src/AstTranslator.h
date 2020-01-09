@@ -382,6 +382,7 @@ private:
 
     /** translate RAM code for subroutine to get subproofs */
     std::unique_ptr<RamStatement> makeIncrementalCleanupSubroutine(const AstProgram& program);
+    std::unique_ptr<RamStatement> makeIncrementalDeletionCleanupSubroutine(const AstProgram& program);
 
     /** translate RAM code for subroutine to get subproofs */
     std::unique_ptr<RamStatement> makeSubproofSubroutine(const AstClause& clause);

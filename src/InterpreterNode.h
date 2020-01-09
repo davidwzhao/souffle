@@ -77,6 +77,7 @@ enum InterpreterNodeType {
     I_Fact,
     I_Query,
     I_Merge,
+    I_SemiMerge,
     I_Swap,
 };
 
