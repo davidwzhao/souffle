@@ -136,8 +136,14 @@ std::unique_ptr<AstClause> IncrementalTransformer::makeNegativeUpdateClause(cons
     // first is the iteration number, which we get by adding 1 to the max iteration number over the body atoms
     // negativeUpdateClause->getHead()->addArgument(std::make_unique<AstIntrinsicFunctor>(FunctorOp::ADD, std::make_unique<AstNumberConstant>(1), std::unique_ptr<AstArgument>(applyFunctorToVars(bodyLevels, FunctorOp::MAX))));
 
+    const RecursiveClauses& recursiveClauses = *translationUnit.getAnalysis<RecursiveClauses>();
+
     // first is the iteration number, which is counted inside each SCC
-    negativeUpdateClause->getHead()->addArgument(std::make_unique<AstIterationNumber>());
+    if (recursiveClauses.recursive(&clause)) {
+        negativeUpdateClause->getHead()->addArgument(std::make_unique<AstIterationNumber>());
+    } else {
+        negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
+    }
 
     // second is the previous epoch's count, which we set to 0 signifying that we are updating the head tuple
     negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
@@ -220,10 +226,16 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveUpdateClause(cons
     // add three incremental columns to head lit
     // first is the iteration number, which we get by adding 1 to the max iteration number over the body atoms
     // positiveUpdateClause->getHead()->addArgument(std::make_unique<AstIntrinsicFunctor>(FunctorOp::ADD, std::make_unique<AstNumberConstant>(1), std::unique_ptr<AstArgument>(applyFunctorToVars(bodyLevels, FunctorOp::MAX))));
-    
-    // first is the iteration number
-    positiveUpdateClause->getHead()->addArgument(std::make_unique<AstIterationNumber>());
 
+    const RecursiveClauses& recursiveClauses = *translationUnit.getAnalysis<RecursiveClauses>();
+
+    // first is the iteration number, which is counted inside each SCC
+    if (recursiveClauses.recursive(&clause)) {
+        positiveUpdateClause->getHead()->addArgument(std::make_unique<AstIterationNumber>());
+    } else {
+        positiveUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
+    }
+    
     // second is the previous epoch's count, which we set to 0, signifying that we are updating the head tuple
     positiveUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
 
@@ -294,8 +306,14 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
     // first is the iteration number, which we get by adding 1 to the max iteration number over the body atoms
     // positiveGenerationClause->getHead()->addArgument(std::make_unique<AstIntrinsicFunctor>(FunctorOp::ADD, std::make_unique<AstNumberConstant>(1), std::unique_ptr<AstArgument>(applyFunctorToVars(bodyLevels, FunctorOp::MAX))));
     
-    // first is the iteration number
-    positiveGenerationClause->getHead()->addArgument(std::make_unique<AstIterationNumber>());
+    const RecursiveClauses& recursiveClauses = *translationUnit.getAnalysis<RecursiveClauses>();
+
+    // first is the iteration number, which is counted inside each SCC
+    if (recursiveClauses.recursive(&clause)) {
+        positiveGenerationClause->getHead()->addArgument(std::make_unique<AstIterationNumber>());
+    } else {
+        positiveGenerationClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
+    }
 
     // second is the previous epoch's count, which we set to 1, signifying that this tuple should have always existed, but was not generated in a prior epoch for some other reason
     positiveGenerationClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
