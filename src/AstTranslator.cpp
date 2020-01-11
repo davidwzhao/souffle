@@ -1035,7 +1035,7 @@ void AstTranslator::nameUnnamedVariables(AstClause* clause) {
 
 /** generate RAM code for recursive relations in a strongly-connected component */
 std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
-        const std::set<const AstRelation*>& scc, const RecursiveClauses* recursiveClauses) {
+        const std::set<const AstRelation*>& scc, const RecursiveClauses* recursiveClauses, int indexOfScc) {
     // initialize sections
     std::unique_ptr<RamStatement> preamble;
     std::unique_ptr<RamSequence> updateTable(new RamSequence());
@@ -1241,6 +1241,13 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                        std::unique_ptr<RamRelationReference>(relNew[rel]->clone())));
     }
 
+    if (Global::config().has("incremental")) {
+        ramProg->addSubroutine("scc_" + std::to_string(indexOfScc) + "_exit", makeIncrementalExitCondSubroutine(scc));
+        std::vector<std::unique_ptr<RamExpression>> exitCondArgs;
+        exitCondArgs.push_back(std::make_unique<RamIterationNumber>());
+        addCondition(exitCond, std::make_unique<RamSubroutineCondition>("scc_" + std::to_string(indexOfScc) + "_exit", std::move(exitCondArgs)));
+    }
+
     /* construct fixpoint loop  */
     std::unique_ptr<RamStatement> res;
     if (preamble) appendStmt(res, std::move(preamble));
@@ -1292,6 +1299,44 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalCleanupSubroutine(co
     }
 
     return cleanupSequence;
+}
+
+std::unique_ptr<RamStatement> AstTranslator::makeIncrementalExitCondSubroutine(const std::set<const AstRelation*>& scc) {
+    // make a subroutine as exitCond(iterationNumber)
+    auto exitCondSequence = std::make_unique<RamSequence>();
+
+    for (const auto relation : scc) {
+        // make a scan that checks the iteration number
+        // FOR t0 in relation:
+        //   IF t0.iteration > arg(iteration):
+        //     RETURN 1 NOW
+
+        // make a RamRelationReference to be used to build the subroutine
+        auto relationReference = translateRelation(relation);
+
+        // make RamSubroutineReturnValue
+        std::vector<std::unique_ptr<RamExpression>> returnFalseVal;
+        returnFalseVal.push_back(std::make_unique<RamNumber>(0));
+        auto returnFalse = std::make_unique<RamSubroutineReturnValue>(std::move(returnFalseVal), true);
+
+        // make a RamCondition saying that the iteration number of the current tuple is > current iteration
+        auto iterationConstraint = std::make_unique<RamConstraint>(BinaryConstraintOp::GT, std::make_unique<RamTupleElement>(0, relation->getArity() - 3), std::make_unique<RamSubroutineArgument>(0));
+
+        // make RamFilter that returns true if the iteration number is greater
+        auto iterationFilter = std::make_unique<RamFilter>(std::move(iterationConstraint), std::move(returnFalse));
+
+        // create the scan
+        auto exitCondScan = std::make_unique<RamScan>(std::unique_ptr<RamRelationReference>(relationReference->clone()), 0, std::move(iterationFilter));
+        exitCondSequence->add(std::make_unique<RamQuery>(std::move(exitCondScan)));
+    }
+
+    // default case
+    std::vector<std::unique_ptr<RamExpression>> returnTrueVal;
+    returnTrueVal.push_back(std::make_unique<RamNumber>(1));
+    auto returnTrue = std::make_unique<RamSubroutineReturnValue>(std::move(returnTrueVal));
+    exitCondSequence->add(std::make_unique<RamQuery>(std::move(returnTrue)));
+
+    return exitCondSequence;
 }
 
 /** make a subroutine to search for subproofs */
@@ -1669,7 +1714,7 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
         std::unique_ptr<RamStatement> bodyStatement =
                 (!isRecursive) ? translateNonRecursiveRelation(
                                          *((const AstRelation*)*allInterns.begin()), recursiveClauses)
-                               : translateRecursiveRelation(allInterns, recursiveClauses);
+                               : translateRecursiveRelation(allInterns, recursiveClauses, indexOfScc);
         appendStmt(current, std::move(bodyStatement));
         {
             // if a communication engine is enabled...

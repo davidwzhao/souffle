@@ -85,15 +85,28 @@ public:
  */
 class RamSubroutineCondition : public RamCondition {
 public:
-    RamSubroutineCondition(std::string subroutineName) : subroutineName(subroutineName) {}
+    RamSubroutineCondition(std::string subroutineName, std::vector<std::unique_ptr<RamExpression>> arguments = {}) : subroutineName(subroutineName), args(std::move(arguments)), argsPtr(toPtrVector(args)) {}
 
     /** Get relation */
     const std::string& getSubroutineName() const {
         return subroutineName;
     }
 
+    /** Get arguments */
+    const std::vector<RamExpression*>& getArguments() const {
+        return argsPtr;
+    }
+
     void print(std::ostream& os) const override {
-        os << "(" << subroutineName << "())";
+        os << "(" << subroutineName << "(";
+        for (size_t i = 0; i < args.size(); i++) {
+            auto& arg = args[i];
+            arg->print(os);
+            if (i != args.size() - 1) {
+                os << ",";
+            }
+        }
+        os << "))";
     }
 
     RamSubroutineCondition* clone() const override {
@@ -104,10 +117,14 @@ protected:
     /** Subroutine name */
     std::string subroutineName;
 
+    /** Subroutine args */
+    std::vector<std::unique_ptr<RamExpression>> args;
+    std::vector<RamExpression*> argsPtr;
+
     bool equal(const RamNode& node) const override {
         assert(nullptr != dynamic_cast<const RamSubroutineCondition*>(&node));
         const auto& other = static_cast<const RamSubroutineCondition&>(node);
-        return getSubroutineName() == other.getSubroutineName();
+        return getSubroutineName() == other.getSubroutineName() && args == other.args;
     }
 };
 

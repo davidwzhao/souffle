@@ -1486,6 +1486,11 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "std::vector<RamDomain> args;\n";
             out << "std::vector<RamDomain> ret;\n";
             out << "std::vector<bool> err;\n";
+            for (auto arg : cond.getArguments()) {
+                out << "args.push_back(";
+                visit(*arg, out);
+                out << ");\n";
+            }
             out << "executeSubroutine(\"" << cond.getSubroutineName() << "\", args, ret, err);\n";
             out << "if (ret.size() == 0) return false;\n";
             out << "if (ret[0] == 0) return false; else return true;\n";

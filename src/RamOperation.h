@@ -1083,8 +1083,8 @@ protected:
  */
 class RamSubroutineReturnValue : public RamOperation {
 public:
-    RamSubroutineReturnValue(std::vector<std::unique_ptr<RamExpression>> vals)
-            : expressions(std::move(vals)) {}
+    RamSubroutineReturnValue(std::vector<std::unique_ptr<RamExpression>> vals, bool immediateReturn = false)
+            : expressions(std::move(vals)), immediateReturn(immediateReturn) {}
 
     void print(std::ostream& os, int tabpos) const override {
         os << times(" ", tabpos);
@@ -1095,7 +1095,11 @@ public:
                 os << ", ";
             }
         }
-        os << ")" << std::endl;
+        os << ")";
+        if (immediateReturn) {
+            os << " NOW";
+        }
+        os << std::endl;
     }
 
     /** @brief Getter for expressions */
@@ -1116,7 +1120,7 @@ public:
         for (auto& cur : expressions) {
             newValues.emplace_back(cur->clone());
         }
-        return new RamSubroutineReturnValue(std::move(newValues));
+        return new RamSubroutineReturnValue(std::move(newValues), immediateReturn);
     }
 
     void apply(const RamNodeMapper& map) override {
@@ -1129,10 +1133,13 @@ protected:
     /** Return expressions */
     std::vector<std::unique_ptr<RamExpression>> expressions;
 
+    /** Whether to return immediately */
+    bool immediateReturn;
+
     bool equal(const RamNode& node) const override {
         assert(nullptr != dynamic_cast<const RamSubroutineReturnValue*>(&node));
         const auto& other = static_cast<const RamSubroutineReturnValue&>(node);
-        return equal_targets(expressions, other.expressions);
+        return equal_targets(expressions, other.expressions) && other.immediateReturn == immediateReturn;
     }
 };
 
