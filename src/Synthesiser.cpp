@@ -413,23 +413,23 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // out << synthesiser.toIndex(ne.getSearchSignature());
             out << "_" << searchSignature;
             out << "(Tuple<RamDomain," << arity << ">{{";
-            for (size_t i = 0; i < arity - 3; i++) {
+            for (size_t i = 0; i < arity - 2; i++) {
                 out << "tup[" << i << "]";
                 out << ",";
             }
 
             // extra 0s for incremental annotations
-            out << "0,0,0";
+            out << "0,0";
 
             out << "}});\n"; //  << ctxName << ");\n";
 
             out << "if (existenceCheck.empty()) continue;\n";
             out << "for (auto& sourceTup : existenceCheck) {\n";
-            out << "if (sourceTup[" << arity - 4 << "] == tup[" << arity - 4 << "]) {\n";
+            out << "if (sourceTup[" << arity - 3 << "] == tup[" << arity - 3 << "]) {\n";
             out << "auto sourceTupValues = sourceTup;\n";
 
-            // use -1 as an indicator that this insertion is coming from the semimerge, so we can handle it in the B-tree updater
-            out << "sourceTupValues[" << arity - 3 << "] = -1;\n";
+            // use negative number as an indicator that this insertion is coming from the semimerge, so we can handle it in the B-tree updater
+            out << "sourceTupValues[" << arity - 2 << "] = -sourceTupValues[" << arity - 2 << "];\n";
             out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(sourceTupValues);\n";
             out << "continue;\n";
             out << "}\n";

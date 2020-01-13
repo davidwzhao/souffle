@@ -405,7 +405,7 @@ SearchSignature RamIndexAnalysis::getSearchSignature(
         const RamSemiMerge* semiMerge) const {
     SearchSignature res = 0;
     // - 3 because we want the iteration number
-    for (size_t i = 0; i < semiMerge->getSourceRelation().getArity() - 3; i++) {
+    for (size_t i = 0; i < semiMerge->getSourceRelation().getArity() - 2; i++) {
         res |= (1 << i);
     }
     return res;
