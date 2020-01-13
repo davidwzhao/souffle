@@ -323,11 +323,9 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
 
     // add constraint to the rule saying that at least one body atom must have been updated in the current epoch
     // we do this by doing min(count_cur_1 - count_prev_1, count_cur_2 - count_prev_2, ...) > 0
-    /*
     for (auto bodyCountDiff : bodyCountDiffs) {
         positiveGenerationClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ, std::unique_ptr<AstArgument>(bodyCountDiff), std::make_unique<AstNumberConstant>(0)));
     }
-    */
 
     // add constraint to the rule saying that all body atoms must have positive count
     positiveGenerationClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,

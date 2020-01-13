@@ -428,8 +428,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "if (sourceTup[" << arity - 3 << "] == tup[" << arity - 3 << "]) {\n";
             out << "auto sourceTupValues = sourceTup;\n";
 
-            // use negative number as an indicator that this insertion is coming from the semimerge, so we can handle it in the B-tree updater
-            out << "sourceTupValues[" << arity - 2 << "] = -sourceTupValues[" << arity - 2 << "];\n";
+            // do the diff so that when the B-Tree updater handles it as new_t[i] += old_t[i], the final value is correct
+            out << "sourceTupValues[" << arity - 1 << "] = sourceTupValues[" << arity - 1 << "] - tup[" << arity - 1 << "];\n";
+            out << "sourceTupValues[" << arity - 2 << "] = sourceTupValues[" << arity - 2 << "] - tup[" << arity - 2 << "];\n";
             out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(sourceTupValues);\n";
             out << "continue;\n";
             out << "}\n";
