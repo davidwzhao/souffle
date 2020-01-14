@@ -137,8 +137,10 @@ void Synthesiser::generateRelationTypeStruct(
         std::ostream& out, std::unique_ptr<SynthesiserRelation> relationType) {
     // If this type has been generated already, use the cached version
     if (typeCache.find(relationType->getTypeName()) != typeCache.end()) {
+        std::cout << "REL FOUND" << std::endl;
         return;
     }
+    std::cout << "REL NOT FOUND" << std::endl;
     typeCache.insert(relationType->getTypeName());
 
     // Generate the type struct for the relation
@@ -1864,6 +1866,8 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     os << "using namespace ram;\n";
 
     visitDepthFirst(*(prog.getMain()), [&](const RamCreate& create) {
+            create.print(std::cout, 0);
+            std::cout << std::endl;
         // get some table details
         const RamRelation& rel = create.getRelation();
         const std::string& raw_name = rel.getName();

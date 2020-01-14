@@ -1095,6 +1095,46 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
         updateTable->add(std::move(updateRelTable));
     }
 
+    // for incremental, create a temporary table storing the max iteration number in the current SCC
+    // we want the relation to have a single fact, like
+    // @max_iter_scc_i(
+    //   max(
+    //     max @iter : rel_1(_, _, @iter, _, _), 
+    //     max @iter : rel_2(_, _, @iter, _, _),
+    //     ...)).
+    auto maxIterRelation = new RamRelation("@max_iter_scc_" + std::to_string(indexOfScc), 1, 1, std::vector<std::string>({"max_iter"}), std::vector<std::string>({"s"}), RelationRepresentation::DEFAULT);
+    auto maxIterRelationRef = std::make_unique<RamRelationReference>(maxIterRelation);
+
+    if (Global::config().has("incremental")) {
+        appendStmt(preamble, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(maxIterRelationRef->clone())));
+
+        // we make the final project first
+        std::vector<std::unique_ptr<RamExpression>> maxIterNumbers;
+        int ident = 0;
+        for (const AstRelation* rel : scc) {
+            maxIterNumbers.push_back(std::make_unique<RamTupleElement>(ident, 0));
+            ident++;
+        }
+        auto maxIterNumber = std::make_unique<RamIntrinsicOperator>(FunctorOp::MAX, std::move(maxIterNumbers));
+
+        // create a set of aggregates over the relations in the scc
+        // a RamAggregate is a nested structure
+        std::vector<std::unique_ptr<RamExpression>> maxIterNumFunctor;
+        maxIterNumFunctor.push_back(std::move(maxIterNumber));
+        std::unique_ptr<RamOperation> outerMaxIterAggregate = std::make_unique<RamProject>(std::unique_ptr<RamRelationReference>(maxIterRelationRef->clone()), std::move(maxIterNumFunctor));
+
+        ident = 0;
+        for (const AstRelation* rel : scc) {
+            outerMaxIterAggregate = std::make_unique<RamAggregate>(std::move(outerMaxIterAggregate), AggregateFunction::MAX, std::unique_ptr<RamRelationReference>(rrel[rel]->clone()), std::make_unique<RamTupleElement>(ident, rrel[rel]->get()->getArity() - 3), std::make_unique<RamTrue>(), ident);
+            ident++;
+        }
+
+        outerMaxIterAggregate->print(std::cout);
+        std::cout << std::endl;
+
+        appendStmt(preamble, std::make_unique<RamQuery>(std::move(outerMaxIterAggregate)));
+    }
+
     // --- build main loop ---
 
     std::unique_ptr<RamParallel> loopSeq(new RamParallel());
