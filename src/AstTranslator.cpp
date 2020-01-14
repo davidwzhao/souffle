@@ -1146,13 +1146,11 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             std::unique_ptr<AstAtom>(cl->getHead()->clone()), 1));
 
                     // simulate the delta relation with a constraint on the iteration number
-                    /*
                     r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
                                 std::make_unique<AstVariable>("@iteration_" + std::to_string(j)),
                                 std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
-                    */
 
-                    atom->setArgument(atom->getArity() - 3, std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1)));
+                    // atom->setArgument(atom->getArity() - 3, std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1)));
                 } else {
                     if (r1->getHead()->getArity() > 0)
                         r1->addToBody(std::make_unique<AstNegation>(
@@ -1320,7 +1318,7 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalExitCondSubroutine(c
         auto returnFalse = std::make_unique<RamSubroutineReturnValue>(std::move(returnFalseVal), true);
 
         // make a RamCondition saying that the iteration number of the current tuple is > current iteration
-        auto iterationConstraint = std::make_unique<RamConstraint>(BinaryConstraintOp::GT, std::make_unique<RamTupleElement>(0, relation->getArity() - 3), std::make_unique<RamSubroutineArgument>(0));
+        auto iterationConstraint = std::make_unique<RamConstraint>(BinaryConstraintOp::GE, std::make_unique<RamTupleElement>(0, relation->getArity() - 3), std::make_unique<RamSubroutineArgument>(0));
 
         // make RamFilter that returns true if the iteration number is greater
         auto iterationFilter = std::make_unique<RamFilter>(std::move(iterationConstraint), std::move(returnFalse));
