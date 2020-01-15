@@ -1872,7 +1872,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         const RamRelation& rel = create.getRelation();
         const std::string& raw_name = rel.getName();
 
-        bool isProvInfo = raw_name.find("@info") != std::string::npos;
+        bool isProvInfo = raw_name.find("@info") != std::string::npos || raw_name.find("@max_iter") != std::string::npos;
         auto relationType = SynthesiserRelation::getSynthesiserRelation(
                 rel, idxAnalysis->getIndexes(rel), (Global::config().has("provenance") || Global::config().has("incremental")) && !isProvInfo);
 
@@ -1968,7 +1968,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         // TODO: make this correct
         // ensure that the type of the new knowledge is the same as that of the delta knowledge
         bool isDelta = rel.isTemp() && raw_name.find("@delta") != std::string::npos;
-        bool isProvInfo = raw_name.find("@info") != std::string::npos;
+        bool isProvInfo = raw_name.find("@info") != std::string::npos || raw_name.find("@max_iter") != std::string::npos;
         auto relationType = SynthesiserRelation::getSynthesiserRelation(
                 rel, idxAnalysis->getIndexes(rel), (Global::config().has("provenance") || Global::config().has("incremental")) && !isProvInfo);
         tempType = isDelta ? relationType->getTypeName() : tempType;
@@ -2329,7 +2329,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
                 const std::string& name = getRelationName(rel);
                 const std::string& raw_name = rel.getName();
 
-                bool isProvInfo = raw_name.find("@info") != std::string::npos;
+                bool isProvInfo = raw_name.find("@info") != std::string::npos || raw_name.find("@max_iter") != std::string::npos;
                 auto relationType = SynthesiserRelation::getSynthesiserRelation(
                         rel, idxAnalysis->getIndexes(rel), Global::config().has("provenance") && !isProvInfo);
 

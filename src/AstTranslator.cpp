@@ -1102,7 +1102,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
     //     max @iter : rel_1(_, _, @iter, _, _), 
     //     max @iter : rel_2(_, _, @iter, _, _),
     //     ...)).
-    auto maxIterRelation = new RamRelation("@max_iter_scc_" + std::to_string(indexOfScc), 1, 1, std::vector<std::string>({"max_iter"}), std::vector<std::string>({"s"}), RelationRepresentation::DEFAULT);
+    auto maxIterRelation = new RamRelation("scc_" + std::to_string(indexOfScc) + "_@max_iter", 1, 1, std::vector<std::string>({"max_iter"}), std::vector<std::string>({"s"}), RelationRepresentation::DEFAULT);
     auto maxIterRelationRef = std::make_unique<RamRelationReference>(maxIterRelation);
 
     if (Global::config().has("incremental")) {
@@ -1280,7 +1280,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
     }
 
     if (Global::config().has("incremental")) {
-        ramProg->addSubroutine("scc_" + std::to_string(indexOfScc) + "_exit", makeIncrementalExitCondSubroutine(scc));
+        ramProg->addSubroutine("scc_" + std::to_string(indexOfScc) + "_exit", makeIncrementalExitCondSubroutine(*(maxIterRelationRef->clone())));
         std::vector<std::unique_ptr<RamExpression>> exitCondArgs;
         exitCondArgs.push_back(std::make_unique<RamIterationNumber>());
         addCondition(exitCond, std::make_unique<RamSubroutineCondition>("scc_" + std::to_string(indexOfScc) + "_exit", std::move(exitCondArgs)));
@@ -1339,7 +1339,36 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalCleanupSubroutine(co
     return cleanupSequence;
 }
 
-std::unique_ptr<RamStatement> AstTranslator::makeIncrementalExitCondSubroutine(const std::set<const AstRelation*>& scc) {
+std::unique_ptr<RamStatement> AstTranslator::makeIncrementalExitCondSubroutine(const RamRelationReference& maxIterRelationRef) {
+    // we want a subroutine that looks like:
+    // FOR t0 in maxIterRel:
+    //   IF t0.0 >= arg(iter):
+    //     RETURN 0 NOW
+
+    auto exitCondSequence = std::make_unique<RamSequence>();
+
+    // make RamSubroutineReturnValue
+    std::vector<std::unique_ptr<RamExpression>> returnFalseVal;
+    returnFalseVal.push_back(std::make_unique<RamNumber>(0));
+    auto returnFalse = std::make_unique<RamSubroutineReturnValue>(std::move(returnFalseVal), true);
+
+    // make a RamCondition checking whether the maxIterRel tuple is > current iteration
+    auto iterationConstraint = std::make_unique<RamConstraint>(BinaryConstraintOp::GE, std::make_unique<RamTupleElement>(0, 0), std::make_unique<RamSubroutineArgument>(0));
+
+    // make RamFilter that returns false if the iteration number is greater
+    auto iterationFilter = std::make_unique<RamFilter>(std::move(iterationConstraint), std::move(returnFalse));
+
+    // create the RamScan
+    auto exitCondScan = std::make_unique<RamScan>(std::unique_ptr<RamRelationReference>(maxIterRelationRef.clone()), 0, std::move(iterationFilter));
+    exitCondSequence->add(std::make_unique<RamQuery>(std::move(exitCondScan)));
+
+    // default case
+    std::vector<std::unique_ptr<RamExpression>> returnTrueVal;
+    returnTrueVal.push_back(std::make_unique<RamNumber>(1));
+    auto returnTrue = std::make_unique<RamSubroutineReturnValue>(std::move(returnTrueVal));
+    exitCondSequence->add(std::make_unique<RamQuery>(std::move(returnTrue)));
+
+    /*
     // make a subroutine as exitCond(iterationNumber)
     auto exitCondSequence = std::make_unique<RamSequence>();
 
@@ -1373,6 +1402,7 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalExitCondSubroutine(c
     returnTrueVal.push_back(std::make_unique<RamNumber>(1));
     auto returnTrue = std::make_unique<RamSubroutineReturnValue>(std::move(returnTrueVal));
     exitCondSequence->add(std::make_unique<RamQuery>(std::move(returnTrue)));
+    */
 
     return exitCondSequence;
 }
