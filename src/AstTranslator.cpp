@@ -262,6 +262,8 @@ std::unique_ptr<RamExpression> AstTranslator::translateValue(
                 : translator(translator), index(index) {}
 
         std::unique_ptr<RamExpression> visitVariable(const AstVariable& var) override {
+            var.print(std::cout);
+            std::cout << std::endl;
             assert(index.isDefined(var) && "variable not grounded");
             return makeRamTupleElement(index.getDefinitionPoint(var));
         }
@@ -664,6 +666,9 @@ std::unique_ptr<RamStatement> AstTranslator::ClauseTranslator::translateClause(
 
     // get extract some details
     const AstAtom* head = clause.getHead();
+
+    clause.print(std::cout);
+    std::cout << std::endl;
 
     // handle facts
     if (clause.isFact()) {
@@ -1187,7 +1192,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                     // simulate the delta relation with a constraint on the iteration number
                     r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
-                                std::make_unique<AstVariable>("@iteration_" + std::to_string(j)),
+                                std::unique_ptr<AstArgument>(atom->getArgument(atom->getArity() - 3)->clone()),
                                 std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
 
                     // atom->setArgument(atom->getArity() - 3, std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1)));
@@ -1206,7 +1211,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                     if (isInSameSCC(getAtomRelation(atoms[k], program))) {
                         if (Global::config().has("incremental")) {
                             r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LT,
-                                        std::make_unique<AstVariable>("@iteration_" + std::to_string(k)),
+                                        std::unique_ptr<AstArgument>(r1->getAtoms()[k]->getArgument(r1->getAtoms()[k]->getArity() - 3)->clone()),
                                         std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
                         } else {
                             AstAtom* cur = r1->getAtoms()[k]->clone();

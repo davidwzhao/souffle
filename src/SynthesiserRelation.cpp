@@ -76,7 +76,7 @@ void SynthesiserDirectRelation::computeIndices() {
     MinIndexSelection::OrderCollection inds = indices.getAllOrders();
 
     std::cout << "arity: " << getArity() << std::endl;
-    std::cout << "indices: " << getIndices() << std::endl;
+    std::cout << "indices: " << inds << std::endl;
 
     // generate a full index if no indices exist
     if (inds.empty()) {

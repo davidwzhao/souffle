@@ -236,7 +236,7 @@ private:
      * @param clause the clause to be transformed
      * @return an instrumented version of clause that process tuple deletions
      */
-    std::unique_ptr<AstClause> makeNegativeUpdateClause(const AstClause& clause, const AstTranslationUnit& translationUnit);
+    std::vector<AstClause*> makeNegativeUpdateClause(const AstClause& clause, const AstTranslationUnit& translationUnit);
 
     /**
      * Generate a version of a clause that process tuple insertions
@@ -244,10 +244,10 @@ private:
      * @param clause the clause to be transformed
      * @return an instrumented version of clause that process tuple insertions
      */
-    std::unique_ptr<AstClause> makePositiveUpdateClause(const AstClause& clause, const AstTranslationUnit& translationUnit);
+    std::vector<AstClause*> makePositiveUpdateClause(const AstClause& clause, const AstTranslationUnit& translationUnit);
 
     /**
-     * Generate a version of a clause that generates hidden tuples
+     * Generate a version of a clause that regenerates hidden tuples
      *
      * @param clause the clause to be transformed
      * @return an instrumented version of clause that process tuple generations

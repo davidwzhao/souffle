@@ -89,33 +89,64 @@ AstArgument* applyFunctorToVars(std::vector<AstArgument*> levels, FunctorOp op) 
     }
 
     return static_cast<AstArgument*>(currentCombination);
-};
+}
+
+template <typename T>
+std::vector<T*> vectorClone(std::vector<T*> orig) {
+    std::vector<T*> clones;
+    for (auto elem : orig) {
+        clones.push_back(elem->clone());
+    }
+    return clones;
+}
+
+AstRelationIdentifier translateDiffRelationName(const AstRelationIdentifier& rel) {
+    AstRelationIdentifier diffRelation = rel;
+    diffRelation.append("@diff");
+
+    return diffRelation;
+}
+
+AstRelationIdentifier translateDiffAppliedRelationName(const AstRelationIdentifier& rel) {
+    AstRelationIdentifier diffRelation = rel;
+    diffRelation.append("@diff_applied");
+
+    return diffRelation;
+}
 
 /**
  * This transforms a clause to process tuple deletions
  */
-std::unique_ptr<AstClause> IncrementalTransformer::makeNegativeUpdateClause(const AstClause& clause, const AstTranslationUnit& translationUnit) {
+std::vector<AstClause*> IncrementalTransformer::makeNegativeUpdateClause(const AstClause& clause, const AstTranslationUnit& translationUnit) {
     // get the scc graph for generating iteration conditions
     const SCCGraph& sccGraph = *translationUnit.getAnalysis<SCCGraph>();
 
     // make a clone of the clause
     auto negativeUpdateClause = clause.clone();
 
+    // make vector of negativeUpdateClauses
+    std::vector<AstClause*> negativeUpdateClauses;
+
     // store the body counts to allow building arguments in the head atom
     std::vector<AstArgument*> bodyLevels;
     std::vector<AstArgument*> bodyPreviousCounts;
-    std::vector<AstArgument*> bodyCountDiffs;
-    std::vector<AstArgument*> bodyCounts;
+    // std::vector<AstArgument*> bodyCountDiffs;
+    // std::vector<AstArgument*> bodyCounts;
+
+    // store number of atoms to be used for reordering
+    size_t numAtoms = 0;
 
     for (size_t i = 0; i < negativeUpdateClause->getBodyLiterals().size(); i++) {
 
-        auto lit = negativeUpdateClause->getBodyLiterals()[i];
+        auto lit = negativeUpdateClause->getBodyLiteral(i);
 
         // add unnamed vars to each atom nested in arguments of lit
         lit->apply(addUnnamedVariables());
 
         // add three incremental columns to lit; first is iteration number, second is count in previous epoch, third is count in current epoch
         if (auto atom = dynamic_cast<AstAtom*>(lit)) {
+            numAtoms++;
+
             atom->addArgument(std::make_unique<AstVariable>("@iteration_" + std::to_string(i)));
             atom->addArgument(std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)));
             atom->addArgument(std::make_unique<AstVariable>("@current_count_" + std::to_string(i)));
@@ -127,8 +158,8 @@ std::unique_ptr<AstClause> IncrementalTransformer::makeNegativeUpdateClause(cons
                 bodyLevels.push_back(new AstVariable("@iteration_" + std::to_string(i)));
             }
             bodyPreviousCounts.push_back(new AstVariable("@prev_count_" + std::to_string(i)));
-            bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i))));
-            bodyCounts.push_back(new AstVariable("@current_count_" + std::to_string(i)));
+            // bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i))));
+            // bodyCounts.push_back(new AstVariable("@current_count_" + std::to_string(i)));
         }
     }
 
@@ -151,6 +182,59 @@ std::unique_ptr<AstClause> IncrementalTransformer::makeNegativeUpdateClause(cons
     // third is the current epoch's count, which we set to -1, triggering a decrement in the count
     negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(-1));
 
+    // create copies of the rule so we have count values in the body atoms so we can exploit indexes
+    for (size_t i = 0; i < negativeUpdateClause->getBodyLiterals().size(); i++) {
+        auto lit = negativeUpdateClause->getBodyLiteral(i);
+
+        // add three incremental columns to lit; first is iteration number, second is count in previous epoch, third is count in current epoch
+        if (auto atom = dynamic_cast<AstAtom*>(lit)) {
+            auto negativeUpdateClauseSpecialised = negativeUpdateClause->clone();
+
+            // the i-th atom in the rule must be deleted
+            auto bodyAtom = dynamic_cast<AstAtom*>(negativeUpdateClauseSpecialised->getBodyLiteral(i));
+            bodyAtom->setName(translateDiffRelationName(bodyAtom->getName()));
+            bodyAtom->setArgument(bodyAtom->getArity() - 1, std::make_unique<AstNumberConstant>(0));
+
+            negativeUpdateClauseSpecialised->getHead()->setName(translateDiffRelationName(negativeUpdateClauseSpecialised->getHead()->getName()));
+
+            // all tuples must have existed in prior iterations, i.e., tuples that are already deleted should not be deleted again
+            negativeUpdateClauseSpecialised->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
+                        std::unique_ptr<AstArgument>(applyFunctorToVars(vectorClone(bodyPreviousCounts), FunctorOp::MIN)),
+                        std::make_unique<AstNumberConstant>(0)));
+
+            if (bodyLevels.size() > 0) {
+                // add constraint to the rule saying that at least one body atom must have generated in the previous iteration
+                negativeUpdateClauseSpecialised->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
+                            std::unique_ptr<AstArgument>(applyFunctorToVars(vectorClone(bodyLevels), FunctorOp::MAX)),
+                            std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+            }
+
+            for (size_t j = i + 1; j < negativeUpdateClause->getBodyLiterals().size(); j++) {
+                if (auto positiveAtom = dynamic_cast<AstAtom*>(negativeUpdateClauseSpecialised->getBodyLiteral(j))) {
+                    /*
+                    negativeUpdateClauseSpecialised->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
+                                std::unique_ptr<AstArgument>(positiveAtom->getArgument(positiveAtom->getArity() - 1)->clone()),
+                                std::make_unique<AstNumberConstant>(0)));
+                                */
+                    positiveAtom->setName(translateDiffAppliedRelationName(positiveAtom->getName()));
+                }
+            }
+
+            // reorder the clause so the deleted tuple is processed first (hopefully using the index better)
+            std::vector<unsigned int> reordering;
+            reordering.push_back(i);
+            for (unsigned int j = 0; j < numAtoms; j++) {
+                if (j != i) {
+                    reordering.push_back(j);
+                }
+            }
+            negativeUpdateClauseSpecialised->reorderAtoms(reordering);
+
+            negativeUpdateClauses.push_back(negativeUpdateClauseSpecialised);
+        }
+    }
+
+    /*
     // add constraint to the rule saying that all body tuples must have existed prior,
     // i.e. tuples that are deleted in prior epochs shouldn't be deleted again
     negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
@@ -167,31 +251,31 @@ std::unique_ptr<AstClause> IncrementalTransformer::makeNegativeUpdateClause(cons
     negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,
                 std::unique_ptr<AstArgument>(applyFunctorToVars(bodyCounts, FunctorOp::MIN)),
                 std::make_unique<AstNumberConstant>(0)));
+                */
 
-    if (bodyLevels.size() > 0) {
-        // add constraint to the rule saying that at least one body atom must have generated in the previous iteration
-        negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
-                    std::unique_ptr<AstArgument>(applyFunctorToVars(bodyLevels, FunctorOp::MAX)),
-                    std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
-    }
-
-    return std::unique_ptr<AstClause>(negativeUpdateClause);
+    return negativeUpdateClauses;
 }
 
 /**
  * This transforms a clause to process tuple additions
  */
-std::unique_ptr<AstClause> IncrementalTransformer::makePositiveUpdateClause(const AstClause& clause, const AstTranslationUnit& translationUnit) {
+std::vector<AstClause*> IncrementalTransformer::makePositiveUpdateClause(const AstClause& clause, const AstTranslationUnit& translationUnit) {
     // get the scc graph for generating iteration conditions
     const SCCGraph& sccGraph = *translationUnit.getAnalysis<SCCGraph>();
 
     // make a clone of the clause
     auto positiveUpdateClause = clause.clone();
 
+    // make vector of positiveUpdateClauses
+    std::vector<AstClause*> positiveUpdateClauses;
+
     // store the body counts to allow building arguments in the head atom
     std::vector<AstArgument*> bodyLevels;
-    std::vector<AstArgument*> bodyCountDiffs;
+    // std::vector<AstArgument*> bodyCountDiffs;
     std::vector<AstArgument*> bodyCounts;
+
+    // store number of atoms to be used for reordering
+    size_t numAtoms = 0;
 
     for (size_t i = 0; i < positiveUpdateClause->getBodyLiterals().size(); i++) {
 
@@ -202,6 +286,8 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveUpdateClause(cons
 
         // add three incremental columns to lit; first is iteration number, second is count in previous epoch, third is count in current epoch
         if (auto atom = dynamic_cast<AstAtom*>(lit)) {
+            numAtoms++;
+
             atom->addArgument(std::make_unique<AstVariable>("@iteration_" + std::to_string(i)));
             atom->addArgument(std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)));
             atom->addArgument(std::make_unique<AstVariable>("@current_count_" + std::to_string(i)));
@@ -216,9 +302,11 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveUpdateClause(cons
             // TODO: comment this properly, it's really messed up
             // basically we want to encode 1 if (diff > 0 && prev_count == 0), 0 otherwise
             // we do this by (BNOT(prev_count BOR 0) LAND (count - prev_count))
+            /*
             bodyCountDiffs.push_back((new AstIntrinsicFunctor(FunctorOp::LAND, 
                             (std::make_unique<AstIntrinsicFunctor>(FunctorOp::LNOT, std::make_unique<AstIntrinsicFunctor>(FunctorOp::BOR, std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)), std::make_unique<AstNumberConstant>(0)))),
                             (std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)))))));
+                            */
             bodyCounts.push_back(new AstVariable("@current_count_" + std::to_string(i)));
         }
     }
@@ -242,6 +330,60 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveUpdateClause(cons
     // third is the current epoch's count, which we set to 1, triggering an increment in the count
     positiveUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
 
+    // create copies of the rule so we have count values in the body atoms so we can exploit indexes
+    for (size_t i = 0; i < positiveUpdateClause->getBodyLiterals().size(); i++) {
+        auto lit = positiveUpdateClause->getBodyLiteral(i);
+
+        // add three incremental columns to lit; first is iteration number, second is count in previous epoch, third is count in current epoch
+        if (auto atom = dynamic_cast<AstAtom*>(lit)) {
+            auto positiveUpdateClauseSpecialised = positiveUpdateClause->clone();
+
+            // the i-th atom in the rule must be inserted
+            auto bodyAtom = dynamic_cast<AstAtom*>(positiveUpdateClauseSpecialised->getBodyLiteral(i));
+            bodyAtom->setName(translateDiffRelationName(bodyAtom->getName()));
+            bodyAtom->setArgument(bodyAtom->getArity() - 2, std::make_unique<AstNumberConstant>(0));
+
+            positiveUpdateClauseSpecialised->getHead()->setName(translateDiffRelationName(positiveUpdateClauseSpecialised->getHead()->getName()));
+
+            // all tuples must have existed in prior iterations, i.e., tuples that are already deleted should not be deleted again
+            positiveUpdateClauseSpecialised->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
+                        std::unique_ptr<AstArgument>(applyFunctorToVars(vectorClone(bodyCounts), FunctorOp::MIN)),
+                        std::make_unique<AstNumberConstant>(0)));
+
+            if (bodyLevels.size() > 0) {
+                // add constraint to the rule saying that at least one body atom must have generated in the previous iteration
+                positiveUpdateClauseSpecialised->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
+                            std::unique_ptr<AstArgument>(applyFunctorToVars(vectorClone(bodyLevels), FunctorOp::MAX)),
+                            std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+            }
+
+            for (size_t j = i + 1; j < positiveUpdateClause->getBodyLiterals().size(); j++) {
+                if (auto positiveAtom = dynamic_cast<AstAtom*>(positiveUpdateClauseSpecialised->getBodyLiteral(j))) {
+                    /*
+                    positiveUpdateClauseSpecialised->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
+                                std::unique_ptr<AstArgument>(positiveAtom->getArgument(positiveAtom->getArity() - 2)->clone()),
+                                std::make_unique<AstNumberConstant>(0)));
+                                */
+
+                    positiveAtom->setName(translateDiffAppliedRelationName(positiveAtom->getName()));
+                }
+            }
+
+            // reorder the clause so the inserted tuple is processed first (hopefully using the index better)
+            std::vector<unsigned int> reordering;
+            reordering.push_back(i);
+            for (unsigned int j = 0; j < numAtoms; j++) {
+                if (j != i) {
+                    reordering.push_back(j);
+                }
+            }
+            positiveUpdateClauseSpecialised->reorderAtoms(reordering);
+
+            positiveUpdateClauses.push_back(positiveUpdateClauseSpecialised);
+        }
+    }
+    /*
+
     // add constraint to the rule saying that at least one body atom must have been updated in the current epoch
     // we do this by doing max(count_cur_1 - count_prev_1, count_cur_2 - count_prev_2, ...) > 0
     positiveUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
@@ -259,8 +401,9 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveUpdateClause(cons
                     std::unique_ptr<AstArgument>(applyFunctorToVars(bodyLevels, FunctorOp::MAX)),
                     std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
     }
+    */
 
-    return std::unique_ptr<AstClause>(positiveUpdateClause);
+    return positiveUpdateClauses;
 }
 
 /**
@@ -278,6 +421,9 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
     std::vector<AstArgument*> bodyCountDiffs;
     std::vector<AstArgument*> bodyCounts;
 
+    // store number of atoms to be used for reordering
+    size_t numAtoms = 0;
+
     for (size_t i = 0; i < positiveGenerationClause->getBodyLiterals().size(); i++) {
 
         auto lit = positiveGenerationClause->getBodyLiterals()[i];
@@ -287,6 +433,7 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
 
         // add three incremental columns to lit; first is iteration number, second is count in previous epoch, third is count in current epoch
         if (auto atom = dynamic_cast<AstAtom*>(lit)) {
+            numAtoms++;
             atom->addArgument(std::make_unique<AstVariable>("@iteration_" + std::to_string(i)));
             atom->addArgument(std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)));
             atom->addArgument(std::make_unique<AstVariable>("@current_count_" + std::to_string(i)));
@@ -329,6 +476,23 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
     }
     */
 
+    // make an atom saying that the current tuple must already exist with 0 count in earlier iteration
+    /*
+    auto prevTuple = positiveGenerationClause->getHead()->clone();
+    prevTuple->setArgument(prevTuple->getArity() - 1, std::make_unique<AstNumberConstant>(0));
+    prevTuple->setArgument(prevTuple->getArity() - 3, std::make_unique<AstUnnamedVariable>());
+
+    positiveGenerationClause->addToBody(std::unique_ptr<AstAtom>(prevTuple));
+
+    // reorder the clause so the inserted tuple is processed first (hopefully using the index better)
+    std::vector<unsigned int> reordering;
+    reordering.push_back(numAtoms);
+    for (unsigned int i = 0; i < numAtoms; i++) {
+        reordering.push_back(i);
+    }
+    positiveGenerationClause->reorderAtoms(reordering);
+    */
+
     // add constraint to the rule saying that all body atoms must have positive count
     positiveGenerationClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
                 std::unique_ptr<AstArgument>(applyFunctorToVars(bodyCounts, FunctorOp::MIN)),
@@ -351,51 +515,8 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
     program->print(std::cout);
     std::cout << std::endl;
 
-    /*
-    // get next level number
-    auto getNextLevelNumber = [&](std::vector<AstArgument*> levels) {
-        if (levels.empty()) {
-            return static_cast<AstArgument*>(new AstNumberConstant(0));
-        }
-
-        if (levels.size() == 1) {
-            return static_cast<AstArgument*>(new AstIntrinsicFunctor(FunctorOp::ADD,
-                    std::unique_ptr<AstArgument>(levels[0]), std::make_unique<AstNumberConstant>(1)));
-        }
-
-        auto currentMax = new AstIntrinsicFunctor(FunctorOp::MAX, std::unique_ptr<AstArgument>(levels[0]),
-                std::unique_ptr<AstArgument>(levels[1]));
-
-        for (size_t i = 2; i < levels.size(); i++) {
-            currentMax = new AstIntrinsicFunctor(FunctorOp::MAX, std::unique_ptr<AstArgument>(currentMax),
-                    std::unique_ptr<AstArgument>(levels[i]));
-        }
-
-        return static_cast<AstArgument*>(new AstIntrinsicFunctor(FunctorOp::ADD,
-                std::unique_ptr<AstArgument>(currentMax), std::make_unique<AstNumberConstant>(1)));
-    };
-
-    // get min body counts
-    auto combineBodyCounts = [&](std::vector<AstArgument*> levels, FunctorOp op) {
-        if (levels.empty()) {
-            return static_cast<AstArgument*>(new AstNumberConstant(0));
-        }
-
-        if (levels.size() == 1) {
-            return static_cast<AstArgument*>(levels[0]);
-        }
-
-        auto currentComb = new AstIntrinsicFunctor(op, std::unique_ptr<AstArgument>(levels[0]),
-                std::unique_ptr<AstArgument>(levels[1]));
-
-        for (size_t i = 2; i < levels.size(); i++) {
-            currentComb = new AstIntrinsicFunctor(op, std::unique_ptr<AstArgument>(currentComb),
-                    std::unique_ptr<AstArgument>(levels[i]));
-        }
-
-        return static_cast<AstArgument*>(currentComb);
-    };
-    */
+    std::vector<AstRelation*> auxiliaryRelations;
+    auto originalRelations = program->getRelations();
 
     // go through each relation and its rules to add annotations
     for (auto relation : program->getRelations()) {
@@ -406,43 +527,26 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
         relation->addAttribute(
                 std::make_unique<AstAttribute>(std::string("@current_count"), AstTypeIdentifier("number")));
 
-        /*
-        struct M : public AstNodeMapper {
-            using AstNodeMapper::operator();
+        auto diffRelation = new AstRelation();
+        diffRelation->setName(translateDiffRelationName(relation->getName()));
+        for (auto& attr : relation->getAttributes()) {
+            diffRelation->addAttribute(std::unique_ptr<AstAttribute>(attr->clone()));
+        }
+        auxiliaryRelations.push_back(diffRelation);
 
-            std::unique_ptr<AstNode> operator()(std::unique_ptr<AstNode> node) const override {
-                // add provenance columns
-                if (auto atom = dynamic_cast<AstAtom*>(node.get())) {
-                    atom->addArgument(std::make_unique<AstUnnamedVariable>());
-                    atom->addArgument(std::make_unique<AstUnnamedVariable>());
-                } else if (auto neg = dynamic_cast<AstNegation*>(node.get())) {
-                    auto atom = neg->getAtom();
-                    atom->addArgument(std::make_unique<AstUnnamedVariable>());
-                    atom->addArgument(std::make_unique<AstUnnamedVariable>());
-                } else if (auto agg = dynamic_cast<AstAggregator*>(node.get())) {
-                    if (auto innerVar = dynamic_cast<const AstVariable*>(agg->getTargetExpression())) {
-                        if (innerVar->getName() == "@current_epoch_value") {
-                            return node;
-                        }
-                    }
-                }
+        auto diffAppliedRelation = new AstRelation();
+        diffAppliedRelation->setName(translateDiffAppliedRelationName(relation->getName()));
+        for (auto& attr : relation->getAttributes()) {
+            diffAppliedRelation->addAttribute(std::unique_ptr<AstAttribute>(attr->clone()));
+        }
+        auxiliaryRelations.push_back(diffAppliedRelation);
+    }
 
-                // otherwise - apply mapper recursively
-                node->apply(*this);
-                return node;
-            }
-        };
-        */
+    for (auto relation : auxiliaryRelations) {
+        program->addRelation(std::unique_ptr<AstRelation>(relation));
+    }
 
-        /*
-        // create aggregator that ensures the current epoch is being processed
-        auto maxEpochBodyLiteral = std::make_unique<AstAtom>(AstRelationIdentifier("+current_epoch"));
-        maxEpochBodyLiteral->addArgument(std::make_unique<AstVariable>("@current_epoch_value"));
-        auto maxEpochAggregator = std::make_unique<AstAggregator>(AstAggregator::Op::max);
-        maxEpochAggregator->addBodyLiteral(std::move(maxEpochBodyLiteral));
-        maxEpochAggregator->setTargetExpression(std::make_unique<AstVariable>("@current_epoch_value"));
-        */
-
+    for (auto relation : originalRelations) {
         // store a list of original clauses in the relation, to be deleted
         std::vector<AstClause*> originalClauses;
 
@@ -457,8 +561,12 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
                 clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
                 clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
             } else {
-                relation->addClause(std::unique_ptr<AstClause>(makeNegativeUpdateClause(*clause, translationUnit)));
-                relation->addClause(std::unique_ptr<AstClause>(makePositiveUpdateClause(*clause, translationUnit)));
+                for (auto clause : makeNegativeUpdateClause(*clause, translationUnit)) {
+                    program->appendClause(std::unique_ptr<AstClause>(clause));
+                }
+                for (auto clause : makePositiveUpdateClause(*clause, translationUnit)) {
+                    program->appendClause(std::unique_ptr<AstClause>(clause));
+                }
                 relation->addClause(std::unique_ptr<AstClause>(makePositiveGenerationClause(*clause, translationUnit)));
 
                 originalClauses.push_back(clause);
@@ -471,23 +579,6 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
         }
     }
 
-    /*
-    // add a relation for the current epoch number
-    auto epochRelation = std::make_unique<AstRelation>();
-    // use + because @ is explicitly reserved for temporary (new and delta) relations
-    epochRelation->setName(AstRelationIdentifier("+current_epoch"));
-    epochRelation->addAttribute(std::make_unique<AstAttribute>("@epoch", AstTypeIdentifier("number")));
-    // add a single fact to epochRelation
-    auto epochRelationFact = std::make_unique<AstAtom>(AstRelationIdentifier("+current_epoch"));
-    epochRelationFact->addArgument(std::make_unique<AstNumberConstant>(0));
-
-    auto epochRelationClause = std::make_unique<AstClause>();
-    epochRelationClause->setHead(std::move(epochRelationFact));
-    epochRelation->addClause(std::move(epochRelationClause));
-    epochRelation->setQualifier(OUTPUT_RELATION);
-
-    program->addRelation(std::move(epochRelation));
-    */
 
     std::cout << "after:\n";
     program->print(std::cout);
