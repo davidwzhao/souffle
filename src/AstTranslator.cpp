@@ -247,6 +247,32 @@ std::unique_ptr<RamRelationReference> AstTranslator::translateNewRelation(const 
     return translateRelation(rel, "@new_");
 }
 
+std::unique_ptr<RamRelationReference> AstTranslator::translateDiffRelation(
+        const AstRelation* rel) {
+    return translateRelation(rel, "diff@.");
+}
+
+bool AstTranslator::isDiffRelation(const AstRelation* rel) {
+    if (rel->getName()->getNames()[0] == "diff@") {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+std::unique_ptr<RamRelationReference> AstTranslator::translateDiffAppliedRelation(
+        const AstRelation* rel) {
+    return translateRelation(rel, "diff_applied@.");
+}
+
+bool AstTranslator::isDiffAppliedRelation(const AstRelation* rel) {
+    if (rel->getName()->getNames()[0] == "diff_applied@") {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 std::unique_ptr<RamExpression> AstTranslator::translateValue(
         const AstArgument* arg, const ValueIndex& index) {
     if (arg == nullptr) {

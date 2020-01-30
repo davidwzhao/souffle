@@ -313,6 +313,14 @@ private:
     /** translate a temporary `new` relation to a RAM relation for semi-naive evaluation */
     std::unique_ptr<RamRelationReference> translateNewRelation(const AstRelation* rel);
 
+    /** translate a temporary `delta` relation to a RAM relation for semi-naive evaluation */
+    std::unique_ptr<RamRelationReference> translateDiffRelation(const AstRelation* rel);
+    bool isDiffRelation(const AstRelation* rel);
+
+    /** translate a temporary `new` relation to a RAM relation for semi-naive evaluation */
+    std::unique_ptr<RamRelationReference> translateDiffAppliedRelation(const AstRelation* rel);
+    bool isDiffAppliedRelation(const AstRelation* rel);
+
     /** translate an AST argument to a RAM value */
     std::unique_ptr<RamExpression> translateValue(const AstArgument* arg, const ValueIndex& index);
 

@@ -102,14 +102,14 @@ std::vector<T*> vectorClone(std::vector<T*> orig) {
 
 AstRelationIdentifier translateDiffRelationName(const AstRelationIdentifier& rel) {
     AstRelationIdentifier diffRelation = rel;
-    diffRelation.append("@diff");
+    diffRelation.prepend("diff@");
 
     return diffRelation;
 }
 
 AstRelationIdentifier translateDiffAppliedRelationName(const AstRelationIdentifier& rel) {
     AstRelationIdentifier diffRelation = rel;
-    diffRelation.append("@diff_applied");
+    diffRelation.prepend("diff_applied@");
 
     return diffRelation;
 }
