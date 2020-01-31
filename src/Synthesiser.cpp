@@ -1866,8 +1866,6 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     os << "using namespace ram;\n";
 
     visitDepthFirst(*(prog.getMain()), [&](const RamCreate& create) {
-            create.print(std::cout, 0);
-            std::cout << std::endl;
         // get some table details
         const RamRelation& rel = create.getRelation();
         const std::string& raw_name = rel.getName();

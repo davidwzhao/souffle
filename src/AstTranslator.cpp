@@ -253,7 +253,7 @@ std::unique_ptr<RamRelationReference> AstTranslator::translateDiffRelation(
 }
 
 bool AstTranslator::isDiffRelation(const AstRelation* rel) {
-    if (rel->getName()->getNames()[0] == "diff@") {
+    if (rel->getName().getNames()[0] == "diff@") {
         return true;
     } else {
         return false;
@@ -266,7 +266,7 @@ std::unique_ptr<RamRelationReference> AstTranslator::translateDiffAppliedRelatio
 }
 
 bool AstTranslator::isDiffAppliedRelation(const AstRelation* rel) {
-    if (rel->getName()->getNames()[0] == "diff_applied@") {
+    if (rel->getName().getNames()[0] == "diff_applied@") {
         return true;
     } else {
         return false;
@@ -288,8 +288,6 @@ std::unique_ptr<RamExpression> AstTranslator::translateValue(
                 : translator(translator), index(index) {}
 
         std::unique_ptr<RamExpression> visitVariable(const AstVariable& var) override {
-            var.print(std::cout);
-            std::cout << std::endl;
             assert(index.isDefined(var) && "variable not grounded");
             return makeRamTupleElement(index.getDefinitionPoint(var));
         }
@@ -693,9 +691,6 @@ std::unique_ptr<RamStatement> AstTranslator::ClauseTranslator::translateClause(
     // get extract some details
     const AstAtom* head = clause.getHead();
 
-    clause.print(std::cout);
-    std::cout << std::endl;
-
     // handle facts
     if (clause.isFact()) {
         // translate arguments
@@ -1082,6 +1077,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
     /* Compute non-recursive clauses for relations in scc and push
        the results in their delta tables. */
     for (const AstRelation* rel : scc) {
+
         std::unique_ptr<RamStatement> updateRelTable;
 
         /* create two temporary tables for relaxed semi-naive evaluation */
@@ -1159,9 +1155,6 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
             outerMaxIterAggregate = std::make_unique<RamAggregate>(std::move(outerMaxIterAggregate), AggregateFunction::MAX, std::unique_ptr<RamRelationReference>(rrel[rel]->clone()), std::make_unique<RamTupleElement>(ident, rrel[rel]->get()->getArity() - 3), std::make_unique<RamTrue>(), ident);
             ident++;
         }
-
-        outerMaxIterAggregate->print(std::cout);
-        std::cout << std::endl;
 
         appendStmt(preamble, std::make_unique<RamQuery>(std::move(outerMaxIterAggregate)));
     }
