@@ -977,30 +977,92 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
             continue;
         }
 
-        // translate clause
-        std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*clause, *clause);
+        if (Global::config().has("incremental")) {
+            const auto& atoms = clause->getAtoms();
 
-        // add logging
-        if (Global::config().has("profile")) {
-            const std::string& relationName = toString(rel.getName());
-            const SrcLocation& srcLocation = clause->getSrcLoc();
-            const std::string clauseText = stringify(toString(*clause));
-            const std::string logTimerStatement =
-                    LogStatement::tNonrecursiveRule(relationName, srcLocation, clauseText);
-            const std::string logSizeStatement =
-                    LogStatement::nNonrecursiveRule(relationName, srcLocation, clauseText);
-            rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
-                    logTimerStatement, std::unique_ptr<RamRelationReference>(rrel->clone())));
+            for (size_t i = 0; i < atoms.size(); i++) {
+                AstAtom* atom = atoms[i];
+
+                // clone the clause so we can use diff and diff_applied auxiliary relations
+                std::unique_ptr<AstClause> r1(clause->clone());
+
+                // set the head of the rule to be the diff relation
+                r1->getHead()->setName(translateDiffRelation(&rel)->get()->getName());
+
+                // set atom i to use the diff relation
+                r1->getAtoms()[i]->setName(translateDiffRelation(getAtomRelation(atom, program))->get()->getName());
+
+                for (size_t j = i + 1; j < atoms.size(); j++) {
+                    auto& atomJ = atoms[j];
+                    r1->getAtoms()[j]->setName(translateDiffAppliedRelation(getAtomRelation(atomJ, program))->get()->getName());
+                }
+
+                // translate clause
+                std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1);
+
+                // add logging
+                if (Global::config().has("profile")) {
+                    const std::string& relationName = toString(rel.getName());
+                    const SrcLocation& srcLocation = r1->getSrcLoc();
+                    const std::string clauseText = stringify(toString(*r1));
+                    const std::string logTimerStatement =
+                            LogStatement::tNonrecursiveRule(relationName, srcLocation, clauseText);
+                    const std::string logSizeStatement =
+                            LogStatement::nNonrecursiveRule(relationName, srcLocation, clauseText);
+                    rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
+                            logTimerStatement, std::unique_ptr<RamRelationReference>(rrel->clone())));
+                }
+
+                // add debug info
+                std::ostringstream ds;
+                ds << toString(*r1) << "\nin file ";
+                ds << r1->getSrcLoc();
+                rule = std::make_unique<RamDebugInfo>(std::move(rule), ds.str());
+
+                // add rule to result
+                appendStmt(res, std::move(rule));
+            }
+        } else {
+            // translate clause
+            std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*clause, *clause);
+
+            // add logging
+            if (Global::config().has("profile")) {
+                const std::string& relationName = toString(rel.getName());
+                const SrcLocation& srcLocation = clause->getSrcLoc();
+                const std::string clauseText = stringify(toString(*clause));
+                const std::string logTimerStatement =
+                        LogStatement::tNonrecursiveRule(relationName, srcLocation, clauseText);
+                const std::string logSizeStatement =
+                        LogStatement::nNonrecursiveRule(relationName, srcLocation, clauseText);
+                rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
+                        logTimerStatement, std::unique_ptr<RamRelationReference>(rrel->clone())));
+            }
+
+            // add debug info
+            std::ostringstream ds;
+            ds << toString(*clause) << "\nin file ";
+            ds << clause->getSrcLoc();
+            rule = std::make_unique<RamDebugInfo>(std::move(rule), ds.str());
+
+            // add rule to result
+            appendStmt(res, std::move(rule));
         }
+    }
 
-        // add debug info
-        std::ostringstream ds;
-        ds << toString(*clause) << "\nin file ";
-        ds << clause->getSrcLoc();
-        rule = std::make_unique<RamDebugInfo>(std::move(rule), ds.str());
+    // perform merges of diff and diff_applied relations for incremental, we want:
+    // MERGE R <- R_diff
+    // MERGE R_diff_applied <- R
+    if (Global::config().has("incremental")) {
+        if (res && !isDiffRelation(&rel)) {
+            appendStmt(res, std::make_unique<RamMerge>(
+                        std::unique_ptr<RamRelationReference>(rrel->clone()),
+                        std::unique_ptr<RamRelationReference>(translateDiffRelation(&rel))));
 
-        // add rule to result
-        appendStmt(res, std::move(rule));
+            appendStmt(res, std::make_unique<RamMerge>(
+                        std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(&rel)),
+                        std::unique_ptr<RamRelationReference>(rrel->clone())));
+        }
     }
 
     // add logging for entire relation
@@ -1786,6 +1848,13 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
             // load all internal input relations from the facts dir with a .facts extension
             for (const auto& relation : internIns) {
                 makeRamLoad(current, relation, "fact-dir", ".facts");
+
+                // if incremental, perform a RamSwap so that the loaded facts are stored in the diff relation
+                if (Global::config().has("incremental")) {
+                    appendStmt(current, std::make_unique<RamSwap>(
+                                std::unique_ptr<RamRelationReference>(translateRelation(relation)),
+                                std::unique_ptr<RamRelationReference>(translateDiffRelation(relation))));
+                }
             }
 
             // if a communication engine has been specified...
