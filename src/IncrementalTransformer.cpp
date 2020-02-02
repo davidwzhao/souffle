@@ -100,6 +100,7 @@ std::vector<T*> vectorClone(std::vector<T*> orig) {
     return clones;
 }
 
+/*
 AstRelationIdentifier translateDiffRelationName(const AstRelationIdentifier& rel) {
     AstRelationIdentifier diffRelation = rel;
     diffRelation.prepend("diff@");
@@ -113,6 +114,7 @@ AstRelationIdentifier translateDiffAppliedRelationName(const AstRelationIdentifi
 
     return diffRelation;
 }
+*/
 
 /**
  * This transforms a clause to process tuple deletions
