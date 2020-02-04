@@ -179,7 +179,7 @@ std::vector<AstClause*> IncrementalTransformer::makeNegativeUpdateClause(const A
     }
 
     // second is the previous epoch's count, which we set to 0 signifying that we are updating the head tuple
-    negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
+    negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
 
     // third is the current epoch's count, which we set to -1, triggering a decrement in the count
     negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(-1));

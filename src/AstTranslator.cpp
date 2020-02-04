@@ -1046,21 +1046,6 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
         }
     }
 
-    // perform merges of diff and diff_applied relations for incremental, we want:
-    // MERGE R <- R_diff
-    // MERGE R_diff_applied <- R
-    if (Global::config().has("incremental")) {
-        if (res) {
-            appendStmt(res, std::make_unique<RamMerge>(
-                        std::unique_ptr<RamRelationReference>(rrel->clone()),
-                        std::unique_ptr<RamRelationReference>(translateDiffRelation(&rel))));
-
-            appendStmt(res, std::make_unique<RamMerge>(
-                        std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(&rel)),
-                        std::unique_ptr<RamRelationReference>(rrel->clone())));
-        }
-    }
-
     // add logging for entire relation
     if (Global::config().has("profile")) {
         const std::string& relationName = toString(rel.getName());
@@ -1165,16 +1150,20 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             std::make_unique<RamClear>(
                                     std::unique_ptr<RamRelationReference>(translateNewDiffRelation(rel)->clone()))));
 
+            /*
             appendStmt(updateRelTable,
                     std::make_unique<RamMerge>(
                         std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone()),
                         std::unique_ptr<RamRelationReference>(translateDeltaDiffRelation(rel)->clone())));
+                        */
 
             appendStmt(updateRelTable,
                     std::make_unique<RamSequence>(
+                        /*
                         std::make_unique<RamMerge>(
                             std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
                             std::unique_ptr<RamRelationReference>(rrel[rel]->clone())),
+                            */
                         std::make_unique<RamMerge>(
                             std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
                             std::unique_ptr<RamRelationReference>(translateDeltaDiffRelation(rel)->clone()))));
@@ -1195,6 +1184,18 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                               std::unique_ptr<RamRelationReference>(relNew[rel]->clone()))));
 
         if (Global::config().has("incremental")) {
+            appendStmt(postamble, std::make_unique<RamSequence>(
+                                          std::make_unique<RamDrop>(
+                                                  std::unique_ptr<RamRelationReference>(translateDeltaDiffRelation(rel)->clone())),
+                                          std::make_unique<RamDrop>(
+                                                  std::unique_ptr<RamRelationReference>(translateNewDiffRelation(rel)->clone())),
+                                          std::make_unique<RamDrop>(
+                                                  std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone()))));
+        }
+
+
+        /*
+        if (Global::config().has("incremental")) {
             appendStmt(postamble, std::make_unique<RamMerge>(
                         std::unique_ptr<RamRelationReference>(rrel[rel]->clone()),
                         std::unique_ptr<RamRelationReference>(translateDiffRelation(rel)->clone())));
@@ -1203,9 +1204,19 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                         std::unique_ptr<RamRelationReference>(rrel[rel]->clone()),
                         std::unique_ptr<RamRelationReference>(translateNewDiffRelation(rel)->clone())));
         }
+        */
 
         /* Generate code for non-recursive part of relation */
         appendStmt(preamble, translateNonRecursiveRelation(*rel, recursiveClauses));
+
+        if (Global::config().has("incremental")) {
+            appendStmt(preamble,
+                    std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
+                            std::unique_ptr<RamRelationReference>(rrel[rel]->clone())));
+            appendStmt(preamble,
+                    std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
+                            std::unique_ptr<RamRelationReference>(translateDiffRelation(rel)->clone())));
+        }
 
         /* Generate merge operation for temp tables */
         appendStmt(preamble,
@@ -1303,10 +1314,13 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                     // set atom i to use the diff relation
                     rdiff->getAtoms()[j]->setName(translateDiffRelation(getAtomRelation(atom, program))->get()->getName());
 
-                    for (size_t k = i + 1; k < atoms.size(); k++) {
+                    for (size_t k = j + 1; k < atoms.size(); k++) {
                         auto& atomK = atoms[k];
                         rdiff->getAtoms()[k]->setName(translateDiffAppliedRelation(getAtomRelation(atomK, program))->get()->getName());
                     }
+
+                    rdiff->print(std::cout);
+                    std::cout << std::endl;
 
                     for (size_t k = 0; k < atoms.size(); ++k) {
                         AstAtom* atom = atoms[k];
@@ -1526,7 +1540,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
 std::unique_ptr<RamStatement> AstTranslator::makeIncrementalCleanupSubroutine(const AstProgram& program) {
     // create a RamSequence for cleaning up all relations
-    auto cleanupSequence = std::make_unique<RamSequence>();
+    std::unique_ptr<RamStatement> cleanupSequence;
 
     for (const auto& relation : program.getRelations()) {
         // update every tuple in relation so that the previous and current counts match
@@ -1536,6 +1550,20 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalCleanupSubroutine(co
 
         // make a RamRelationReference to be used to build the subroutine
         auto relationReference = translateRelation(relation);
+
+        // perform merges of diff and diff_applied relations for incremental, we want:
+        // MERGE R <- R_diff
+        // MERGE R_diff_applied <- R
+        appendStmt(cleanupSequence, std::make_unique<RamMerge>(
+                    std::unique_ptr<RamRelationReference>(translateRelation(relation)->clone()),
+                    std::unique_ptr<RamRelationReference>(translateDiffRelation(relation))));
+
+        appendStmt(cleanupSequence, std::make_unique<RamMerge>(
+                    std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)),
+                    std::unique_ptr<RamRelationReference>(translateRelation(relation)->clone())));
+
+        appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffRelation(relation)->clone())));
+        appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)->clone())));
         
         // the subroutine needs to be built from inside out
         // build the insertion step first
@@ -1555,7 +1583,7 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalCleanupSubroutine(co
 
         // create the scan
         auto cleanupScan = std::make_unique<RamScan>(std::unique_ptr<RamRelationReference>(relationReference->clone()), 0, std::move(insertUpdate));
-        cleanupSequence->add(std::make_unique<RamQuery>(std::move(cleanupScan)));
+        appendStmt(cleanupSequence, std::make_unique<RamQuery>(std::move(cleanupScan)));
     }
 
     return cleanupSequence;
@@ -1908,9 +1936,16 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
     // a function to load relations
     const auto& makeRamLoad = [&](std::unique_ptr<RamStatement>& current, const AstRelation* relation,
                                       const std::string& inputDirectory, const std::string& fileExtension) {
-        std::unique_ptr<RamStatement> statement =
+        std::unique_ptr<RamStatement> statement;
+        if (Global::config().has("incremental")) {
+            statement =
+                std::make_unique<RamLoad>(std::unique_ptr<RamRelationReference>(translateDiffRelation(relation)),
+                        getInputIODirectives(relation, Global::config().get(inputDirectory), fileExtension));
+        } else {
+            statement =
                 std::make_unique<RamLoad>(std::unique_ptr<RamRelationReference>(translateRelation(relation)),
                         getInputIODirectives(relation, Global::config().get(inputDirectory), fileExtension));
+        }
         if (Global::config().has("profile")) {
             const std::string logTimerStatement =
                     LogStatement::tRelationLoadTime(toString(relation->getName()), relation->getSrcLoc());
@@ -2001,12 +2036,14 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
             for (const auto& relation : internIns) {
                 makeRamLoad(current, relation, "fact-dir", ".facts");
 
+                /*
                 // if incremental, perform a RamSwap so that the loaded facts are stored in the diff relation
                 if (Global::config().has("incremental")) {
                     appendStmt(current, std::make_unique<RamSwap>(
                                 std::unique_ptr<RamRelationReference>(translateRelation(relation)),
                                 std::unique_ptr<RamRelationReference>(translateDiffRelation(relation))));
                 }
+                */
             }
 
             // if a communication engine has been specified...
@@ -2029,6 +2066,7 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                                          *((const AstRelation*)*allInterns.begin()), recursiveClauses)
                                : translateRecursiveRelation(allInterns, recursiveClauses, indexOfScc);
         appendStmt(current, std::move(bodyStatement));
+
         {
             // if a communication engine is enabled...
             if (Global::config().has("engine")) {
@@ -2039,18 +2077,11 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                 }
             }
 
-            // add the cleanup subroutine
-            if (Global::config().has("incremental") && indexOfScc == sccGraph.getNumberOfSCCs() - 1) {
-                // make subroutine condition, don't actually use return value
-                auto cleanupCond = std::make_unique<RamSubroutineCondition>("incremental_cleanup");
-
-                // put it into a RamExit
-                appendStmt(current, std::make_unique<RamExit>(std::move(cleanupCond), false));
-            }
-
-            // store all internal output relations to the output dir with a .csv extension
-            for (const auto& relation : internOuts) {
-                makeRamStore(current, relation, "output-dir", ".csv");
+            if (!Global::config().has("incremental")) {
+                // store all internal output relations to the output dir with a .csv extension
+                for (const auto& relation : internOuts) {
+                    makeRamStore(current, relation, "output-dir", ".csv");
+                }
             }
         }
 
@@ -2074,6 +2105,23 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                 // otherwise, drop all  relations expired as per the topological order
                 for (const auto& relation : internExps) {
                     makeRamDrop(current, relation);
+                }
+            }
+        }
+
+        // add the cleanup subroutine
+        if (Global::config().has("incremental") && indexOfScc == sccGraph.getNumberOfSCCs() - 1) {
+            // make subroutine condition, don't actually use return value
+            auto cleanupCond = std::make_unique<RamSubroutineCondition>("incremental_cleanup");
+
+            // put it into a RamExit
+            appendStmt(current, std::make_unique<RamExit>(std::move(cleanupCond), false));
+
+            // process stores after cleanup
+            for (const auto& scc : sccOrder.order()) {
+                // store all internal output relations to the output dir with a .csv extension
+                for (const auto& relation : sccGraph.getInternalOutputRelations(scc)) {
+                    makeRamStore(current, relation, "output-dir", ".csv");
                 }
             }
         }

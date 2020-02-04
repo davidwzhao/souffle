@@ -1380,7 +1380,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 // (2) tuple exists with count of zero
 
                 // if tuple doesn't exist, then we can't delete it
-                out << "if (existenceCheck.empty()) return true;\n";
+                out << "if (existenceCheck.empty()) return false;\n";
 
                 // otherwise, only update if there is a tuple with non-zero count
                 // iterate through all tuples matching the payload
@@ -1391,7 +1391,8 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 visit(*iteration, out);
 
                 // and that the count is positive
-                out << " && tup[" << arity - 1 << "] > 0) ";
+                // out << " && tup[" << arity - 1 << "] > 0) ";
+                out << ") ";
 
                 // if these hold, then we can update
                 out << "return false;\n";
