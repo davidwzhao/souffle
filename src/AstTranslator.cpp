@@ -444,8 +444,13 @@ std::unique_ptr<RamCondition> AstTranslator::translateConstraint(
             */
 
             // add constraint
-            return std::make_unique<RamNegation>(std::make_unique<RamSubsumptionExistenceCheck>(
-                    translator.translateRelation(atom), std::move(values)));
+            if (Global::config().has("incremental")) {
+                return std::make_unique<RamNegation>(std::make_unique<RamSubsumptionExistenceCheck>(
+                        translator.translateRelation(atom), std::move(values), translator.translateDiffRelation(translator.program->getRelation(atom->getName()))));
+            } else {
+                return std::make_unique<RamNegation>(std::make_unique<RamSubsumptionExistenceCheck>(
+                        translator.translateRelation(atom), std::move(values), translator.translateRelation(atom)));
+            }
         }
     };
 
@@ -1338,7 +1343,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                         // if we have incremental evaluation, we use iteration counts to simulate delta relations
                         // rather than explicitly having a separate relation
                         r1->addToBody(std::make_unique<AstSubsumptionNegation>(
-                                std::unique_ptr<AstAtom>(rdiff->getHead()->clone()), 1));
+                                std::unique_ptr<AstAtom>(cl->getHead()->clone()), 1));
 
                         // simulate the delta relation with a constraint on the iteration number
                         r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
