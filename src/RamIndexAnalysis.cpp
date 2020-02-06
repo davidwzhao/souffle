@@ -287,10 +287,6 @@ void RamIndexAnalysis::run(const RamTranslationUnit& translationUnit) {
 
             // this is a nasty hack: add another search signature that specifies the iteration number
             indexes.addSearch(getSearchSignature(provExists) + 4);
-
-            MinIndexSelection& diffRelIndexes = getIndexes(provExists->getDiffRelation());
-            diffRelIndexes.addSearch(getSearchSignature(provExists));
-            diffRelIndexes.addSearch(getSearchSignature(provExists) + 4);
         } else if (const auto* ramRel = dynamic_cast<const RamRelation*>(&node)) {
             MinIndexSelection& indexes = getIndexes(*ramRel);
             indexes.addSearch(getSearchSignature(ramRel));

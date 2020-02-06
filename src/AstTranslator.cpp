@@ -444,13 +444,8 @@ std::unique_ptr<RamCondition> AstTranslator::translateConstraint(
             */
 
             // add constraint
-            if (Global::config().has("incremental")) {
-                return std::make_unique<RamNegation>(std::make_unique<RamSubsumptionExistenceCheck>(
-                        translator.translateRelation(atom), std::move(values), translator.translateDiffRelation(translator.program->getRelation(atom->getName()))));
-            } else {
-                return std::make_unique<RamNegation>(std::make_unique<RamSubsumptionExistenceCheck>(
-                        translator.translateRelation(atom), std::move(values), translator.translateRelation(atom)));
-            }
+            return std::make_unique<RamNegation>(std::make_unique<RamSubsumptionExistenceCheck>(
+                    translator.translateRelation(atom), std::move(values)));
         }
     };
 
@@ -978,9 +973,23 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
             continue;
         }
 
+        // check if this clause is re-inserting hidden tuples
+        bool isReinsertionRule = false;
         if (Global::config().has("incremental")) {
-            const auto& atoms = clause->getAtoms();
+            auto prevCount = clause->getHead()->getArgument(rel.getArity() - 2);
+            auto curCount = clause->getHead()->getArgument(rel.getArity() - 1);
 
+            if (auto prevCountNum = dynamic_cast<AstNumberConstant*>(prevCount)) {
+                if (auto curCountNum = dynamic_cast<AstNumberConstant*>(curCount)) {
+                    if (*prevCountNum == AstNumberConstant(1) && *curCountNum == AstNumberConstant(1)) {
+                        isReinsertionRule = true;
+                    }
+                }
+            }
+        }
+
+        if (Global::config().has("incremental") && !isReinsertionRule) {
+            const auto& atoms = clause->getAtoms();
             for (size_t i = 0; i < atoms.size(); i++) {
                 AstAtom* atom = atoms[i];
 
@@ -1024,8 +1033,22 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                 appendStmt(res, std::move(rule));
             }
         } else {
-            // translate clause
-            std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*clause, *clause);
+            std::unique_ptr<RamStatement> rule;
+            if (Global::config().has("incremental")) {
+                auto cl = clause->clone();
+                cl->getHead()->setName(translateDiffRelation(&rel)->get()->getName());
+
+                const auto& atoms = cl->getAtoms();
+                for (size_t i = 0; i < atoms.size(); i++) {
+                    cl->getAtoms()[i]->setName(translateDiffAppliedRelation(getAtomRelation(atoms[i], program))->get()->getName());
+                }
+
+                // translate clause
+                rule = ClauseTranslator(*this).translateClause(*cl, *clause);
+            } else {
+                // translate clause
+                rule = ClauseTranslator(*this).translateClause(*clause, *clause);
+            }
 
             // add logging
             if (Global::config().has("profile")) {
@@ -1305,7 +1328,22 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
             int version = 0;
             const auto& atoms = cl->getAtoms();
 
+            // check if this clause is re-inserting hidden tuples
+            bool isReinsertionRule = false;
             if (Global::config().has("incremental")) {
+                auto prevCount = cl->getHead()->getArgument(rel->getArity() - 2);
+                auto curCount = cl->getHead()->getArgument(rel->getArity() - 1);
+
+                if (auto prevCountNum = dynamic_cast<AstNumberConstant*>(prevCount)) {
+                    if (auto curCountNum = dynamic_cast<AstNumberConstant*>(curCount)) {
+                        if (*prevCountNum == AstNumberConstant(1) && *curCountNum == AstNumberConstant(1)) {
+                            isReinsertionRule = true;
+                        }
+                    }
+                }
+            }
+
+            if (Global::config().has("incremental") && !isReinsertionRule) {
                 for (size_t j = 0; j < atoms.size(); j++) {
                     AstAtom* atom = atoms[j];
                     const AstRelation* atomRelation = getAtomRelation(atom, program);
@@ -1336,6 +1374,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             continue;
                         }
 
+                        auto diffAppliedHeadAtom = cl->getHead()->clone();
+                        diffAppliedHeadAtom->setName(translateDiffAppliedRelation(getAtomRelation(diffAppliedHeadAtom, program))->get()->getName());
+
                         // modify the processed rule to use relDelta and write to relNew
                         std::unique_ptr<AstClause> r1(rdiff->clone());
                         r1->getHead()->setName(translateNewDiffRelation(rel)->get()->getName());
@@ -1343,7 +1384,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                         // if we have incremental evaluation, we use iteration counts to simulate delta relations
                         // rather than explicitly having a separate relation
                         r1->addToBody(std::make_unique<AstSubsumptionNegation>(
-                                std::unique_ptr<AstAtom>(cl->getHead()->clone()), 1));
+                                std::unique_ptr<AstAtom>(diffAppliedHeadAtom), 1));
 
                         // simulate the delta relation with a constraint on the iteration number
                         r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
@@ -1406,7 +1447,15 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                     // modify the processed rule to use relDelta and write to relNew
                     std::unique_ptr<AstClause> r1(cl->clone());
-                    r1->getHead()->setName(relNew[rel]->get()->getName());
+                    if (Global::config().has("incremental")) {
+                        r1->getHead()->setName(translateNewDiffRelation(rel)->get()->getName());
+
+                        for (size_t k = 0; k < atoms.size(); k++) {
+                            r1->getAtoms()[k]->setName(translateDiffAppliedRelation(atomRelation)->get()->getName());
+                        }
+                    } else {
+                        r1->getHead()->setName(relNew[rel]->get()->getName());
+                    }
                     // if we have incremental evaluation, we use iteration counts to simulate delta relations
                     // rather than explicitly having a separate relation
                     if (!Global::config().has("incremental")) {
@@ -1417,8 +1466,11 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                         r1->addToBody(std::make_unique<AstSubsumptionNegation>(
                                 std::unique_ptr<AstAtom>(cl->getHead()->clone()), 1 + numberOfHeights));
                     } else if (Global::config().has("incremental")) {
+                        auto diffAppliedHeadAtom = cl->getHead()->clone();
+                        diffAppliedHeadAtom->setName(translateDiffAppliedRelation(getAtomRelation(diffAppliedHeadAtom, program))->get()->getName());
+
                         r1->addToBody(std::make_unique<AstSubsumptionNegation>(
-                                std::unique_ptr<AstAtom>(cl->getHead()->clone()), 1));
+                                std::unique_ptr<AstAtom>(diffAppliedHeadAtom), 1));
 
                         // simulate the delta relation with a constraint on the iteration number
                         r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,

@@ -1326,9 +1326,11 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             const auto& rel = subsumptionExists.getRelation();
             auto relName = synthesiser.getRelationName(rel);
             auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(rel) + ")";
+            /*
             const auto& diffRel = subsumptionExists.getDiffRelation();
             auto diffRelName = synthesiser.getRelationName(diffRel);
             auto diffCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(diffRel) + ")";
+            */
             auto arity = rel.getArity();
             auto numberOfHeights = rel.getNumberOfHeights();
 
@@ -1348,6 +1350,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // provenance not exists is never total, conduct a range query
             out << "[&]() -> bool {\n";
 
+            /*
             // rules for deletion and addition of tuples are handled separately
             out << "if (";
             visit(*count, out);
@@ -1358,7 +1361,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // (2) tuple exists with count of zero
              
             // we want to check whether the same tuple in the same iteration exists
-            out << "auto existenceCheck = " << diffRelName << "->"
+            out << "auto existenceCheck = " << relName << "->"
                 << "equalRange";
 
             // the + 4 is a nasty hack that gives us the signature of the search that specifies the iteration number
@@ -1379,7 +1382,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             // if this search is empty, then we want to search for the tuple in the original relation
             out << "if (existenceCheck.empty()) {\n";
+            out << "return true;\n";
 
+            / *
             out << "auto origExistenceCheck = " << relName << "->"
                 << "equalRange";
             out << "_" << isa->getSearchSignature(&subsumptionExists) + 4;
@@ -1405,6 +1410,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "if ((*origExistenceCheck.begin())[" << arity - 3 << "] > 0) return false;\n";
             out << "else return true;\n";
             out << "}\n";
+            * /
 
             out << "} else {\n"; // end of if (existenceCheck.empty())
             out << "if ((*existenceCheck.begin())[" << arity - 3 << "] > 0) return false;\n";
@@ -1415,7 +1421,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // (1) return false (i.e., update) if either existenceCheck is empty, or the only tuples found in existenceCheck have a 0 current count
             out << "} else {\n";
 
-            out << "auto existenceCheck = " << diffRelName << "->"
+            out << "auto existenceCheck = " << relName << "->"
                 << "equalRange";
             out << "_" << isa->getSearchSignature(&subsumptionExists);
             out << "(Tuple<RamDomain," << arity << ">{{";
@@ -1447,6 +1453,27 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "return true;\n";
             out << "}\n";
 
+            // check if this is a regeneration rule
+            out << "if (";
+            visit(*prevCount, out);
+            out << " == ";
+            visit(*count, out);
+            out << ") {\n";
+
+            // if it is intended to be inserting a new tuple
+            // do a check if there is a tuple in the current iteration with positive count
+            out << "for (auto& tup : existenceCheck) {\n";
+            out << "if (tup[" << arity - 3 << "] == ";
+            visit(*iteration, out);
+            out << " && tup[" << arity - 1 << "] > 0) return true;\n";
+            out << "}\n";
+            out << "return false;\n";
+            out << "}\n";
+                
+            // if it's an actual update, then process it
+            out << "else {\n";
+
+            / *
             // if the tuple is not found in the diff relation, search for it in the full relation
             out << "auto origExistenceCheck = " << relName << "->"
                 << "equalRange";
@@ -1479,33 +1506,38 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // if these hold, then we don't update
             out << "return true;\n";
             out << "}\n";
+            * /
 
-            // check if this is an update of a previously generated tuple
-            out << "if (";
-            visit(*prevCount, out);
-            out << " == ";
-            visit(*count, out);
-            out << ") {\n";
-
-            // if it is intended to be inserting a new tuple
-            // do a check if there is a tuple in the current iteration with positive count
-            out << "for (auto& tup : existenceCheck) {\n";
-            out << "if (tup[" << arity - 3 << "] == ";
-            visit(*iteration, out);
-            out << " && tup[" << arity - 1 << "] > 0) return true;\n";
-            out << "}\n";
             out << "return false;\n";
             out << "}\n";
-                
-            // if it's an actual update, then process it
-            out << "else return false;\n";
+
 
             // end of if statement
             out << "}\n";
+            */
 
 
-            /*
             if (!isRamUndefValue(count)) {
+
+                // we want to check whether the same tuple in the same iteration exists
+                out << "auto existenceCheck = " << relName << "->"
+                    << "equalRange";
+
+                // the + 4 is a nasty hack that gives us the signature of the search that specifies the iteration number
+                out << "_" << isa->getSearchSignature(&subsumptionExists);
+                out << "(Tuple<RamDomain," << arity << ">{{";
+
+                for (size_t i = 0; i < subsumptionExists.getValues().size() - 3; i++) {
+                    RamExpression* val = subsumptionExists.getValues()[i];
+                    if (!isRamUndefValue(val)) {
+                        visit(*val, out);
+                    } else {
+                        out << "0";
+                    }
+                    out << ",";
+                }
+                out << "0,0,0";
+                out << "}}, " << ctxName << ");\n";
 
                 // check whether tuple is deletion
                 out << "if (";
@@ -1581,7 +1613,6 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 // end of if statement
                 out << "}\n";
             }
-            */
 
 
             /*

@@ -420,30 +420,8 @@ public:
 class RamSubsumptionExistenceCheck : public RamAbstractExistenceCheck {
 public:
     RamSubsumptionExistenceCheck(
-            std::unique_ptr<RamRelationReference> relRef, std::vector<std::unique_ptr<RamExpression>> vals, std::unique_ptr<RamRelationReference> diffRelRef = nullptr)
-            : RamAbstractExistenceCheck(std::move(relRef), std::move(vals)), diffRelationRef(std::move(diffRelRef)) {
-
-                /*
-        std::vector<std::string> relAttributeNames;
-        for (size_t i = 0; i < relationRef->get()->getArity(); i++) {
-            relAttributeNames.push_back(relationRef->get()->getArg(i));
-        }
-
-        auto diffRel = new RamRelation(
-                "diff@_" + relationRef->get()->getName(),
-                relationRef->get()->getArity(),
-                relationRef->get()->getNumberOfHeights(),
-                relAttributeNames,
-                relationRef->get()->getAttributeTypeQualifiers(),
-                relationRef->get()->getRepresentation());
-
-        diffRelRef = std::make_unique<RamRelationReference>(diffRel);
-        */
-    }
-
-    const RamRelation& getDiffRelation() const {
-        return *diffRelationRef->get();
-    }
+            std::unique_ptr<RamRelationReference> relRef, std::vector<std::unique_ptr<RamExpression>> vals)
+            : RamAbstractExistenceCheck(std::move(relRef), std::move(vals)) {}
 
     void print(std::ostream& os) const override {
         os << "("
@@ -464,11 +442,8 @@ public:
             newValues.emplace_back(cur->clone());
         }
         return new RamSubsumptionExistenceCheck(
-                std::unique_ptr<RamRelationReference>(relationRef->clone()), std::move(newValues), std::unique_ptr<RamRelationReference>(diffRelationRef->clone()));
+                std::unique_ptr<RamRelationReference>(relationRef->clone()), std::move(newValues));
     }
-
-private:
-    std::unique_ptr<RamRelationReference> diffRelationRef;
 };
 
 /**
