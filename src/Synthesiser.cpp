@@ -1447,6 +1447,39 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "return true;\n";
             out << "}\n";
 
+            // if the tuple is not found in the diff relation, search for it in the full relation
+            out << "auto origExistenceCheck = " << relName << "->"
+                << "equalRange";
+            out << "_" << isa->getSearchSignature(&subsumptionExists);
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < subsumptionExists.getValues().size() - 3; i++) {
+                RamExpression* val = subsumptionExists.getValues()[i];
+                if (!isRamUndefValue(val)) {
+                    visit(*val, out);
+                } else {
+                    out << "0";
+                }
+                out << ",";
+            }
+
+            // extra 0s for incremental annotations
+            out << "0,0,0";
+            out << "}}, " << ctxName << ");\n";
+
+            // otherwise, only insert if all tuples have zero count
+            // iterate through all tuples matching the payload
+            out << "for (auto& tup : origExistenceCheck) {\n";
+
+            // and that the count is positive
+            // out << " && tup[" << arity - 1 << "] > 0) ";
+            out << "if (tup[" << arity - 3 << "] < ";
+            visit(*iteration, out);
+            out << " && tup[" << arity - 1 << "] > 0) ";
+
+            // if these hold, then we don't update
+            out << "return true;\n";
+            out << "}\n";
+
             // check if this is an update of a previously generated tuple
             out << "if (";
             visit(*prevCount, out);
