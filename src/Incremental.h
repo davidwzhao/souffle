@@ -50,7 +50,7 @@ public:
                 return true;
             }
             query = parseTuple(command[1]);
-            insertTuple("diff@_" + query.first, query.second);
+            insertTuple("diff_plus@_" + query.first, query.second);
         } else if (command[0] == "remove") {
             std::pair<std::string, std::vector<std::string>> query;
             if (command.size() != 2) {
@@ -58,7 +58,7 @@ public:
                 return true;
             }
             query = parseTuple(command[1]);
-            removeTuple("diff@_" + query.first, query.second);
+            removeTuple("diff_minus@_" + query.first, query.second);
         } else if (command[0] == "commit") {
             commit();
         } else if (command[0] == "exit" || command[0] == "q") {
