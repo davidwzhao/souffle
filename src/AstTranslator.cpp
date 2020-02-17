@@ -1015,6 +1015,23 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                     cl->getAtoms()[i]->setName(translateDiffMinusAppliedRelation(getAtomRelation(atoms[i], program))->get()->getName());
                 }
 
+                // a tuple should only be reinserted if that tuple is deleted
+                auto deletedTuple = clause->getHead()->clone();
+                deletedTuple->setName(translateDiffMinusRelation(&rel)->get()->getName());
+                deletedTuple->setArgument(deletedTuple->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                deletedTuple->setArgument(deletedTuple->getArity() - 2, std::make_unique<AstUnnamedVariable>());
+                deletedTuple->setArgument(deletedTuple->getArity() - 3, std::make_unique<AstUnnamedVariable>());
+                cl->addToBody(std::unique_ptr<AstAtom>(deletedTuple));
+
+                // reorder cl so that the deletedTuple atom is evaluated first
+                std::vector<unsigned int> reordering;
+                reordering.push_back(atoms.size());
+                for (unsigned int j = 0; j < atoms.size(); j++) {
+                    reordering.push_back(j);
+                }
+                std::cout << "non-recursive re-insertion" << *cl << " reorder: " << reordering << std::endl;
+                cl->reorderAtoms(reordering);
+
                 // translate clause
                 std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause);
 
@@ -1102,6 +1119,17 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                             r1->getAtoms()[j]->setName(translateDiffAppliedRelation(getAtomRelation(atomJ, program))->get()->getName());
                         }
                     }
+
+                    // reorder cl so that the deletedTuple atom is evaluated first
+                    std::vector<unsigned int> reordering;
+                    reordering.push_back(i);
+                    for (unsigned int j = 0; j < atoms.size(); j++) {
+                        if (j != i) {
+                            reordering.push_back(j);
+                        }
+                    }
+                    std::cout << "non-recursive re-insertion" << *r1 << " reorder: " << reordering << std::endl;
+                    r1->reorderAtoms(reordering);
 
 
                     // translate clause
@@ -1500,6 +1528,24 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             }
                         }
 
+
+                        // a tuple should only be reinserted if that tuple is deleted
+                        auto deletedTuple = cl->getHead()->clone();
+                        deletedTuple->setName(translateDiffMinusRelation(rel)->get()->getName());
+                        deletedTuple->setArgument(deletedTuple->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                        deletedTuple->setArgument(deletedTuple->getArity() - 2, std::make_unique<AstUnnamedVariable>());
+                        deletedTuple->setArgument(deletedTuple->getArity() - 3, std::make_unique<AstUnnamedVariable>());
+                        r1->addToBody(std::unique_ptr<AstAtom>(deletedTuple));
+
+                        // reorder cl so that the deletedTuple atom is evaluated first
+                        std::vector<unsigned int> reordering;
+                        reordering.push_back(atoms.size());
+                        for (unsigned int j = 0; j < atoms.size(); j++) {
+                            reordering.push_back(j);
+                        }
+                        std::cout << "recursive re-insertion: " << *r1 << " reorder: " << reordering << std::endl;
+                        r1->reorderAtoms(reordering);
+
                         std::unique_ptr<RamStatement> rule =
                                 ClauseTranslator(*this).translateClause(*r1, *cl, version);
 
@@ -1587,6 +1633,17 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                 rdiff->getAtoms()[k]->setName(translateDiffAppliedRelation(getAtomRelation(atomK, program))->get()->getName());
                             }
                         }
+
+                        // reorder cl so that the deletedTuple atom is evaluated first
+                        std::vector<unsigned int> reordering;
+                        reordering.push_back(j);
+                        for (unsigned int k = 0; k < atoms.size(); k++) {
+                            if (k != j) {
+                                reordering.push_back(k);
+                            }
+                        }
+                        std::cout << "recursive: " << *rdiff << " reorder: " << reordering << std::endl;
+                        rdiff->reorderAtoms(reordering);
 
                         for (size_t k = 0; k < atoms.size(); ++k) {
                             AstAtom* atom = atoms[k];
