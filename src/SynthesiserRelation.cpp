@@ -235,8 +235,16 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         out << "return true;\n";
         */
 
-        out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
+        out << "if (new_t[" << arity - 2 << "] < 0) old_t[" << arity - 2 << "] = old_t[" << arity - 1 << "];\n";
+
+        out << "else {\n";
+        // only for count relations do we wish to update prev count during a semi-merge
+        if (relation.getName().find("count@") != std::string::npos) {
+            out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
+        }
         out << "old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
+        out << "}\n";
+        out << "return true;\n";
 
         out << "}\n";
         out << "};\n";
