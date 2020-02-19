@@ -496,6 +496,13 @@ public:
         return std::make_unique<InterpreterNode>(I_Merge, &merge, NodePtrVec{}, std::move(data));
     }
 
+    NodePtr visitSemiMerge(const RamSemiMerge& merge) override {
+        std::vector<size_t> data;
+        data.push_back((encodeRelation(merge.getFirstRelation())));
+        data.push_back(encodeRelation(merge.getSecondRelation()));
+        return std::make_unique<InterpreterNode>(I_Merge, &merge, NodePtrVec{}, std::move(data));
+    }
+
     NodePtr visitSwap(const RamSwap& swap) override {
         std::vector<size_t> data;
         data.push_back((encodeRelation(swap.getFirstRelation())));

@@ -221,6 +221,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         }
         */
 
+        /*
         if (!relation.isTemp()) {
             out << "if (new_t[" << arity - 2 << "] == 1 && new_t[" << arity - 1 << "] > 0 && old_t[" << arity - 1 << "] > 0) return false;\n";
         }
@@ -232,6 +233,10 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         out << "else old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
         out << "}\n";
         out << "return true;\n";
+        */
+
+        out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
+        out << "old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
 
         out << "}\n";
         out << "};\n";
