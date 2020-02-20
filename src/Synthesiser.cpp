@@ -407,6 +407,10 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
             out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getTargetRelation()) << ") {\n";
 
+            // TODO: enable generic conditions in the SemiMerge operation, this is temporarily just to get it to work
+            // we want to only perform the semimerge if the tuple is in the current iteration
+            out << "if (tup[" << arity - 3 << "] != iter) continue;\n";
+
             // this is a bit of a mess, should integrate into search signatures
             int searchSignature = isa->getSearchSignature(&merge);
 

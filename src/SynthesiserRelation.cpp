@@ -235,6 +235,10 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         out << "return true;\n";
         */
 
+        if (!relation.isTemp() && relation.getName().find("count@") == std::string::npos) {
+            out << "if (new_t[" << arity - 2 << "] == 1 && new_t[" << arity - 1 << "] > 0 && old_t[" << arity - 1 << "] > 0) return false;\n";
+        }
+
         out << "if (new_t[" << arity - 2 << "] < 0) old_t[" << arity - 2 << "] = old_t[" << arity - 1 << "];\n";
 
         out << "else {\n";

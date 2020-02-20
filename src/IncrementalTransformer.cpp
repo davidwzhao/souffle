@@ -289,7 +289,7 @@ std::vector<AstClause*> IncrementalTransformer::makePositiveUpdateClause(const A
     // store the body counts to allow building arguments in the head atom
     std::vector<AstArgument*> bodyLevels;
     // std::vector<AstArgument*> bodyCountDiffs;
-    // std::vector<AstArgument*> bodyPreviousCounts;
+    std::vector<AstArgument*> bodyPreviousCounts;
     std::vector<AstArgument*> bodyCounts;
 
     // store number of atoms to be used for reordering
@@ -325,7 +325,7 @@ std::vector<AstClause*> IncrementalTransformer::makePositiveUpdateClause(const A
                             (std::make_unique<AstIntrinsicFunctor>(FunctorOp::LNOT, std::make_unique<AstIntrinsicFunctor>(FunctorOp::BOR, std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)), std::make_unique<AstNumberConstant>(0)))),
                             (std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)))))));
                             */
-            // bodyPreviousCounts.push_back(new AstVariable("@prev_count_" + std::to_string(i)));
+            bodyPreviousCounts.push_back(new AstVariable("@prev_count_" + std::to_string(i)));
             bodyCounts.push_back(new AstVariable("@current_count_" + std::to_string(i)));
         }
     }
@@ -436,12 +436,10 @@ std::vector<AstClause*> IncrementalTransformer::makePositiveUpdateClause(const A
     }
     */
 
-    /*
     // all tuples must have existed in prior iterations, i.e., tuples that are already deleted should not be deleted again
     positiveUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,
                 std::unique_ptr<AstArgument>(applyFunctorToVars(vectorClone(bodyPreviousCounts), FunctorOp::MIN)),
                 std::make_unique<AstNumberConstant>(0)));
-                */
 
     positiveUpdateClauses.push_back(positiveUpdateClause);
     return positiveUpdateClauses;
