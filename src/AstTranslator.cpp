@@ -1319,13 +1319,13 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                     std::unique_ptr<RamRelationReference>(translateNewDiffPlusRelation(rel)->clone())),
                             std::make_unique<RamSemiMerge>(
                                     std::unique_ptr<RamRelationReference>(translateDiffPlusCountRelation(rel)->clone()),
-                                    std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone())),
+                                    std::unique_ptr<RamRelationReference>(translateDiffMinusAppliedRelation(rel)->clone())),
                             std::make_unique<RamMerge>(
                                     std::unique_ptr<RamRelationReference>(translateDiffMinusCountRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateNewDiffMinusRelation(rel)->clone())),
                             std::make_unique<RamSemiMerge>(
                                     std::unique_ptr<RamRelationReference>(translateDiffMinusCountRelation(rel)->clone()),
-                                    std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone())),
+                                    std::unique_ptr<RamRelationReference>(translateDiffPlusAppliedRelation(rel)->clone())),
 
                             /*
                             std::make_unique<RamSwap>(
@@ -1407,14 +1407,14 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(rel)->clone())));
             appendStmt(preamble,
                     std::make_unique<RamSemiMerge>(std::unique_ptr<RamRelationReference>(translateDiffPlusCountRelation(rel)->clone()),
-                            std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone())));
+                            std::unique_ptr<RamRelationReference>(translateDiffMinusAppliedRelation(rel)->clone())));
 
             appendStmt(preamble,
                     std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDiffMinusCountRelation(rel)->clone()),
                             std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(rel)->clone())));
             appendStmt(preamble,
                     std::make_unique<RamSemiMerge>(std::unique_ptr<RamRelationReference>(translateDiffMinusCountRelation(rel)->clone()),
-                            std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone())));
+                            std::unique_ptr<RamRelationReference>(translateDiffPlusAppliedRelation(rel)->clone())));
         }
 
         /* Generate merge operation for temp tables */
@@ -2477,7 +2477,7 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                             std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(relation))));
                 appendStmt(current, std::make_unique<RamSemiMerge>(
                             std::unique_ptr<RamRelationReference>(translateDiffPlusCountRelation(relation)),
-                            std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation))));
+                            std::unique_ptr<RamRelationReference>(translateDiffMinusAppliedRelation(relation))));
 
                 // populate diff_minus_count relation
                 appendStmt(current, std::make_unique<RamMerge>(
@@ -2485,7 +2485,7 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                             std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(relation))));
                 appendStmt(current, std::make_unique<RamSemiMerge>(
                             std::unique_ptr<RamRelationReference>(translateDiffMinusCountRelation(relation)),
-                            std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation))));
+                            std::unique_ptr<RamRelationReference>(translateDiffPlusAppliedRelation(relation))));
             }
         }
 
