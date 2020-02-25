@@ -1028,10 +1028,11 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                 // a tuple should only be reinserted if that tuple is deleted
                 auto deletedTuple = clause->getHead()->clone();
                 deletedTuple->setName(translateDiffMinusRelation(&rel)->get()->getName());
-                deletedTuple->setArgument(deletedTuple->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                deletedTuple->setArgument(deletedTuple->getArity() - 1, std::make_unique<AstVariable>("@deleted_count"));
                 deletedTuple->setArgument(deletedTuple->getArity() - 2, std::make_unique<AstUnnamedVariable>());
                 deletedTuple->setArgument(deletedTuple->getArity() - 3, std::make_unique<AstUnnamedVariable>());
                 cl->addToBody(std::unique_ptr<AstAtom>(deletedTuple));
+                // cl->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE, std::make_unique<AstVariable>("@deleted_count"), std::make_unique<AstNumberConstant>(0)));
 
                 // reorder cl so that the deletedTuple atom is evaluated first
                 std::vector<unsigned int> reordering;
@@ -1568,11 +1569,12 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                         // a tuple should only be reinserted if that tuple is deleted
                         auto deletedTuple = cl->getHead()->clone();
-                        deletedTuple->setName(translateDiffMinusRelation(rel)->get()->getName());
-                        deletedTuple->setArgument(deletedTuple->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                        deletedTuple->setName(translateDiffMinusCountRelation(rel)->get()->getName());
+                        deletedTuple->setArgument(deletedTuple->getArity() - 1, std::make_unique<AstVariable>("@deleted_count"));
                         deletedTuple->setArgument(deletedTuple->getArity() - 2, std::make_unique<AstUnnamedVariable>());
                         deletedTuple->setArgument(deletedTuple->getArity() - 3, std::make_unique<AstUnnamedVariable>());
                         r1->addToBody(std::unique_ptr<AstAtom>(deletedTuple));
+                        r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE, std::make_unique<AstVariable>("@deleted_count"), std::make_unique<AstNumberConstant>(0)));
 
                         // reorder cl so that the deletedTuple atom is evaluated first
                         std::vector<unsigned int> reordering;
@@ -1680,7 +1682,6 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             }
                         }
                         std::cout << "recursive: " << *rdiff << " reorder: " << reordering << std::endl;
-                        rdiff->reorderAtoms(reordering);
 
                         for (size_t k = 0; k < atoms.size(); ++k) {
                             AstAtom* atom = atoms[k];
@@ -1725,6 +1726,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                                 std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
                                 }
                             }
+
+                            r1->reorderAtoms(reordering);
 
                             std::unique_ptr<RamStatement> rule =
                                     ClauseTranslator(*this).translateClause(*r1, *cl, version);

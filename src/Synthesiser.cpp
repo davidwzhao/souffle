@@ -137,10 +137,8 @@ void Synthesiser::generateRelationTypeStruct(
         std::ostream& out, std::unique_ptr<SynthesiserRelation> relationType) {
     // If this type has been generated already, use the cached version
     if (typeCache.find(relationType->getTypeName()) != typeCache.end()) {
-        std::cout << "REL FOUND" << std::endl;
         return;
     }
-    std::cout << "REL NOT FOUND" << std::endl;
     typeCache.insert(relationType->getTypeName());
 
     // Generate the type struct for the relation

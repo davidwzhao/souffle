@@ -193,6 +193,10 @@ std::string SynthesiserDirectRelation::getTypeName() {
         res << "__" << search;
     }
 
+    if (relation.isTemp()) {
+        res << "_temp";
+    }
+
     return res.str();
 }
 
@@ -552,6 +556,10 @@ std::string SynthesiserIndirectRelation::getTypeName() {
 
     for (auto& search : getMinIndexSelection().getSearches()) {
         res << "__" << search;
+    }
+
+    if (relation.isTemp()) {
+        res << "_temp";
     }
 
     return res.str();
