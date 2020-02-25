@@ -1126,7 +1126,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
 
                         for (size_t j = i + 1; j < atoms.size(); j++) {
                             auto& atomJ = atoms[j];
-                            r1->getAtoms()[j]->setName(translateDiffAppliedRelation(getAtomRelation(atomJ, program))->get()->getName());
+                            r1->getAtoms()[j]->setName(translateDiffMinusAppliedRelation(getAtomRelation(atomJ, program))->get()->getName());
                         }
                     }
 
@@ -1667,7 +1667,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                             for (size_t k = j + 1; k < atoms.size(); k++) {
                                 auto& atomK = atoms[k];
-                                rdiff->getAtoms()[k]->setName(translateDiffAppliedRelation(getAtomRelation(atomK, program))->get()->getName());
+                                rdiff->getAtoms()[k]->setName(translateDiffMinusAppliedRelation(getAtomRelation(atomK, program))->get()->getName());
                             }
                         }
 
@@ -1911,11 +1911,11 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalCleanupSubroutine(co
         // MERGE R_diff_applied <- R
         appendStmt(cleanupSequence, std::make_unique<RamMerge>(
                     std::unique_ptr<RamRelationReference>(translateRelation(relation)->clone()),
-                    std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(relation))));
+                    std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(relation))));
 
         appendStmt(cleanupSequence, std::make_unique<RamMerge>(
                     std::unique_ptr<RamRelationReference>(translateRelation(relation)->clone()),
-                    std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(relation))));
+                    std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(relation))));
 
         appendStmt(cleanupSequence, std::make_unique<RamMerge>(
                     std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)),

@@ -459,6 +459,7 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
     std::vector<AstArgument*> bodyLevels;
     std::vector<AstArgument*> bodyCountDiffs;
     std::vector<AstArgument*> bodyCounts;
+    std::vector<AstArgument*> bodyPreviousCounts;
 
     // store number of atoms to be used for reordering
     size_t numAtoms = 0;
@@ -485,6 +486,7 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
             }
             bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i))));
             bodyCounts.push_back(new AstVariable("@current_count_" + std::to_string(i)));
+            bodyPreviousCounts.push_back(new AstVariable("@prev_count_" + std::to_string(i)));
         }
     }
 
@@ -535,6 +537,11 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
     // add constraint to the rule saying that all body atoms must have positive count
     positiveGenerationClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
                 std::unique_ptr<AstArgument>(applyFunctorToVars(bodyCounts, FunctorOp::MIN)),
+                std::make_unique<AstNumberConstant>(0)));
+
+    // add constraint to the rule saying that all body atoms must have previously existed
+    positiveGenerationClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
+                std::unique_ptr<AstArgument>(applyFunctorToVars(bodyPreviousCounts, FunctorOp::MIN)),
                 std::make_unique<AstNumberConstant>(0)));
 
     if (bodyLevels.size() > 0) {

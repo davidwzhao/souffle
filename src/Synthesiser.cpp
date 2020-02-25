@@ -1397,173 +1397,6 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // provenance not exists is never total, conduct a range query
             out << "[&]() -> bool {\n";
 
-            /*
-            // rules for deletion and addition of tuples are handled separately
-            out << "if (";
-            visit(*count, out);
-            out << " <= 0) {\n";
-
-            // process a deletion rule: return true (i.e., don't over-delete) if
-            // (1) tuple doesn't exist
-            // (2) tuple exists with count of zero
-             
-            // we want to check whether the same tuple in the same iteration exists
-            out << "auto existenceCheck = " << relName << "->"
-                << "equalRange";
-
-            // the + 4 is a nasty hack that gives us the signature of the search that specifies the iteration number
-            out << "_" << isa->getSearchSignature(&subsumptionExists) + 4;
-            out << "(Tuple<RamDomain," << arity << ">{{";
-
-            for (size_t i = 0; i < subsumptionExists.getValues().size() - 2; i++) {
-                RamExpression* val = subsumptionExists.getValues()[i];
-                if (!isRamUndefValue(val)) {
-                    visit(*val, out);
-                } else {
-                    out << "0";
-                }
-                out << ",";
-            }
-            out << "0,0";
-            out << "}});\n";
-
-            // if this search is empty, then we want to search for the tuple in the original relation
-            out << "if (existenceCheck.empty()) {\n";
-            out << "return true;\n";
-
-            / *
-            out << "auto origExistenceCheck = " << relName << "->"
-                << "equalRange";
-            out << "_" << isa->getSearchSignature(&subsumptionExists) + 4;
-            out << "(Tuple<RamDomain," << arity << ">{{";
-
-            for (size_t i = 0; i < subsumptionExists.getValues().size() - 2; i++) {
-                RamExpression* val = subsumptionExists.getValues()[i];
-                if (!isRamUndefValue(val)) {
-                    visit(*val, out);
-                } else {
-                    out << "0";
-                }
-                out << ",";
-            }
-            out << "0,0";
-            out << "}}," << ctxName << ");\n";
-
-            // if the origExistenceCheck is also empty, then we shouldn't over-delete
-            out << "if (origExistenceCheck.empty()) return true;\n";
-
-            // else, we check if the count is positive
-            out << "else {\n";
-            out << "if ((*origExistenceCheck.begin())[" << arity - 3 << "] > 0) return false;\n";
-            out << "else return true;\n";
-            out << "}\n";
-            * /
-
-            out << "} else {\n"; // end of if (existenceCheck.empty())
-            out << "if ((*existenceCheck.begin())[" << arity - 3 << "] > 0) return false;\n";
-            out << "else return true;\n";
-            out << "}\n";
-
-            // process the addition rule case
-            // (1) return false (i.e., update) if either existenceCheck is empty, or the only tuples found in existenceCheck have a 0 current count
-            out << "} else {\n";
-
-            out << "auto existenceCheck = " << relName << "->"
-                << "equalRange";
-            out << "_" << isa->getSearchSignature(&subsumptionExists);
-            out << "(Tuple<RamDomain," << arity << ">{{";
-            for (size_t i = 0; i < subsumptionExists.getValues().size() - 3; i++) {
-                RamExpression* val = subsumptionExists.getValues()[i];
-                if (!isRamUndefValue(val)) {
-                    visit(*val, out);
-                } else {
-                    out << "0";
-                }
-                out << ",";
-            }
-
-            // extra 0s for incremental annotations
-            out << "0,0,0";
-            out << "}});\n";
-
-            // otherwise, only insert if all tuples have zero count
-            // iterate through all tuples matching the payload
-            out << "for (auto& tup : existenceCheck) {\n";
-
-            // and that the count is positive
-            // out << " && tup[" << arity - 1 << "] > 0) ";
-            out << "if (tup[" << arity - 3 << "] < ";
-            visit(*iteration, out);
-            out << " && tup[" << arity - 1 << "] > 0) ";
-
-            // if these hold, then we don't update
-            out << "return true;\n";
-            out << "}\n";
-
-            // check if this is a regeneration rule
-            out << "if (";
-            visit(*prevCount, out);
-            out << " == ";
-            visit(*count, out);
-            out << ") {\n";
-
-            // if it is intended to be inserting a new tuple
-            // do a check if there is a tuple in the current iteration with positive count
-            out << "for (auto& tup : existenceCheck) {\n";
-            out << "if (tup[" << arity - 3 << "] == ";
-            visit(*iteration, out);
-            out << " && tup[" << arity - 1 << "] > 0) return true;\n";
-            out << "}\n";
-            out << "return false;\n";
-            out << "}\n";
-                
-            // if it's an actual update, then process it
-            out << "else {\n";
-
-            / *
-            // if the tuple is not found in the diff relation, search for it in the full relation
-            out << "auto origExistenceCheck = " << relName << "->"
-                << "equalRange";
-            out << "_" << isa->getSearchSignature(&subsumptionExists);
-            out << "(Tuple<RamDomain," << arity << ">{{";
-            for (size_t i = 0; i < subsumptionExists.getValues().size() - 3; i++) {
-                RamExpression* val = subsumptionExists.getValues()[i];
-                if (!isRamUndefValue(val)) {
-                    visit(*val, out);
-                } else {
-                    out << "0";
-                }
-                out << ",";
-            }
-
-            // extra 0s for incremental annotations
-            out << "0,0,0";
-            out << "}}, " << ctxName << ");\n";
-
-            // otherwise, only insert if all tuples have zero count
-            // iterate through all tuples matching the payload
-            out << "for (auto& tup : origExistenceCheck) {\n";
-
-            // and that the count is positive
-            // out << " && tup[" << arity - 1 << "] > 0) ";
-            out << "if (tup[" << arity - 3 << "] < ";
-            visit(*iteration, out);
-            out << " && tup[" << arity - 1 << "] > 0) ";
-
-            // if these hold, then we don't update
-            out << "return true;\n";
-            out << "}\n";
-            * /
-
-            out << "return false;\n";
-            out << "}\n";
-
-
-            // end of if statement
-            out << "}\n";
-            */
-
-
             if (!isRamUndefValue(count)) {
 
                 // we want to check whether the same tuple in the same iteration exists
@@ -1627,6 +1460,18 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 // iterate through all tuples matching the payload
                 out << "for (auto& tup : existenceCheck) {\n";
 
+                // this is for a special case where:
+                // (1) a tuple exists in iteration i,
+                // (2) is inserted in iteration j < i in a subsequent epoch
+                // (3) the inserted tuple in iteration j should trigger an update in count in iteration i
+                out << "if (tup[" << arity - 3 << "] == ";
+                visit(*iteration, out);
+                out << ") return false;\n";
+                out << "}\n";
+
+                // otherwise, only insert if all tuples have zero count
+                // iterate through all tuples matching the payload
+                out << "for (auto& tup : existenceCheck) {\n";
                 // and that the count is positive
                 // out << " && tup[" << arity - 1 << "] > 0) ";
                 out << "if (tup[" << arity - 3 << "] < ";
