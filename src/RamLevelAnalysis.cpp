@@ -191,6 +191,15 @@ int RamLevelAnalysis::getLevel(const RamNode* node) const {
             return level;
         }
 
+        // existence check
+        int visitPositiveExistenceCheck(const RamPositiveExistenceCheck& exists) override {
+            int level = -1;
+            for (const auto& cur : exists.getValues()) {
+                level = std::max(level, visit(cur));
+            }
+            return level;
+        }
+
         // provenance existence check
         int visitSubsumptionExistenceCheck(const RamSubsumptionExistenceCheck& subsumptionExists) override {
             int level = -1;

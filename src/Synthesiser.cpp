@@ -175,6 +175,8 @@ std::set<const RamRelation*> Synthesiser::getReferencedRelations(const RamOperat
             res.insert(&agg->getRelation());
         } else if (auto exists = dynamic_cast<const RamExistenceCheck*>(&node)) {
             res.insert(&exists->getRelation());
+        } else if (auto posExists = dynamic_cast<const RamPositiveExistenceCheck*>(&node)) {
+            res.insert(&posExists->getRelation());
         } else if (auto subsumptionExists = dynamic_cast<const RamSubsumptionExistenceCheck*>(&node)) {
             res.insert(&subsumptionExists->getRelation());
         } else if (auto project = dynamic_cast<const RamProject*>(&node)) {
@@ -1361,6 +1363,45 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 }
             });
             out << "}}," << ctxName << ").empty()" << after;
+            PRINT_END_COMMENT(out);
+        }
+
+        void visitPositiveExistenceCheck(const RamPositiveExistenceCheck& exists, std::ostream& out) override {
+            PRINT_BEGIN_COMMENT(out);
+            // get some details
+            const auto& rel = exists.getRelation();
+            auto relName = synthesiser.getRelationName(rel);
+            auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(rel) + ")";
+            auto arity = rel.getArity();
+            assert(arity > 0 && "AstTranslator failed");
+            std::string before, after;
+            if (Global::config().has("profile") && !exists.getRelation().isTemp()) {
+                out << R"_((reads[)_" << synthesiser.lookupReadIdx(rel.getName()) << R"_(]++,)_";
+                after = ")";
+            }
+
+            out << "[&]() -> bool {\n";
+
+            out << "auto existenceCheck = " << relName << "->"
+                << "equalRange";
+            out << "_" << isa->getSearchSignature(&exists);
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            out << join(exists.getValues(), ",", [&](std::ostream& out, RamExpression* value) {
+                if (!isRamUndefValue(value)) {
+                    visit(*value, out);
+                } else {
+                    out << "0";
+                }
+            });
+            out << "}}," << ctxName << ");\n";
+
+            out << "for (const auto& tup : existenceCheck) {\n";
+            // if count is positive, then we find the tuple
+            out << "if (tup[" << arity - 1 << "] > 0) return true;\n";
+            out << "}\n";
+            out << "return false;\n";
+
+            out << "}()\n";
             PRINT_END_COMMENT(out);
         }
 

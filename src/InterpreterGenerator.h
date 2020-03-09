@@ -58,6 +58,9 @@ public:
             } else if (const auto* exists = dynamic_cast<const RamExistenceCheck*>(&node)) {
                 encodeIndexPos(*exists);
                 encodeView(exists);
+            } else if (const auto* posExists = dynamic_cast<const RamPositiveExistenceCheck*>(&node)) {
+                encodeIndexPos(*posExists);
+                encodeView(posExists);
             } else if (const auto* provExists = dynamic_cast<const RamSubsumptionExistenceCheck*>(&node)) {
                 encodeIndexPos(*provExists);
                 encodeView(provExists);
@@ -145,6 +148,19 @@ public:
         data.push_back(encodeView(&exists));
         return std::make_unique<InterpreterNode>(
                 I_ExistenceCheck, &exists, std::move(children), std::move(data));
+    }
+
+    NodePtr visitPositiveExistenceCheck(const RamPositiveExistenceCheck& posExists) override {
+        assert(false && "not yet implemented");
+        NodePtrVec children;
+        for (const auto& value : posExists.getValues()) {
+            children.push_back(visit(value));
+        }
+        std::vector<size_t> data;
+        data.push_back(encodeRelation(posExists.getRelation()));
+        data.push_back(encodeView(&posExists));
+        return std::make_unique<InterpreterNode>(
+                I_ExistenceCheck, &posExists, std::move(children), std::move(data));
     }
 
     NodePtr visitSubsumptionExistenceCheck(const RamSubsumptionExistenceCheck& provExists) override {

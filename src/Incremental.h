@@ -31,7 +31,7 @@ class Incremental {
 public:
     SouffleProgram& prog;
 
-    Incremental(SouffleProgram& prog) : prog(prog) {} // , currentEpoch(0) {}
+    Incremental(SouffleProgram& prog) : prog(prog), currentEpoch(0) {}
     ~Incremental() = default;
 
     /* Process a command, a return value of true indicates to continue, returning false indicates to break (if
@@ -60,6 +60,8 @@ public:
             query = parseTuple(command[1]);
             removeTuple("diff_minus@_" + query.first, query.second);
         } else if (command[0] == "commit") {
+            // std::cout << "### BEGIN EPOCH " << currentEpoch << std::endl;
+            currentEpoch++;
             commit();
         } else if (command[0] == "exit" || command[0] == "q") {
             return false;
@@ -96,7 +98,7 @@ public:
     }
 
 private:
-    // int currentEpoch;
+    int currentEpoch;
 
     void addTuple(const std::string& relName, const std::vector<std::string>& tup) {
         auto rel = prog.getRelation(relName);

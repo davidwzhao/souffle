@@ -34,6 +34,8 @@ void AstClause::addToBody(std::unique_ptr<AstLiteral> l) {
         atoms.emplace_back(static_cast<AstAtom*>(l.release()));
     } else if (dynamic_cast<AstNegation*>(l.get())) {
         negations.emplace_back(static_cast<AstNegation*>(l.release()));
+    } else if (dynamic_cast<AstPositiveNegation*>(l.get())) {
+        positiveNegations.emplace_back(static_cast<AstPositiveNegation*>(l.release()));
     } else if (dynamic_cast<AstSubsumptionNegation*>(l.get())) {
         subsumptionNegations.emplace_back(static_cast<AstSubsumptionNegation*>(l.release()));
     } else if (dynamic_cast<AstConstraint*>(l.get())) {
@@ -58,6 +60,10 @@ AstLiteral* AstClause::getBodyLiteral(size_t idx) const {
         return negations[idx].get();
     }
     idx -= negations.size();
+    if (idx < positiveNegations.size()) {
+        return positiveNegations[idx].get();
+    }
+    idx -= positiveNegations.size();
     if (idx < subsumptionNegations.size()) {
         return subsumptionNegations[idx].get();
     }
@@ -71,6 +77,9 @@ std::vector<AstLiteral*> AstClause::getBodyLiterals() const {
         res.push_back(cur.get());
     }
     for (auto& cur : negations) {
+        res.push_back(cur.get());
+    }
+    for (auto& cur : positiveNegations) {
         res.push_back(cur.get());
     }
     for (auto& cur : subsumptionNegations) {

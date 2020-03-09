@@ -92,6 +92,7 @@ struct AstVisitor : public ast_visitor_tag {
         // literals
         FORWARD(Atom)
         FORWARD(Negation)
+        FORWARD(PositiveNegation)
         FORWARD(SubsumptionNegation)
         FORWARD(BooleanConstraint)
         FORWARD(BinaryConstraint)
@@ -156,6 +157,7 @@ protected:
     // literals
     LINK(Atom, Literal)
     LINK(Negation, Literal)
+    LINK(PositiveNegation, Literal)
     LINK(SubsumptionNegation, Literal)
     LINK(Literal, Node);
 

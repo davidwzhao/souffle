@@ -281,6 +281,9 @@ void RamIndexAnalysis::run(const RamTranslationUnit& translationUnit) {
         } else if (const auto* exists = dynamic_cast<const RamExistenceCheck*>(&node)) {
             MinIndexSelection& indexes = getIndexes(exists->getRelation());
             indexes.addSearch(getSearchSignature(exists));
+        } else if (const auto* exists = dynamic_cast<const RamPositiveExistenceCheck*>(&node)) {
+            MinIndexSelection& indexes = getIndexes(exists->getRelation());
+            indexes.addSearch(getSearchSignature(exists));
         } else if (const auto* provExists = dynamic_cast<const RamSubsumptionExistenceCheck*>(&node)) {
             MinIndexSelection& indexes = getIndexes(provExists->getRelation());
             indexes.addSearch(getSearchSignature(provExists));
@@ -411,6 +414,20 @@ SearchSignature RamIndexAnalysis::getSearchSignature(
     for (size_t i = 0; i < semiMerge->getSourceRelation().getArity() - 2; i++) {
         res |= (1 << i);
     }
+    return res;
+}
+
+SearchSignature RamIndexAnalysis::getSearchSignature(const RamPositiveExistenceCheck* existCheck) const {
+    const auto values = existCheck->getValues();
+    SearchSignature res = 0;
+    for (int i = 0; i < (int)values.size() - 1; i++) {
+        if (!isRamUndefValue(values[i])) {
+            res |= (1 << i);
+        }
+    }
+
+    // we want to search for the count
+    res |= (1 << (int)values.size() - 1);
     return res;
 }
 

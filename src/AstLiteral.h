@@ -224,6 +224,61 @@ protected:
 };
 
 /**
+ * Subclass of Literal that represents a negated atom with positive count, e.g., !parent(x,y).
+ * A Negated atom occurs in a body of clause and cannot occur in a head of a clause.
+ */
+class AstPositiveNegation : public AstLiteral {
+public:
+    AstPositiveNegation(std::unique_ptr<AstAtom> atom) : atom(std::move(atom)) {}
+
+    ~AstPositiveNegation() override = default;
+
+    /** Returns the nested atom as the referenced atom */
+    const AstAtom* getAtom() const override {
+        return atom.get();
+    }
+
+    /** Return the negated atom */
+    AstAtom* getAtom() {
+        return atom.get();
+    }
+
+    /** Output to a given stream */
+    void print(std::ostream& os) const override {
+        os << "pos!";
+        atom->print(os);
+    }
+
+    /** Creates a clone of this AST sub-structure */
+    AstPositiveNegation* clone() const override {
+        auto* res = new AstPositiveNegation(std::unique_ptr<AstAtom>(atom->clone()));
+        res->setSrcLoc(getSrcLoc());
+        return res;
+    }
+
+    /** Mutates this node */
+    void apply(const AstNodeMapper& map) override {
+        atom = map(std::move(atom));
+    }
+
+    /** Obtains a list of all embedded child nodes */
+    std::vector<const AstNode*> getChildNodes() const override {
+        return {atom.get()};
+    }
+
+protected:
+    /** A pointer to the negated Atom */
+    std::unique_ptr<AstAtom> atom;
+
+    /** Implements the node comparison for this node type */
+    bool equal(const AstNode& node) const override {
+        assert(nullptr != dynamic_cast<const AstPositiveNegation*>(&node));
+        const auto& other = static_cast<const AstPositiveNegation&>(node);
+        return *atom == *other.atom;
+    }
+};
+
+/**
  * Subclass of Literal that represents a negated atom, * e.g., !parent(x,y).
  * A Negated atom occurs in a body of clause and cannot occur in a head of a clause.
  *
