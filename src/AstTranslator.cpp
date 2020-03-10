@@ -1035,14 +1035,14 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
             std::unique_ptr<RamStatement> rule;
 
             if (isReinsertionRule) {
-                auto cl = clause->clone();
+                std::unique_ptr<AstClause> cl(clause->clone());
                 cl->getHead()->setName(translateDiffPlusRelation(&rel)->get()->getName());
 
                 const auto& atoms = cl->getAtoms();
                 for (size_t i = 0; i < atoms.size(); i++) {
                     // cl->getAtoms()[i]->setName(translateDiffAppliedRelation(getAtomRelation(atoms[i], program))->get()->getName());
 
-                    auto r1 = cl->clone();
+                    std::unique_ptr<AstClause> r1(cl->clone());
                     r1->getAtoms()[i]->setName(translateDiffPlusRelation(getAtomRelation(atoms[i], program))->get()->getName());
 
                     // ensure that the previous count is positive so we are actually re-inserting
@@ -1808,6 +1808,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                 rdiff->getAtoms()[k]->setName(translateDiffMinusAppliedRelation(getAtomRelation(atomK, program))->get()->getName());
                             }
 
+                            /*
                             for (size_t k = j; k < atoms.size(); k++) {
                                 auto& atomK = atoms[k];
 
@@ -1824,6 +1825,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                                 rdiff->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(noPrevious)));
                             }
+                            */
                         }
 
                         // reorder cl so that the deletedTuple atom is evaluated first
@@ -2028,7 +2030,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
     }
 
     if (Global::config().has("incremental")) {
-        ramProg->addSubroutine("scc_" + std::to_string(indexOfScc) + "_exit", makeIncrementalExitCondSubroutine(*(maxIterRelationRef->clone())));
+        ramProg->addSubroutine("scc_" + std::to_string(indexOfScc) + "_exit", makeIncrementalExitCondSubroutine(*maxIterRelationRef));
         std::vector<std::unique_ptr<RamExpression>> exitCondArgs;
         exitCondArgs.push_back(std::make_unique<RamIterationNumber>());
         addCondition(exitCond, std::make_unique<RamSubroutineCondition>("scc_" + std::to_string(indexOfScc) + "_exit", std::move(exitCondArgs)));

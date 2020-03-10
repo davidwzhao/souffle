@@ -186,13 +186,13 @@ std::vector<AstClause*> IncrementalTransformer::makeNegativeUpdateClause(const A
 
     // all tuples must have existed in prior iterations, i.e., tuples that are already deleted should not be deleted again
     negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
-                std::unique_ptr<AstArgument>(applyFunctorToVars(vectorClone(bodyPreviousCounts), FunctorOp::MIN)),
+                std::unique_ptr<AstArgument>(applyFunctorToVars(bodyPreviousCounts, FunctorOp::MIN)),
                 std::make_unique<AstNumberConstant>(0)));
 
     if (bodyLevels.size() > 0) {
         // add constraint to the rule saying that at least one body atom must have generated in the previous iteration
         negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
-                    std::unique_ptr<AstArgument>(applyFunctorToVars(vectorClone(bodyLevels), FunctorOp::MAX)),
+                    std::unique_ptr<AstArgument>(applyFunctorToVars(bodyLevels, FunctorOp::MAX)),
                     std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
     }
 
@@ -270,6 +270,7 @@ std::vector<AstClause*> IncrementalTransformer::makeNegativeUpdateClause(const A
                 std::make_unique<AstNumberConstant>(0)));
 
     negativeUpdateClauses.push_back(negativeUpdateClause);
+    
     return negativeUpdateClauses;
 }
 
@@ -351,13 +352,13 @@ std::vector<AstClause*> IncrementalTransformer::makePositiveUpdateClause(const A
 
     // all tuples must have existed in prior iterations, i.e., tuples that are already deleted should not be deleted again
     positiveUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
-                std::unique_ptr<AstArgument>(applyFunctorToVars(vectorClone(bodyCounts), FunctorOp::MIN)),
+                std::unique_ptr<AstArgument>(applyFunctorToVars(bodyCounts, FunctorOp::MIN)),
                 std::make_unique<AstNumberConstant>(0)));
 
     if (bodyLevels.size() > 0) {
         // add constraint to the rule saying that at least one body atom must have generated in the previous iteration
         positiveUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
-                    std::unique_ptr<AstArgument>(applyFunctorToVars(vectorClone(bodyLevels), FunctorOp::MAX)),
+                    std::unique_ptr<AstArgument>(applyFunctorToVars(bodyLevels, FunctorOp::MAX)),
                     std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
     }
 
@@ -438,7 +439,7 @@ std::vector<AstClause*> IncrementalTransformer::makePositiveUpdateClause(const A
 
     // all tuples must have existed in prior iterations, i.e., tuples that are already deleted should not be deleted again
     positiveUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,
-                std::unique_ptr<AstArgument>(applyFunctorToVars(vectorClone(bodyPreviousCounts), FunctorOp::MIN)),
+                std::unique_ptr<AstArgument>(applyFunctorToVars(bodyPreviousCounts, FunctorOp::MIN)),
                 std::make_unique<AstNumberConstant>(0)));
 
     positiveUpdateClauses.push_back(positiveUpdateClause);
@@ -457,7 +458,7 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
 
     // store the body counts to allow building arguments in the head atom
     std::vector<AstArgument*> bodyLevels;
-    std::vector<AstArgument*> bodyCountDiffs;
+    // std::vector<AstArgument*> bodyCountDiffs;
     std::vector<AstArgument*> bodyCounts;
     std::vector<AstArgument*> bodyPreviousCounts;
 
@@ -484,7 +485,7 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
             if (contains(sccGraph.getInternalRelations(sccGraph.getSCC(headRelation)), translationUnit.getProgram()->getRelation(atom->getName()))) {
                 bodyLevels.push_back(new AstVariable("@iteration_" + std::to_string(i)));
             }
-            bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i))));
+            // bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i))));
             bodyCounts.push_back(new AstVariable("@current_count_" + std::to_string(i)));
             bodyPreviousCounts.push_back(new AstVariable("@prev_count_" + std::to_string(i)));
         }
