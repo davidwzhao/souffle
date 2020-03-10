@@ -373,6 +373,13 @@ public:
      * @param Subsumption-existence check
      * @result index signature of provenance-existence check
      */
+    SearchSignature getSearchSignature(const RamPositiveMerge* semiMerge) const;
+
+    /**
+     * @Brief Get the index signature for a provenance existence check
+     * @param Subsumption-existence check
+     * @result index signature of provenance-existence check
+     */
     SearchSignature getSearchSignature(const RamSemiMerge* semiMerge) const;
 
     /**

@@ -401,6 +401,43 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             PRINT_END_COMMENT(out);
         }
 
+        void visitPositiveMerge(const RamPositiveMerge& merge, std::ostream& out) override {
+            PRINT_BEGIN_COMMENT(out);
+            size_t arity = merge.getTargetRelation().getArity();
+            auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
+            out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
+
+            // this is a bit of a mess, should integrate into search signatures
+            int searchSignature = isa->getSearchSignature(&merge);
+
+            out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getExistingRelation()) << "->"
+                << "equalRange";
+            // out << synthesiser.toIndex(ne.getSearchSignature());
+            out << "_" << searchSignature;
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 3; i++) {
+                out << "tup[" << i << "]";
+                out << ",";
+            }
+
+            // extra 0s for incremental annotations
+            out << "0,0,0";
+
+            out << "}});\n"; //  << ctxName << ");\n";
+
+            out << "bool insert = true;\n";
+            out << "for (auto& t : existenceCheck) {\n";
+            out << "if (t[" << arity - 1 << "] > 0) insert = false;\n";
+            out << "}\n";
+
+            out << "if (insert) ";
+            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
+
+            out << "}\n";
+
+            PRINT_END_COMMENT(out);
+        }
+
         void visitSemiMerge(const RamSemiMerge& merge, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
             size_t arity = merge.getTargetRelation().getArity();
