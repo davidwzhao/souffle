@@ -106,6 +106,7 @@ souffle_sources = \
         FunctorOps.h                              \
         Global.cpp            Global.h            \
         GraphUtils.h                              \
+        IncrementalTransformer.cpp                \
         IOSystem.h                                \
         RamIndexAnalysis.cpp  RamIndexAnalysis.h  \
         InlineRelationsTransformer.cpp            \
@@ -195,6 +196,7 @@ soufflepublic_HEADERS = \
         ExplainTree.h                             \
         EquivalenceRelation.h                     \
         RWOperation.h                             \
+        Incremental.h                             \
         IOSystem.h                                \
         IterUtils.h                               \
         LambdaBTree.h                             \

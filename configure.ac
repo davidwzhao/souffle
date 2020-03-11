@@ -288,6 +288,7 @@ AC_CONFIG_LINKS([include/souffle/ExplainProvenanceImpl.h:src/ExplainProvenanceIm
 AC_CONFIG_LINKS([include/souffle/ExplainTree.h:src/ExplainTree.h])
 AC_CONFIG_LINKS([include/souffle/EquivalenceRelation.h:src/EquivalenceRelation.h])
 AC_CONFIG_LINKS([include/souffle/RWOperation.h:src/RWOperation.h])
+AC_CONFIG_LINKS([include/souffle/Incremental.h:src/Incremental.h])
 AC_CONFIG_LINKS([include/souffle/IOSystem.h:src/IOSystem.h])
 AC_CONFIG_LINKS([include/souffle/IterUtils.h:src/IterUtils.h])
 AC_CONFIG_LINKS([include/souffle/LambdaBTree.h:src/LambdaBTree.h])

@@ -125,6 +125,11 @@ int RamLevelAnalysis::getLevel(const RamNode* node) const {
             return -1;
         }
 
+        // auto increment
+        int visitIterationNumber(const RamIterationNumber&) override {
+            return -1;
+        }
+
         // undef value
         int visitUndefValue(const RamUndefValue&) override {
             return -1;

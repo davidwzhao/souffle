@@ -79,6 +79,11 @@ public:
         return toPtrVector(arguments);
     }
 
+    /** Replace the argument at the given index with the given argument */
+    void setArgument(size_t idx, std::unique_ptr<AstArgument> newArg) {
+        arguments[idx].swap(newArg);
+    }
+
     void print(std::ostream& os) const override {
         os << getQualifiedName() << "(";
         os << join(arguments, ",", print_deref<std::unique_ptr<AstArgument>>());

@@ -416,7 +416,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
         void visitLoop(const RamLoop& loop, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
-            out << "iter = 0;\n";
+            out << "iter = 1;\n";
             out << "for(;;) {\n";
             visit(loop.getBody(), out);
             out << "iter++;\n";
@@ -1370,6 +1370,12 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
         void visitAutoIncrement(const RamAutoIncrement& /*inc*/, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
             out << "(ctr++)";
+            PRINT_END_COMMENT(out);
+        }
+
+        void visitIterationNumber(const RamIterationNumber& /*inc*/, std::ostream& out) override {
+            PRINT_BEGIN_COMMENT(out);
+            out << "(iter)";
             PRINT_END_COMMENT(out);
         }
 

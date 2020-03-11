@@ -206,6 +206,43 @@ private:
 };
 
 /**
+ * Transformation pass to add incremental instrumentation
+ */
+class IncrementalTransformer : public AstTransformer {
+public:
+    std::string getName() const override {
+        return "IncrementalTransformer";
+    }
+
+private:
+    /**
+     * Generate a version of a clause that process tuple deletions
+     *
+     * @param clause the clause to be transformed
+     * @return an instrumented version of clause that process tuple deletions
+     */
+    std::vector<AstClause*> makeNegativeUpdateClause(const AstClause& clause, const AstTranslationUnit& translationUnit);
+
+    /**
+     * Generate a version of a clause that process tuple insertions
+     *
+     * @param clause the clause to be transformed
+     * @return an instrumented version of clause that process tuple insertions
+     */
+    std::vector<AstClause*> makePositiveUpdateClause(const AstClause& clause, const AstTranslationUnit& translationUnit);
+
+    /**
+     * Generate a version of a clause that regenerates hidden tuples
+     *
+     * @param clause the clause to be transformed
+     * @return an instrumented version of clause that process tuple generations
+     */
+    std::unique_ptr<AstClause> makePositiveGenerationClause(const AstClause& clause, const AstTranslationUnit& translationUnit);
+
+    bool transform(AstTranslationUnit& translationUnit) override;
+};
+
+/**
  * Transformation pass to add provenance information
  */
 class ProvenanceTransformer : public AstTransformer {

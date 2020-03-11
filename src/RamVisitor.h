@@ -91,6 +91,7 @@ struct RamVisitor : public ram_visitor_tag {
         FORWARD(AutoIncrement);
         FORWARD(PackRecord);
         FORWARD(SubroutineArgument);
+        FORWARD(IterationNumber);
         FORWARD(UndefValue);
 
         // Conditions
@@ -223,6 +224,7 @@ protected:
     LINK(UnsignedConstant, Constant);
     LINK(FloatConstant, Constant);
     LINK(Constant, Expression);
+    LINK(IterationNumber, Expression);
     LINK(UndefValue, Expression);
     LINK(TupleElement, Expression);
     LINK(IntrinsicOperator, AbstractOperator);
