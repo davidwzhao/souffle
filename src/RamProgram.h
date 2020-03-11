@@ -96,6 +96,11 @@ public:
         return toPtrVector(relations);
     }
 
+    /** @brief Add a new relation */
+    void addRelation(std::unique_ptr<RamRelation> rel) {
+        relations.push_back(rel);
+    }
+
     /** @brief Get all subroutines of a RAM program */
     const std::map<std::string, RamStatement*> getSubroutines() const {
         std::map<std::string, RamStatement*> subroutineRefs;

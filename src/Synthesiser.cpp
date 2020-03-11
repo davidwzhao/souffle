@@ -351,6 +351,52 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             PRINT_END_COMMENT(out);
         }
 
+        void visitSemiMerge(const RamSemiMerge& merge, std::ostream& out) override {
+            PRINT_BEGIN_COMMENT(out);
+            size_t arity = merge.getTargetRelation().getArity();
+            auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
+            out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getTargetRelation()) << ") {\n";
+
+            // TODO: enable generic conditions in the SemiMerge operation, this is temporarily just to get it to work
+            // we want to only perform the semimerge if the tuple is in the current iteration
+            out << "if (tup[" << arity - 3 << "] != iter) continue;\n";
+
+            // this is a bit of a mess, should integrate into search signatures
+            int searchSignature = isa->getSearchSignature(&merge);
+
+            out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getSourceRelation()) << "->"
+                << "equalRange";
+            // out << synthesiser.toIndex(ne.getSearchSignature());
+            out << "_" << searchSignature;
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 2; i++) {
+                out << "tup[" << i << "]";
+                out << ",";
+            }
+
+            // extra 0s for incremental annotations
+            out << "0,0";
+
+            out << "}});\n"; //  << ctxName << ");\n";
+
+            out << "if (existenceCheck.empty()) continue;\n";
+            out << "for (auto& sourceTup : existenceCheck) {\n";
+            /*
+            // out << "if (sourceTup[" << arity - 4 << "] == tup[" << arity - 4 << "]) {\n";
+            out << "auto sourceTupValues = sourceTup;\n";
+            // use -1 as an indicator that this insertion is coming from the semimerge, so we can handle it in the B-tree updater
+            out << "sourceTupValues[" << arity - 3 << "] = -1;\n";
+            */
+            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(sourceTup);\n";
+            // out << "continue;\n";
+            // out << "}\n";
+            out << "}\n";
+
+            out << "}\n";
+
+            PRINT_END_COMMENT(out);
+        }
+
         void visitClear(const RamClear& clear, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
 

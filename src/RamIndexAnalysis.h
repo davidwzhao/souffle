@@ -349,6 +349,13 @@ public:
     SearchSignature getSearchSignature(const RamIndexOperation* search) const;
 
     /**
+     * @Brief Get index signature for an Ram SemiMerge operation
+     * @param  Index-relation-search operation
+     * @result Index signature of operation
+     */
+    SearchSignature getSearchSignature(const RamSemiMerge* merge) const;
+
+    /**
      * @Brief Get the index signature for an existence check
      * @param Existence check
      * @result index signature of existence check
