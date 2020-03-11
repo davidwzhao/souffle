@@ -327,6 +327,7 @@ private:
     std::unique_ptr<RamRelationReference> translateDiffMinusCountRelation(const AstRelation* rel);
     std::unique_ptr<RamRelationReference> translateDiffPlusCountRelation(const AstRelation* rel);
 
+    std::unique_ptr<RamRelationReference> translateDiffAppliedCompleteRelation(const AstRelation* rel);
     std::unique_ptr<RamRelationReference> translateDiffAppliedRelation(const AstRelation* rel);
 
     /** translate an AST argument to a RAM value */

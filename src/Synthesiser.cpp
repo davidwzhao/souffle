@@ -427,7 +427,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             out << "bool insert = true;\n";
             out << "for (auto& t : existenceCheck) {\n";
-            out << "if (t[" << arity - 1 << "] > 0) insert = false;\n";
+            out << "if (t[" << arity - 1 << "] > 0 && t[" << arity - 3 << "] > tup[" << arity - 3 << "]) insert = false;\n";
             out << "}\n";
 
             out << "if (insert) ";
@@ -1432,9 +1432,14 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             });
             out << "}}," << ctxName << ");\n";
 
+            // get the iteration number
+            RamExpression* iteration = exists.getValues()[exists.getValues().size() - 3];
+
             out << "for (const auto& tup : existenceCheck) {\n";
             // if count is positive, then we find the tuple
-            out << "if (tup[" << arity - 1 << "] > 0) return true;\n";
+            out << "if (tup[" << arity - 1 << "] > 0 && tup[" << arity - 3 << "] < ";
+            visit(*iteration, out);
+            out << ") return true;\n";
             out << "}\n";
             out << "return false;\n";
 
