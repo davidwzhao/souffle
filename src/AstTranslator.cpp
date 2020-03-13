@@ -1148,12 +1148,12 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                             // A(x, y) :- diff+B(x, y), diff+appliedC(x, y).
                             // then we would double insert if we insert B(1, 2) and also C(1, 2)
                             auto noAdditionNegation = atomJ->clone();
-                            noAdditionNegation->setName(translateDiffPlusRelation(getAtomRelation(atomJ, program))->get()->getName());
+                            noAdditionNegation->setName(translateDiffPlusCountRelation(getAtomRelation(atomJ, program))->get()->getName());
                             noAdditionNegation->setArgument(noAdditionNegation->getArity() - 1, std::make_unique<AstUnnamedVariable>());
-                            noAdditionNegation->setArgument(noAdditionNegation->getArity() - 2, std::make_unique<AstUnnamedVariable>());
+                            noAdditionNegation->setArgument(noAdditionNegation->getArity() - 2, std::make_unique<AstNumberConstant>(0));
                             noAdditionNegation->setArgument(noAdditionNegation->getArity() - 3, std::make_unique<AstUnnamedVariable>());
 
-                            r1->addToBody(std::make_unique<AstNegation>(std::unique_ptr<AstAtom>(noAdditionNegation)));
+                            r1->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(noAdditionNegation)));
                         }
 
                         for (size_t j = i + 1; j < atoms.size(); j++) {
@@ -1170,9 +1170,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                         // then we would double insert if we insert B(1, 2) and also C(1, 2)
                         auto noPrevious = atomK->clone();
                         noPrevious->setName(translateRelation(getAtomRelation(atomK, program))->get()->getName());
-                        noPrevious->setArgument(noPrevious->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                        noPrevious->setArgument(noPrevious->getArity() - 1, std::make_unique<AstNumberConstant>(1));
                         noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstUnnamedVariable>());
-                        noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstNumberConstant>(1));
+                        noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());
 
                         r1->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(noPrevious)));
                     } else if (isDeletionRule) {
@@ -1677,12 +1677,10 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                         r1->addToBody(std::make_unique<AstSubsumptionNegation>(
                                 std::unique_ptr<AstAtom>(diffAppliedHeadAtom), 1));
 
-                        /*
                         // simulate the delta relation with a constraint on the iteration number
-                        r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
+                        r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GE,
                                     std::unique_ptr<AstArgument>(atom->getArgument(atom->getArity() - 3)->clone()),
                                     std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
-                                    */
 
                         // replace wildcards with variables (reduces indices when wildcards are used in recursive
                         // atoms)
@@ -1864,9 +1862,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                 // then we would double insert if we insert B(1, 2) and also C(1, 2)
                                 auto noPrevious = atomK->clone();
                                 noPrevious->setName(translateRelation(getAtomRelation(atomK, program))->get()->getName());
-                                noPrevious->setArgument(noPrevious->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                                noPrevious->setArgument(noPrevious->getArity() - 1, std::make_unique<AstNumberConstant>(1));
                                 noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstUnnamedVariable>());
-                                noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstNumberConstant>(1));
+                                noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());
 
                                 rdiff->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(noPrevious)));
                             // }
@@ -1953,12 +1951,10 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             r1->addToBody(std::make_unique<AstSubsumptionNegation>(
                                     std::unique_ptr<AstAtom>(diffAppliedHeadAtom), 1));
 
-                            /*
                             // simulate the delta relation with a constraint on the iteration number
-                            r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
+                            r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GE,
                                         std::unique_ptr<AstArgument>(atom->getArgument(atom->getArity() - 3)->clone()),
                                         std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
-                                        */
 
                             // replace wildcards with variables (reduces indices when wildcards are used in recursive
                             // atoms)
