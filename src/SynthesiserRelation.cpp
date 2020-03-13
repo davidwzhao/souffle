@@ -219,34 +219,12 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         out << "struct updater_" << getTypeName() << " {\n";
         out << "bool update(t_tuple& old_t, const t_tuple& new_t) {\n";
 
-        /*
-        for (size_t i = arity - numberOfHeights - 1; i < arity; i++) {
-            out << "old_t[" << i << "] = new_t[" << i << "];\n";
-        }
-        */
-
-        /*
-        if (!relation.isTemp()) {
-            out << "if (new_t[" << arity - 2 << "] == 1 && new_t[" << arity - 1 << "] > 0 && old_t[" << arity - 1 << "] > 0) return false;\n";
-        }
-
-        out << "if (new_t[" << arity - 2 << "] < 0) old_t[" << arity - 2 << "] = old_t[" << arity - 1 << "];\n";
-
-        out << "else {\n";
-        out << "if (old_t[" << arity - 1 << "] == 0 && new_t[" << arity - 1 << "] < 0) return false;\n";
-        out << "else old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
-        out << "}\n";
+        out << "if (new_t[" << arity - 2 << "] < 0) {\n";
+        out << "old_t[" << arity - 2 << "] = old_t[" << arity - 1 << "];\n";
         out << "return true;\n";
-        */
+        out << "}\n";
 
         /*
-        if (!relation.isTemp() && relation.getName().find("count@") == std::string::npos) {
-            out << "if (new_t[" << arity - 2 << "] == 1 && new_t[" << arity - 1 << "] > 0 && old_t[" << arity - 1 << "] > 0) return false;\n";
-        }
-        */
-
-        out << "if (new_t[" << arity - 2 << "] < 0) old_t[" << arity - 2 << "] = old_t[" << arity - 1 << "];\n";
-
         out << "else {\n";
         // only for count relations do we wish to update prev count during a semi-merge
         if (relation.getName().find("count@") != std::string::npos) {
@@ -255,7 +233,27 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         out << "old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
         out << "}\n";
         out << "return true;\n";
+        */
 
+        out << "if (new_t[" << arity - 3 << "] < old_t[" << arity - 3 << "]) {\n";
+        // if new_t iternum < old_t iternum, then we update
+        out << "old_t[" << arity - 3 << "] = new_t[" << arity - 3 << "];\n";
+        out << "old_t[" << arity - 1 << "] = new_t[" << arity - 1 << "];\n";
+        out << "return true;\n";
+        out << "} else if (new_t[" << arity - 3 << "] == old_t[" << arity - 3 << "]) {\n";
+        if (relation.getName().find("count@") != std::string::npos) {
+            out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
+        }
+        out << "old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
+        out << "return true;\n";
+        out << "} else if (new_t[" << arity - 3 << "] > old_t[" << arity - 3 << "] && old_t[" << arity - 1 << "] == 0) {\n";
+        out << "old_t[" << arity - 3 << "] = new_t[" << arity - 3 << "];\n";
+        out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
+        out << "old_t[" << arity - 1 << "] = new_t[" << arity - 1 << "];\n";
+        out << "return true;\n";
+        out << "}\n";
+
+        out << "return false;\n";
         out << "}\n";
         out << "};\n";
     }
@@ -277,7 +275,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
                 out << ">, std::allocator<t_tuple>, 256, typename "
                        "souffle::detail::default_strategy<t_tuple>::type, index_utils::comparator<";
                 // out << join(ind.begin(), ind.end() - 1 - numberOfHeights) << ">, updater_" << getTypeName()
-                out << join(ind.begin(), ind.end() - 2) << ">, updater_" << getTypeName()
+                out << join(ind.begin(), ind.end() - 3) << ">, updater_" << getTypeName()
                     << ">;\n";
             } else {  // index for top down phase
                 out << "using t_ind_" << i << " = btree_set<t_tuple, index_utils::comparator<" << join(ind);

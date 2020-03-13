@@ -456,25 +456,19 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // out << synthesiser.toIndex(ne.getSearchSignature());
             out << "_" << searchSignature;
             out << "(Tuple<RamDomain," << arity << ">{{";
-            for (size_t i = 0; i < arity - 2; i++) {
+            for (size_t i = 0; i < arity - 3; i++) {
                 out << "tup[" << i << "]";
                 out << ",";
             }
 
             // extra 0s for incremental annotations
-            out << "0,0";
+            out << "0,0,0";
 
             out << "}});\n"; //  << ctxName << ");\n";
 
             out << "if (existenceCheck.empty()) continue;\n";
             out << "for (auto& sourceTup : existenceCheck) {\n";
-            /*
-            // out << "if (sourceTup[" << arity - 4 << "] == tup[" << arity - 4 << "]) {\n";
-            out << "auto sourceTupValues = sourceTup;\n";
-
-            // use -1 as an indicator that this insertion is coming from the semimerge, so we can handle it in the B-tree updater
-            out << "sourceTupValues[" << arity - 3 << "] = -1;\n";
-            */
+            out << "if (sourceTup[" << arity - 3 << "] != tup[" << arity - 3 << "]) continue;\n";
             out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(sourceTup);\n";
             // out << "continue;\n";
             // out << "}\n";
@@ -1417,6 +1411,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 after = ")";
             }
 
+            RamExpression* currentCount = exists.getValues()[exists.getValues().size() - 1];
+            RamExpression* previousCount = exists.getValues()[exists.getValues().size() - 2];
+
             out << "[&]() -> bool {\n";
 
             out << "auto existenceCheck = " << relName << "->"
@@ -1433,17 +1430,33 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "}}," << ctxName << ");\n";
 
             // get the iteration number
-            RamExpression* iteration = exists.getValues()[exists.getValues().size() - 3];
+            // RamExpression* iteration = exists.getValues()[exists.getValues().size() - 3];
 
             out << "for (const auto& tup : existenceCheck) {\n";
-            // if count is positive, then we find the tuple
-            out << "if (tup[" << arity - 1 << "] > 0 && tup[" << arity - 3 << "] < ";
-            visit(*iteration, out);
-            out << ") return true;\n";
-            out << "}\n";
+
+            if (!isRamUndefValue(currentCount)) {
+                out << "if (";
+                visit(*currentCount, out);
+                out << " > 0) {\n";
+                // if count is positive, then we find the tuple
+                out << "if (tup[" << arity - 1 << "] > 0"; //  && tup[" << arity - 3 << "] < ";
+                // visit(*iteration, out);
+                out << ") return true;\n";
+                out << "}\n";
+            }
+
+            if (!isRamUndefValue(previousCount)) {
+                out << "if (";
+                visit(*previousCount, out);
+                out << " == 0) {\n";
+                out << "if (tup[" << arity - 2 << "] == 0"; //  && tup[" << arity - 3 << "] < ";
+                // visit(*iteration, out);
+                out << ") return true;\n";
+                out << "}\n";
+            }
             out << "return false;\n";
 
-            out << "}()\n";
+            out << "}}()\n";
             PRINT_END_COMMENT(out);
         }
 

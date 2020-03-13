@@ -130,7 +130,7 @@ std::vector<AstClause*> IncrementalTransformer::makeNegativeUpdateClause(const A
     std::vector<AstClause*> negativeUpdateClauses;
 
     // store the body counts to allow building arguments in the head atom
-    std::vector<AstArgument*> bodyLevels;
+    std::vector<AstArgument*> bodyLevels = {new AstNumberConstant(0)};
     std::vector<AstArgument*> bodyPreviousCounts;
     // std::vector<AstArgument*> bodyCountDiffs;
     std::vector<AstArgument*> bodyCounts;
@@ -189,7 +189,7 @@ std::vector<AstClause*> IncrementalTransformer::makeNegativeUpdateClause(const A
                 std::unique_ptr<AstArgument>(applyFunctorToVars(bodyPreviousCounts, FunctorOp::MIN)),
                 std::make_unique<AstNumberConstant>(0)));
 
-    if (bodyLevels.size() > 0) {
+    if (bodyLevels.size() > 1) {
         // add constraint to the rule saying that at least one body atom must have generated in the previous iteration
         negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
                     std::unique_ptr<AstArgument>(applyFunctorToVars(bodyLevels, FunctorOp::MAX)),
@@ -288,7 +288,7 @@ std::vector<AstClause*> IncrementalTransformer::makePositiveUpdateClause(const A
     std::vector<AstClause*> positiveUpdateClauses;
 
     // store the body counts to allow building arguments in the head atom
-    std::vector<AstArgument*> bodyLevels;
+    std::vector<AstArgument*> bodyLevels = {new AstNumberConstant(0)};
     // std::vector<AstArgument*> bodyCountDiffs;
     std::vector<AstArgument*> bodyPreviousCounts;
     std::vector<AstArgument*> bodyCounts;
@@ -355,7 +355,7 @@ std::vector<AstClause*> IncrementalTransformer::makePositiveUpdateClause(const A
                 std::unique_ptr<AstArgument>(applyFunctorToVars(bodyCounts, FunctorOp::MIN)),
                 std::make_unique<AstNumberConstant>(0)));
 
-    if (bodyLevels.size() > 0) {
+    if (bodyLevels.size() > 1) {
         // add constraint to the rule saying that at least one body atom must have generated in the previous iteration
         positiveUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
                     std::unique_ptr<AstArgument>(applyFunctorToVars(bodyLevels, FunctorOp::MAX)),
@@ -457,7 +457,7 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
     auto positiveGenerationClause = clause.clone();
 
     // store the body counts to allow building arguments in the head atom
-    std::vector<AstArgument*> bodyLevels;
+    std::vector<AstArgument*> bodyLevels = {new AstNumberConstant(0)};
     // std::vector<AstArgument*> bodyCountDiffs;
     std::vector<AstArgument*> bodyCounts;
     std::vector<AstArgument*> bodyPreviousCounts;
@@ -545,7 +545,7 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
                 std::unique_ptr<AstArgument>(applyFunctorToVars(bodyPreviousCounts, FunctorOp::MIN)),
                 std::make_unique<AstNumberConstant>(0)));
 
-    if (bodyLevels.size() > 0) {
+    if (bodyLevels.size() > 1) {
         // add constraint to the rule saying that at least one body atom must have generated in the previous iteration
         positiveGenerationClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
                     std::unique_ptr<AstArgument>(applyFunctorToVars(bodyLevels, FunctorOp::MAX)),
