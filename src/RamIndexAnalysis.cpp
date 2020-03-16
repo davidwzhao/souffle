@@ -433,7 +433,7 @@ SearchSignature RamIndexAnalysis::getSearchSignature(
 SearchSignature RamIndexAnalysis::getSearchSignature(const RamPositiveExistenceCheck* existCheck) const {
     const auto values = existCheck->getValues();
     SearchSignature res = 0;
-    for (int i = 0; i < (int)values.size() - 2; i++) {
+    for (int i = 0; i < (int)values.size() - 3; i++) {
         if (!isRamUndefValue(values[i])) {
             res |= (1 << i);
         }

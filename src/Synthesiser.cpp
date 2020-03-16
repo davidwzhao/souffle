@@ -1413,6 +1413,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             RamExpression* currentCount = exists.getValues()[exists.getValues().size() - 1];
             RamExpression* previousCount = exists.getValues()[exists.getValues().size() - 2];
+            RamExpression* iteration = exists.getValues()[exists.getValues().size() - 3];
 
             out << "[&]() -> bool {\n";
 
@@ -1420,17 +1421,18 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 << "equalRange";
             out << "_" << isa->getSearchSignature(&exists);
             out << "(Tuple<RamDomain," << arity << ">{{";
-            out << join(exists.getValues(), ",", [&](std::ostream& out, RamExpression* value) {
-                if (!isRamUndefValue(value)) {
-                    visit(*value, out);
+
+            for (size_t i = 0; i < exists.getValues().size() - 3; i++) {
+                RamExpression* val = exists.getValues()[i];
+                if (!isRamUndefValue(val)) {
+                    visit(*val, out);
                 } else {
                     out << "0";
                 }
-            });
+                out << ",";
+            }
+            out << "0,0,0";
             out << "}}," << ctxName << ");\n";
-
-            // get the iteration number
-            // RamExpression* iteration = exists.getValues()[exists.getValues().size() - 3];
 
             out << "for (const auto& tup : existenceCheck) {\n";
 
@@ -1439,8 +1441,8 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 visit(*currentCount, out);
                 out << " > 0) {\n";
                 // if count is positive, then we find the tuple
-                out << "if (tup[" << arity - 1 << "] > 0"; //  && tup[" << arity - 3 << "] < ";
-                // visit(*iteration, out);
+                out << "if (tup[" << arity - 1 << "] > 0 && tup[" << arity - 3 << "] <= ";
+                visit(*iteration, out);
                 out << ") return true;\n";
                 out << "}\n";
             }
@@ -1449,7 +1451,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "if (";
                 visit(*previousCount, out);
                 out << " == 0) {\n";
-                out << "if (tup[" << arity - 2 << "] == 0"; //  && tup[" << arity - 3 << "] < ";
+                out << "if (tup[" << arity - 2 << "] == 0 && tup[" << arity - 1 << "] > 0"; //  && tup[" << arity - 3 << "] < ";
                 // visit(*iteration, out);
                 out << ") return true;\n";
                 out << "}\n";
@@ -1594,7 +1596,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "}\n";
                     
                 // if it's an actual update, then process it
-                out << "else return false;\n";
+                out << "return false;\n";
 
                 // end of if statement
                 out << "}\n";

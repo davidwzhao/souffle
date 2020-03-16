@@ -196,6 +196,10 @@ std::string SynthesiserDirectRelation::getTypeName() {
     if (relation.isTemp()) {
         res << "_temp";
     }
+    
+    if (relation.getName().find("count@") != std::string::npos) {
+        res << "_count";
+    }
 
     return res.str();
 }
@@ -248,7 +252,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         out << "return true;\n";
         out << "} else if (new_t[" << arity - 3 << "] > old_t[" << arity - 3 << "] && old_t[" << arity - 1 << "] == 0) {\n";
         out << "old_t[" << arity - 3 << "] = new_t[" << arity - 3 << "];\n";
-        out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
+        // out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
         out << "old_t[" << arity - 1 << "] = new_t[" << arity - 1 << "];\n";
         out << "return true;\n";
         out << "}\n";
