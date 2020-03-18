@@ -1140,7 +1140,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                         // we don't want to consider tuples which are to be deleted
                         for (size_t j = 0; j < i; j++) {
                             auto& atomJ = atoms[j];
-                            r1->getAtoms()[j]->setName(translateDiffAppliedRelation(getAtomRelation(atomJ, program))->get()->getName());
+                            r1->getAtoms()[j]->setName(translateDiffMinusAppliedRelation(getAtomRelation(atomJ, program))->get()->getName());
+                            /*
 
                             // add a negation to the rule stating that the tuple shouldn't be inserted
                             // this prevents double counting, e.g., if we have:
@@ -1154,6 +1155,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                             // noAdditionNegation->setArgument(noAdditionNegation->getArity() - 3, std::make_unique<AstUnnamedVariable>());
 
                             r1->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(noAdditionNegation)));
+                            */
                         }
 
                         for (size_t j = i + 1; j < atoms.size(); j++) {
@@ -1169,7 +1171,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                         // A(x, y) :- diff+B(x, y), diff+appliedC(x, y).
                         // then we would double insert if we insert B(1, 2) and also C(1, 2)
                         auto noPrevious = atomK->clone();
-                        noPrevious->setName(translateRelation(getAtomRelation(atomK, program))->get()->getName());
+                        noPrevious->setName(translateDiffMinusAppliedRelation(getAtomRelation(atomK, program))->get()->getName());
                         noPrevious->setArgument(noPrevious->getArity() - 1, std::make_unique<AstNumberConstant>(1));
                         noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstUnnamedVariable>());
                         // noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());
@@ -1185,6 +1187,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                         for (size_t j = 0; j < i; j++) {
                             auto& atomJ = atoms[j];
 
+                            /*
                             // add a negation to the rule stating that the tuple shouldn't be deleted
                             // this prevents double counting, e.g., if we have:
                             // A(x, y) :- B(x, y), diff-C(x, y).
@@ -1197,6 +1200,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                             noDeletionNegation->setArgument(noDeletionNegation->getArity() - 3, std::make_unique<AstUnnamedVariable>());
 
                             r1->addToBody(std::make_unique<AstNegation>(std::unique_ptr<AstAtom>(noDeletionNegation)));
+                            */
                         }
 
                         for (size_t j = i + 1; j < atoms.size(); j++) {
@@ -1824,13 +1828,14 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                             for (size_t k = 0; k < j; k++) {
                                 auto& atomK = atoms[k];
-                                rdiff->getAtoms()[k]->setName(translateDiffAppliedRelation(getAtomRelation(atomK, program))->get()->getName());
+                                rdiff->getAtoms()[k]->setName(translateDiffMinusAppliedRelation(getAtomRelation(atomK, program))->get()->getName());
 
                                 // add a negation to the rule stating that the tuple shouldn't be deleted
                                 // this prevents double counting, e.g., if we have:
                                 // A(x, y) :- B(x, y), diff-C(x, y).
                                 // A(x, y) :- diff-B(x, y), diff-appliedC(x, y).
                                 // then we would double delete if we delete B(1, 2) and also C(1, 2)
+                                /*
                                 auto noAdditionNegation = atomK->clone();
                                 noAdditionNegation->setName(translateDiffPlusCountRelation(getAtomRelation(atomK, program))->get()->getName());
                                 noAdditionNegation->setArgument(noAdditionNegation->getArity() - 1, std::make_unique<AstUnnamedVariable>());
@@ -1838,6 +1843,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                 // noAdditionNegation->setArgument(noAdditionNegation->getArity() - 3, std::make_unique<AstUnnamedVariable>());
 
                                 rdiff->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(noAdditionNegation)));
+                                */
                             }
 
                             for (size_t k = j + 1; k < atoms.size(); k++) {
@@ -1861,7 +1867,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                 // A(x, y) :- diff+B(x, y), diff+appliedC(x, y).
                                 // then we would double insert if we insert B(1, 2) and also C(1, 2)
                                 auto noPrevious = atomK->clone();
-                                noPrevious->setName(translateRelation(getAtomRelation(atomK, program))->get()->getName());
+                                noPrevious->setName(translateDiffMinusAppliedRelation(getAtomRelation(atomK, program))->get()->getName());
                                 noPrevious->setArgument(noPrevious->getArity() - 1, std::make_unique<AstNumberConstant>(1));
                                 noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstUnnamedVariable>());
                                 // noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());

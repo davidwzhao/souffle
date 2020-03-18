@@ -242,6 +242,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         out << "if (new_t[" << arity - 3 << "] < old_t[" << arity - 3 << "]) {\n";
         // if new_t iternum < old_t iternum, then we update
         out << "old_t[" << arity - 3 << "] = new_t[" << arity - 3 << "];\n";
+        out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
         out << "old_t[" << arity - 1 << "] = new_t[" << arity - 1 << "];\n";
         out << "return true;\n";
         out << "} else if (new_t[" << arity - 3 << "] == old_t[" << arity - 3 << "]) {\n";
@@ -252,7 +253,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         out << "return true;\n";
         out << "} else if (new_t[" << arity - 3 << "] > old_t[" << arity - 3 << "] && old_t[" << arity - 1 << "] == 0) {\n";
         out << "old_t[" << arity - 3 << "] = new_t[" << arity - 3 << "];\n";
-        // out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
+        out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
         out << "old_t[" << arity - 1 << "] = new_t[" << arity - 1 << "];\n";
         out << "return true;\n";
         out << "}\n";

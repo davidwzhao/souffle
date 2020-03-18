@@ -1440,10 +1440,24 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "if (";
                 visit(*currentCount, out);
                 out << " > 0) {\n";
+
+                // we want to encode (I_no \ Delta_o union Delta_n \ I_o)
                 // if count is positive, then we find the tuple
-                out << "if (tup[" << arity - 1 << "] > 0 && tup[" << arity - 3 << "] <= ";
+                out << "if (tup[" << arity - 1 << "] > 0) {\n"; //  && tup[" << arity - 3 << "] == (iter-1)";
+
+                // if tuple is in Delta_n, then it shouldn't be in I_o
+                out << "if ((";
                 visit(*iteration, out);
+                out << " == (iter-1) && tup[" << arity - 3 << "] <= (iter - 1))";
+
+                /*
+                // if tuple is in I_no, then it shouldn't be in Delta_o
+                out << "|| (";
+                visit(*iteration, out);
+                out << " < (iter-1) && tup[" << arity - 3 << "] == (iter - 1))";
+                */
                 out << ") return true;\n";
+                out << "}\n";
                 out << "}\n";
             }
 
