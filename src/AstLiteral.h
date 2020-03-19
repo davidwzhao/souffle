@@ -346,6 +346,61 @@ protected:
 };
 
 /**
+ * Subclass of Literal that represents a negated atom, * e.g., !parent(x,y).
+ * A Negated atom occurs in a body of clause and cannot occur in a head of a clause.
+ */
+class AstExistenceCheck : public AstLiteral {
+public:
+    AstExistenceCheck(std::unique_ptr<AstAtom> atom) : atom(std::move(atom)) {}
+
+    ~AstExistenceCheck() override = default;
+
+    /** Returns the nested atom as the referenced atom */
+    const AstAtom* getAtom() const override {
+        return atom.get();
+    }
+
+    /** Return the negated atom */
+    AstAtom* getAtom() {
+        return atom.get();
+    }
+
+    /** Output to a given stream */
+    void print(std::ostream& os) const override {
+        os << "exists ";
+        atom->print(os);
+    }
+
+    /** Creates a clone of this AST sub-structure */
+    AstExistenceCheck* clone() const override {
+        auto* res = new AstExistenceCheck(std::unique_ptr<AstAtom>(atom->clone()));
+        res->setSrcLoc(getSrcLoc());
+        return res;
+    }
+
+    /** Mutates this node */
+    void apply(const AstNodeMapper& map) override {
+        atom = map(std::move(atom));
+    }
+
+    /** Obtains a list of all embedded child nodes */
+    std::vector<const AstNode*> getChildNodes() const override {
+        return {atom.get()};
+    }
+
+protected:
+    /** A pointer to the negated Atom */
+    std::unique_ptr<AstAtom> atom;
+
+    /** Implements the node comparison for this node type */
+    bool equal(const AstNode& node) const override {
+        assert(nullptr != dynamic_cast<const AstExistenceCheck*>(&node));
+        const auto& other = static_cast<const AstExistenceCheck&>(node);
+        return *atom == *other.atom;
+    }
+};
+
+/**
  * Subclass of Literal that represents a logical constraint
  */
 class AstConstraint : public AstLiteral {
@@ -361,6 +416,122 @@ public:
     virtual void negate() = 0;
 
     AstConstraint* clone() const override = 0;
+};
+
+/**
+ * A conjunction of constraints
+ */
+class AstConjunctionConstraint : public AstConstraint {
+public:
+    AstConjunctionConstraint(std::unique_ptr<AstConstraint> ls, std::unique_ptr<AstConstraint> rs) : lhs(std::move(ls)), rhs(std::move(rs)) {}
+    ~AstConjunctionConstraint() override = default;
+
+    AstConstraint* getLHS() {
+        return lhs.get();
+    }
+
+    AstConstraint* getRHS() {
+        return rhs.get();
+    }
+
+    void negate() {
+        assert(false && "not implemented yet");
+    }
+
+    /** Output the constraint to a given stream */
+    void print(std::ostream& os) const override {
+        lhs->print(os);
+        os << " && ";
+        rhs->print(os);
+    }
+
+    /** Creates a clone of this AST sub-structure */
+    AstConjunctionConstraint* clone() const override {
+        auto* res = new AstConjunctionConstraint(std::unique_ptr<AstConstraint>(lhs->clone()),
+                std::unique_ptr<AstConstraint>(rhs->clone()));
+        res->setSrcLoc(getSrcLoc());
+        return res;
+    }
+
+    /** Mutates this node */
+    void apply(const AstNodeMapper& map) override {
+        lhs = map(std::move(lhs));
+        rhs = map(std::move(rhs));
+    }
+
+    /** Obtains a list of all embedded child nodes */
+    std::vector<const AstNode*> getChildNodes() const override {
+        return {lhs.get(), rhs.get()};
+    }
+
+protected:
+    std::unique_ptr<AstConstraint> lhs;
+    std::unique_ptr<AstConstraint> rhs;
+
+    /** Implements the node comparison for this node type */
+    bool equal(const AstNode& node) const override {
+        assert(nullptr != dynamic_cast<const AstConjunctionConstraint*>(&node));
+        const auto& other = static_cast<const AstConjunctionConstraint&>(node);
+        return *lhs == *other.lhs && *rhs == *other.rhs;
+    }
+};
+
+/**
+ * A disjunction of constraints
+ */
+class AstDisjunctionConstraint : public AstConstraint {
+public:
+    AstDisjunctionConstraint(std::unique_ptr<AstConstraint> ls, std::unique_ptr<AstConstraint> rs) : lhs(std::move(ls)), rhs(std::move(rs)) {}
+    ~AstDisjunctionConstraint() override = default;
+
+    AstConstraint* getLHS() {
+        return lhs.get();
+    }
+
+    AstConstraint* getRHS() {
+        return rhs.get();
+    }
+
+    void negate() {
+        assert(false && "not implemented yet");
+    }
+
+    /** Output the constraint to a given stream */
+    void print(std::ostream& os) const override {
+        lhs->print(os);
+        os << " || ";
+        rhs->print(os);
+    }
+
+    /** Creates a clone of this AST sub-structure */
+    AstDisjunctionConstraint* clone() const override {
+        auto* res = new AstDisjunctionConstraint(std::unique_ptr<AstConstraint>(lhs->clone()),
+                std::unique_ptr<AstConstraint>(rhs->clone()));
+        res->setSrcLoc(getSrcLoc());
+        return res;
+    }
+
+    /** Mutates this node */
+    void apply(const AstNodeMapper& map) override {
+        lhs = map(std::move(lhs));
+        rhs = map(std::move(rhs));
+    }
+
+    /** Obtains a list of all embedded child nodes */
+    std::vector<const AstNode*> getChildNodes() const override {
+        return {lhs.get(), rhs.get()};
+    }
+
+protected:
+    std::unique_ptr<AstConstraint> lhs;
+    std::unique_ptr<AstConstraint> rhs;
+
+    /** Implements the node comparison for this node type */
+    bool equal(const AstNode& node) const override {
+        assert(nullptr != dynamic_cast<const AstDisjunctionConstraint*>(&node));
+        const auto& other = static_cast<const AstDisjunctionConstraint&>(node);
+        return *lhs == *other.lhs && *rhs == *other.rhs;
+    }
 };
 
 /**

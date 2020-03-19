@@ -126,6 +126,12 @@ public:
         return std::make_unique<InterpreterNode>(I_Conjunction, &conj, std::move(children));
     }
 
+    NodePtr visitDisjunction(const RamDisjunction& conj) override {
+        assert(false && "not implemented yet");
+        // return std::make_unique<InterpreterNode>(I_Conjunction, &conj, std::move(children));
+        return nullptr;
+    }
+
     NodePtr visitNegation(const RamNegation& neg) override {
         NodePtrVec children;
         children.push_back(visit(neg.getOperand()));

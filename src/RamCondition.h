@@ -196,6 +196,73 @@ protected:
 };
 
 /**
+ * @class RamDisjunction
+ * @brief A conjunction of conditions
+ *
+ * Condition of the form "LHS and RHS", where LHS
+ * and RHS are conditions
+ *
+ * For example:
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * C1 OR C2 OR C3
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Is a RamDisjunction, which may have LHS "C1"
+ * and RHS "C2 OR C3"
+ */
+class RamDisjunction : public RamCondition {
+public:
+    RamDisjunction(std::unique_ptr<RamCondition> l, std::unique_ptr<RamCondition> r)
+            : lhs(std::move(l)), rhs(std::move(r)) {}
+
+    /** @brief Get left-hand side of conjunction */
+    const RamCondition& getLHS() const {
+        assert(lhs != nullptr && "left-hand side of conjunction is a nullptr");
+        return *lhs;
+    }
+
+    /** @brief Get right-hand side of conjunction */
+    const RamCondition& getRHS() const {
+        assert(rhs != nullptr && "right-hand side of conjunction is a nullptr");
+        return *rhs;
+    }
+
+    void print(std::ostream& os) const override {
+        os << "(";
+        lhs->print(os);
+        os << " OR ";
+        rhs->print(os);
+        os << ")";
+    }
+
+    std::vector<const RamNode*> getChildNodes() const override {
+        return {lhs.get(), rhs.get()};
+    }
+
+    RamDisjunction* clone() const override {
+        return new RamDisjunction(
+                std::unique_ptr<RamCondition>(lhs->clone()), std::unique_ptr<RamCondition>(rhs->clone()));
+    }
+
+    void apply(const RamNodeMapper& map) override {
+        lhs = map(std::move(lhs));
+        rhs = map(std::move(rhs));
+    }
+
+protected:
+    /** Left-hand side of conjunction */
+    std::unique_ptr<RamCondition> lhs;
+
+    /** Right-hand side of conjunction */
+    std::unique_ptr<RamCondition> rhs;
+
+    bool equal(const RamNode& node) const override {
+        assert(nullptr != dynamic_cast<const RamDisjunction*>(&node));
+        const auto& other = static_cast<const RamDisjunction&>(node);
+        return getLHS() == other.getLHS() && getRHS() == other.getRHS();
+    }
+};
+
+/**
  * @class RamNegation
  * @brief Negates a given condition
  *
