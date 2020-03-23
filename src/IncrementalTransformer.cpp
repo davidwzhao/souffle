@@ -180,10 +180,12 @@ std::vector<AstClause*> IncrementalTransformer::makeNegativeUpdateClause(const A
                     std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
     }
 
+    /*
     // add constraint to the rule saying that at least one body atom must have negative count
     negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,
                 std::unique_ptr<AstArgument>(applyFunctorToVars(bodyCounts, FunctorOp::MIN)),
                 std::make_unique<AstNumberConstant>(0)));
+                */
 
     negativeUpdateClauses.push_back(negativeUpdateClause);
     
@@ -278,10 +280,12 @@ std::vector<AstClause*> IncrementalTransformer::makePositiveUpdateClause(const A
                     std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
     }
 
+    /*
     // all tuples must have existed in prior iterations, i.e., tuples that are already deleted should not be deleted again
     positiveUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,
                 std::unique_ptr<AstArgument>(applyFunctorToVars(bodyPreviousCounts, FunctorOp::MIN)),
                 std::make_unique<AstNumberConstant>(0)));
+                */
 
     positiveUpdateClauses.push_back(positiveUpdateClause);
     return positiveUpdateClauses;
@@ -356,10 +360,12 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
                 std::unique_ptr<AstArgument>(applyFunctorToVars(bodyCounts, FunctorOp::MIN)),
                 std::make_unique<AstNumberConstant>(0)));
 
+    /*
     // add constraint to the rule saying that all body atoms must have previously existed
     positiveGenerationClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
                 std::unique_ptr<AstArgument>(applyFunctorToVars(bodyPreviousCounts, FunctorOp::MIN)),
                 std::make_unique<AstNumberConstant>(0)));
+                */
 
     if (bodyLevels.size() > 1) {
         // add constraint to the rule saying that at least one body atom must have generated in the previous iteration
@@ -389,6 +395,7 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
                 std::make_unique<AstAttribute>(std::string("@prev_count"), AstTypeIdentifier("number")));
         relation->addAttribute(
                 std::make_unique<AstAttribute>(std::string("@current_count"), AstTypeIdentifier("number")));
+    }
 
     for (auto relation : originalRelations) {
         // store a list of original clauses in the relation, to be deleted

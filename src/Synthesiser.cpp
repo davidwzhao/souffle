@@ -1256,6 +1256,16 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             PRINT_END_COMMENT(out);
         }
 
+        void visitDisjunction(const RamDisjunction& disj, std::ostream& out) override {
+            PRINT_BEGIN_COMMENT(out);
+            out << "((";
+            visit(disj.getLHS(), out);
+            out << ") || (";
+            visit(disj.getRHS(), out);
+            out << "))";
+            PRINT_END_COMMENT(out);
+        }
+
         void visitNegation(const RamNegation& neg, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
             out << "!(";
@@ -1436,10 +1446,13 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             out << "for (const auto& tup : existenceCheck) {\n";
 
-            if (!isRamUndefValue(currentCount)) {
+            if (!isRamUndefValue(currentCount) && !isRamUndefValue(previousCount)) {
                 out << "if (";
                 visit(*currentCount, out);
-                out << " > 0) {\n";
+                out << " > 0";
+                out << " && ";
+                visit(*previousCount, out);
+                out << " == 0) {\n";
 
                 // we want to encode (I_no \ Delta_o union Delta_n \ I_o)
                 // if count is positive, then we find the tuple
@@ -1450,22 +1463,38 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 visit(*iteration, out);
                 out << " == (iter-1) && tup[" << arity - 3 << "] <= (iter - 1))";
 
-                /*
                 // if tuple is in I_no, then it shouldn't be in Delta_o
                 out << "|| (";
                 visit(*iteration, out);
-                out << " < (iter-1) && tup[" << arity - 3 << "] == (iter - 1))";
-                */
+                out << " < (iter-1) && tup[" << arity - 3 << "] <= (iter - 1))";
+
                 out << ") return true;\n";
                 out << "}\n";
                 out << "}\n";
-            }
+            } else if (!isRamUndefValue(currentCount)) {
+                out << "if (";
+                visit(*currentCount, out);
+                out << " > 0) {\n";
 
-            if (!isRamUndefValue(previousCount)) {
+                // if count is positive, then we find the tuple
+                out << "if (tup[" << arity - 1 << "] > 0) {\n"; //  && tup[" << arity - 3 << "] == (iter-1)";
+                out << "return true;\n";
+                out << "}\n";
+
+                out << "}\n";
+            } else if (!isRamUndefValue(previousCount)) {
                 out << "if (";
                 visit(*previousCount, out);
                 out << " == 0) {\n";
                 out << "if (tup[" << arity - 2 << "] == 0 && tup[" << arity - 1 << "] > 0"; //  && tup[" << arity - 3 << "] < ";
+                // visit(*iteration, out);
+                out << ") return true;\n";
+                out << "}\n";
+
+                out << "else if (";
+                visit(*previousCount, out);
+                out << " == -1) {\n";
+                out << "if (tup[" << arity - 2 << "] > 0 && tup[" << arity - 1 << "] <= 0"; //  && tup[" << arity - 3 << "] < ";
                 // visit(*iteration, out);
                 out << ") return true;\n";
                 out << "}\n";

@@ -160,11 +160,11 @@ protected:
     // literals
     LINK(Atom, Literal)
     LINK(Negation, Literal)
-    LINK(PositiveNegation, Literal)
     LINK(SubsumptionNegation, Literal)
-    LINK(ExistenceCheck, Literal)
     LINK(Literal, Node);
 
+    LINK(ExistenceCheck, Constraint)
+    LINK(PositiveNegation, Constraint)
     LINK(ConjunctionConstraint, Constraint)
     LINK(DisjunctionConstraint, Constraint)
     LINK(BooleanConstraint, Constraint)

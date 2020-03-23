@@ -629,6 +629,33 @@ inline std::vector<std::unique_ptr<RamCondition>> toConjunctionList(const RamCon
 }
 
 /**
+ * @brief Convert terms of a disjunction to a list
+ * @param conds A RAM condition
+ * @return A list of RAM conditions
+ *
+ * Convert a condition of the format C1 /\ C2 /\ ... /\ Cn
+ * to a list {C1, C2, ..., Cn}.
+ */
+inline std::vector<std::unique_ptr<RamCondition>> toDisjunctionList(const RamCondition* condition) {
+    std::vector<std::unique_ptr<RamCondition>> list;
+    std::queue<const RamCondition*> queue;
+    if (condition != nullptr) {
+        queue.push(condition);
+        while (!queue.empty()) {
+            condition = queue.front();
+            queue.pop();
+            if (const auto* ramDisj = dynamic_cast<const RamDisjunction*>(condition)) {
+                queue.push(&ramDisj->getLHS());
+                queue.push(&ramDisj->getRHS());
+            } else {
+                list.emplace_back(condition->clone());
+            }
+        }
+    }
+    return list;
+}
+
+/**
  * @brief Convert list of conditions to a conjunction
  * @param A list of RAM conditions
  * @param A RAM condition
@@ -663,6 +690,43 @@ inline std::unique_ptr<RamCondition> toCondition(const std::vector<std::unique_p
         args.push_back(cur.get());
     }
     return toCondition(args);
+}
+
+/**
+ * @brief Convert list of conditions to a conjunction
+ * @param A list of RAM conditions
+ * @param A RAM condition
+ *
+ * Convert a list {C1, C2, ..., Cn} to a condition of
+ * the format C1 /\ C2 /\ ... /\ Cn.
+ */
+inline std::unique_ptr<RamCondition> toDisjunctionCondition(const std::vector<const RamCondition*>& conds) {
+    std::unique_ptr<RamCondition> result;
+    for (const RamCondition* cur : conds) {
+        if (result == nullptr) {
+            result = std::unique_ptr<RamCondition>(cur->clone());
+        } else {
+            result = std::make_unique<RamDisjunction>(
+                    std::move(result), std::unique_ptr<RamCondition>(cur->clone()));
+        }
+    }
+    return result;
+}
+
+/**
+ * @brief Convert list of conditions to a conjunction
+ * @param conds A list of RAM conditions
+ * @return A RAM condition
+ *
+ * Convert a list {C1, C2, ..., Cn} to a condition of
+ * the format C1 /\ C2 /\ ... /\ Cn.
+ */
+inline std::unique_ptr<RamCondition> toDisjunctionCondition(const std::vector<std::unique_ptr<RamCondition>>& conds) {
+    std::vector<const RamCondition*> args;
+    for (const auto& cur : conds) {
+        args.push_back(cur.get());
+    }
+    return toDisjunctionCondition(args);
 }
 
 }  // end of namespace souffle

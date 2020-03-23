@@ -172,6 +172,11 @@ int RamLevelAnalysis::getLevel(const RamNode* node) const {
             return std::max(visit(conj.getLHS()), visit(conj.getRHS()));
         }
 
+        // conjunction
+        int visitDisjunction(const RamDisjunction& disj) override {
+            return std::max(visit(disj.getLHS()), visit(disj.getRHS()));
+        }
+
         // negation
         int visitNegation(const RamNegation& neg) override {
             return visit(neg.getOperand());
