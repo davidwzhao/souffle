@@ -1086,6 +1086,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
             std::unique_ptr<RamStatement> rule;
 
             if (isReinsertionRule) {
+                /*
                 std::unique_ptr<AstClause> cl(clause->clone());
                 cl->getHead()->setName(translateDiffPlusRelation(&rel)->get()->getName());
 
@@ -1109,7 +1110,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                         auto& atomJ = atoms[j];
                         r1->getAtoms()[j]->setName(translateDiffAppliedRelation(getAtomRelation(atomJ, program))->get()->getName());
 
-                        /*
+                        / *
                         // add a negation to the rule stating that the tuple shouldn't be inserted
                         // this prevents double counting, e.g., if we have:
                         // A(x, y) :- B(x, y), diff+C(x, y).
@@ -1122,7 +1123,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                         noAdditionNegation->setArgument(noAdditionNegation->getArity() - 3, std::make_unique<AstUnnamedVariable>());
 
                         r1->addToBody(std::make_unique<AstNegation>(std::unique_ptr<AstAtom>(noAdditionNegation)));
-                        */
+                        * /
                     }
 
                     // a tuple should only be reinserted if that tuple is deleted
@@ -1169,6 +1170,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
 
                     appendStmt(res, std::move(rule));
                 }
+                    */
             } else {
                 if (isInsertionRule) {
                     // set the head of the rule to be the diff relation
@@ -1184,7 +1186,14 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                         curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstUnnamedVariable>());
                         curAtom->setArgument(curAtom->getArity() - 2, std::make_unique<AstNumberConstant>(0));
 
-                        existsDiffPlus.push_back(new AstExistenceCheck(std::unique_ptr<AstAtom>(curAtom)));
+                        // prevent double insertions across epochs
+                        auto noPrevious = atoms[i]->clone();
+                        noPrevious->setName(translateDiffMinusAppliedRelation(getAtomRelation(atoms[i], program))->get()->getName());
+                        noPrevious->setArgument(noPrevious->getArity() - 1, std::make_unique<AstNumberConstant>(1));
+                        noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstNumberConstant>(0));
+                        // noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());
+
+                        existsDiffPlus.push_back(new AstConjunctionConstraint(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(noPrevious))));
 
                         // the base relation for insertion should be diff_applied
                         clause->getAtoms()[i]->setName(translateDiffAppliedRelation(getAtomRelation(atoms[i], program))->get()->getName());
@@ -1251,7 +1260,14 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                         curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstUnnamedVariable>());
                         curAtom->setArgument(curAtom->getArity() - 2, std::make_unique<AstNumberConstant>(-1));
 
-                        existsDiffMinus.push_back(new AstExistenceCheck(std::unique_ptr<AstAtom>(curAtom)));
+                        // prevent double insertions across epochs
+                        auto noInsertion = atoms[i]->clone();
+                        noInsertion->setName(translateDiffAppliedRelation(getAtomRelation(atoms[i], program))->get()->getName());
+                        noInsertion->setArgument(noInsertion->getArity() - 1, std::make_unique<AstNumberConstant>(1));
+                        noInsertion->setArgument(noInsertion->getArity() - 2, std::make_unique<AstNumberConstant>(0));
+                        // noInsertion->setArgument(noInsertion->getArity() - 3, std::make_unique<AstUnnamedVariable>());
+
+                        existsDiffMinus.push_back(new AstConjunctionConstraint(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(noInsertion))));
                     }
 
                     clause->addToBody(toAstDisjunction(existsDiffMinus));
