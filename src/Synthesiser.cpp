@@ -1459,7 +1459,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "if (tup[" << arity - 1 << "] > 0) {\n"; //  && tup[" << arity - 3 << "] == (iter-1)";
 
                 // if tuple is in Delta_n, then it shouldn't be in I_o
-                out << "if ((";
+                out << "if (";
+                visit(*iteration, out);
+                out << " == -1 || (";
                 visit(*iteration, out);
                 out << " == (iter-1) && tup[" << arity - 3 << "] <= (iter - 1))";
 
@@ -1478,6 +1480,16 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
                 // if count is positive and iteration is lower than current, then we find the tuple
                 out << "if (tup[" << arity - 1 << "] > 0 && (iter == 0 || tup[" << arity - 3 << "] <= (iter-1))) {\n"; //  && tup[" << arity - 3 << "] == (iter-1)";
+                out << "return true;\n";
+                out << "}\n";
+                out << "}\n";
+
+                out << "else if (";
+                visit(*currentCount, out);
+                out << " == 0) {\n";
+
+                // if count is positive and iteration is lower than current, then we find the tuple
+                out << "if (tup[" << arity - 1 << "] > 0) {\n"; //  && tup[" << arity - 3 << "] == (iter-1)";
                 out << "return true;\n";
                 out << "}\n";
 
@@ -1499,9 +1511,10 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << ") return true;\n";
                 out << "}\n";
             }
+            out << "}\n";
             out << "return false;\n";
 
-            out << "}}()\n";
+            out << "}()\n";
             PRINT_END_COMMENT(out);
         }
 

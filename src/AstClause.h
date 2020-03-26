@@ -333,6 +333,11 @@ public:
         plan = nullptr;
     }
 
+    /** Resets the negations */
+    void clearNegations() {
+        negations.clear();
+    }
+
     /** Determines whether this is a internally generated clause */
     bool isGenerated() const {
         return generated;

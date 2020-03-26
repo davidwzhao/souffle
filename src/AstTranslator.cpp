@@ -1082,6 +1082,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
             bool isDeletionRule = (*curCountNum == AstNumberConstant(-1));
 
             const auto& atoms = clause->getAtoms();
+            const auto& negations = clause->getNegations();
 
             std::unique_ptr<RamStatement> rule;
 
@@ -1199,7 +1200,37 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                         clause->getAtoms()[i]->setName(translateDiffAppliedRelation(getAtomRelation(atoms[i], program))->get()->getName());
                     }
 
+                    // process negations
+                    for (size_t i = 0; i < negations.size(); i++) {
+                        // each negation needs to have either not existed, or be deleted
+                        // for the non-existence case, we use a positive negation instead
+                        auto negatedAtom = negations[i]->getAtom()->clone();
+                        negatedAtom->setName(translateDiffAppliedRelation(getAtomRelation(negatedAtom, program))->get()->getName());
+                        clause->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(negatedAtom)));
+
+                        // for the deletion case, we check if the atom is in diff minus
+                        auto curAtom = negations[i]->getAtom()->clone();
+                        curAtom->setName(translateDiffMinusCountRelation(getAtomRelation(curAtom, program))->get()->getName());
+
+                        curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                        curAtom->setArgument(curAtom->getArity() - 2, std::make_unique<AstNumberConstant>(-1));
+
+                        // prevent double insertions across epochs
+                        auto noPrevious = negations[i]->getAtom()->clone();
+                        noPrevious->setName(translateDiffAppliedRelation(getAtomRelation(noPrevious, program))->get()->getName());
+                        noPrevious->setArgument(noPrevious->getArity() - 1, std::make_unique<AstNumberConstant>(1));
+                        noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstNumberConstant>(0));
+                        // noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());
+
+                        existsDiffPlus.push_back(new AstConjunctionConstraint(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(noPrevious))));
+                    }
+
+                    // clear negations as they are now adapted for the incremental case
+                    clause->clearNegations();
+
                     clause->addToBody(toAstDisjunction(existsDiffPlus));
+
+
 
                     /*
                     // set atom i to use the diff relation
@@ -1269,6 +1300,35 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
 
                         existsDiffMinus.push_back(new AstConjunctionConstraint(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(noInsertion))));
                     }
+
+                    // process negations
+                    for (size_t i = 0; i < negations.size(); i++) {
+                        // each negation needs to have either not existed, or be deleted
+                        // for the non-existence case, we use a positive negation instead
+                        auto negatedAtom = negations[i]->getAtom()->clone();
+                        // negatedAtom->setName(translateDiffAppliedRelation(getAtomRelation(negatedAtom, program))->get()->getName());
+                        clause->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(negatedAtom)));
+
+                        // for the deletion case, we check if the atom is in diff minus
+                        auto curAtom = negations[i]->getAtom()->clone();
+                        curAtom->setName(translateDiffPlusCountRelation(getAtomRelation(curAtom, program))->get()->getName());
+
+                        curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                        curAtom->setArgument(curAtom->getArity() - 2, std::make_unique<AstNumberConstant>(-1));
+
+                        // prevent double insertions across epochs
+                        auto noPrevious = negations[i]->getAtom()->clone();
+                        noPrevious->setName(translateDiffMinusAppliedRelation(getAtomRelation(noPrevious, program))->get()->getName());
+                        noPrevious->setArgument(noPrevious->getArity() - 1, std::make_unique<AstNumberConstant>(1));
+                        noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstNumberConstant>(0));
+                        // noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());
+
+                        existsDiffMinus.push_back(new AstConjunctionConstraint(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(noPrevious))));
+                    }
+
+                    // clear negations as they are now adapted for the incremental case
+                    clause->clearNegations();
+
 
                     clause->addToBody(toAstDisjunction(existsDiffMinus));
 

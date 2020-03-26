@@ -50,12 +50,16 @@ struct addUnnamedVariables : public AstNodeMapper {
     std::unique_ptr<AstNode> operator()(std::unique_ptr<AstNode> node) const override {
         // add provenance columns
         if (auto atom = dynamic_cast<AstAtom*>(node.get())) {
+            /*
             atom->addArgument(std::make_unique<AstUnnamedVariable>());
             atom->addArgument(std::make_unique<AstUnnamedVariable>());
+            */
         } else if (auto neg = dynamic_cast<AstNegation*>(node.get())) {
+            /*
             auto atom = neg->getAtom();
             atom->addArgument(std::make_unique<AstUnnamedVariable>());
             atom->addArgument(std::make_unique<AstUnnamedVariable>());
+            */
         } else if (auto agg = dynamic_cast<AstAggregator*>(node.get())) {
             if (auto innerVar = dynamic_cast<const AstVariable*>(agg->getTargetExpression())) {
                 if (innerVar->getName() == "@current_epoch_value") {
@@ -146,6 +150,14 @@ std::vector<AstClause*> IncrementalTransformer::makeNegativeUpdateClause(const A
             bodyPreviousCounts.push_back(new AstVariable("@prev_count_" + std::to_string(i)));
             // bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i))));
             bodyCounts.push_back(new AstVariable("@current_count_" + std::to_string(i)));
+        } else if (auto neg = dynamic_cast<AstNegation*>(lit)) {
+
+            // for negations, we don't care about iteration number or previous count
+            neg->getAtom()->addArgument(std::make_unique<AstNumberConstant>(-1));
+            neg->getAtom()->addArgument(std::make_unique<AstUnnamedVariable>());
+
+            // set current count to be 0, which signifies that we want to check that a tuple either doesn't exist, or exists with count of 0
+            neg->getAtom()->addArgument(std::make_unique<AstNumberConstant>(0));
         }
     }
 
@@ -246,6 +258,14 @@ std::vector<AstClause*> IncrementalTransformer::makePositiveUpdateClause(const A
                             */
             bodyPreviousCounts.push_back(new AstVariable("@prev_count_" + std::to_string(i)));
             bodyCounts.push_back(new AstVariable("@current_count_" + std::to_string(i)));
+        } else if (auto neg = dynamic_cast<AstNegation*>(lit)) {
+
+            // for negations, we don't care about iteration number or previous count
+            neg->getAtom()->addArgument(std::make_unique<AstNumberConstant>(-1));
+            neg->getAtom()->addArgument(std::make_unique<AstUnnamedVariable>());
+
+            // set current count to be 0, which signifies that we want to check that a tuple either doesn't exist, or exists with count of 0
+            neg->getAtom()->addArgument(std::make_unique<AstNumberConstant>(0));
         }
     }
 
@@ -333,6 +353,14 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
             // bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i))));
             bodyCounts.push_back(new AstVariable("@current_count_" + std::to_string(i)));
             bodyPreviousCounts.push_back(new AstVariable("@prev_count_" + std::to_string(i)));
+        } else if (auto neg = dynamic_cast<AstNegation*>(lit)) {
+
+            // for negations, we don't care about iteration number or previous count
+            neg->getAtom()->addArgument(std::make_unique<AstNumberConstant>(-1));
+            neg->getAtom()->addArgument(std::make_unique<AstUnnamedVariable>());
+
+            // set current count to be 0, which signifies that we want to check that a tuple either doesn't exist, or exists with count of 0
+            neg->getAtom()->addArgument(std::make_unique<AstNumberConstant>(0));
         }
     }
 
