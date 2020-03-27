@@ -1314,7 +1314,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                         curAtom->setName(translateDiffPlusCountRelation(getAtomRelation(curAtom, program))->get()->getName());
 
                         curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstUnnamedVariable>());
-                        curAtom->setArgument(curAtom->getArity() - 2, std::make_unique<AstNumberConstant>(-1));
+                        curAtom->setArgument(curAtom->getArity() - 2, std::make_unique<AstNumberConstant>(0));
 
                         // prevent double insertions across epochs
                         auto noPrevious = negations[i]->getAtom()->clone();
