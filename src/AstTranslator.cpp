@@ -1228,7 +1228,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                     // clear negations as they are now adapted for the incremental case
                     clause->clearNegations();
 
-                    clause->addToBody(toAstDisjunction(existsDiffPlus));
+                    if (existsDiffPlus.size() > 0) {
+                        clause->addToBody(toAstDisjunction(existsDiffPlus));
+                    }
 
 
 
@@ -1330,7 +1332,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                     clause->clearNegations();
 
 
-                    clause->addToBody(toAstDisjunction(existsDiffMinus));
+                    if (existsDiffMinus.size() > 0) {
+                        clause->addToBody(toAstDisjunction(existsDiffMinus));
+                    }
 
                     /*
                     // set atom i to use the diff relation
@@ -2034,7 +2038,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                 rdiff->getAtoms()[i]->setName(translateDiffAppliedRelation(getAtomRelation(atoms[i], program))->get()->getName());
                             }
 
-                            rdiff->addToBody(toAstDisjunction(existsDiffPlus));
+                            if (existsDiffPlus.size() > 0) {
+                                rdiff->addToBody(toAstDisjunction(existsDiffPlus));
+                            }
 
                             // set atom i to use the diff relation
                             // rdiff->getAtoms()[j]->setName(translateDiffPlusCountRelation(getAtomRelation(atom, program))->get()->getName());
@@ -2110,7 +2116,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                 existsDiffMinus.push_back(new AstConjunctionConstraint(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(noPrevious))));
                             }
 
-                            rdiff->addToBody(toAstDisjunction(existsDiffMinus));
+                            if (existsDiffMinus.size() > 0) {
+                                rdiff->addToBody(toAstDisjunction(existsDiffMinus));
+                            }
                             /*
                             // set atom i to use the diff relation
                             rdiff->getAtoms()[j]->setName(translateDiffMinusCountRelation(getAtomRelation(atom, program))->get()->getName());
