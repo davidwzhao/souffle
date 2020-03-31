@@ -440,7 +440,7 @@ SearchSignature RamIndexAnalysis::getSearchSignature(const RamPositiveExistenceC
     }
 
     // we want to search for the count
-    res |= (1 << (int)values.size() - 1);
+    // res |= (1 << (int)values.size() - 1);
     return res;
 }
 
