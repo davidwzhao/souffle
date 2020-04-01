@@ -1480,6 +1480,11 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
                 // if count is positive and iteration is lower than current, then we find the tuple
                 out << "if (tup[" << arity - 1 << "] > 0 && (iter == 0 || tup[" << arity - 3 << "] <= (iter-1))) {\n"; //  && tup[" << arity - 3 << "] == (iter-1)";
+                /*
+                out << "if (tup[" << arity - 1 << "] > 0 && tup[" << arity - 3 << "] == ";
+                visit(*iteration, out);
+                out << ") {\n"; //  && tup[" << arity - 3 << "] == (iter-1)";
+                */
                 out << "return true;\n";
                 out << "}\n";
                 out << "}\n";
