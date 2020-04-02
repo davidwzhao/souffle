@@ -313,7 +313,7 @@ private:
     /** translate a temporary `new` relation to a RAM relation for semi-naive evaluation */
     std::unique_ptr<RamRelationReference> translateNewRelation(const AstRelation* rel);
 
-    /** translate a temporary `delta` relation to a RAM relation for semi-naive evaluation */
+    /** translate diff minus and plus version of a relation to a RAM relation for incremental evaluation */
     std::unique_ptr<RamRelationReference> translateDiffMinusRelation(const AstRelation* rel);
     std::unique_ptr<RamRelationReference> translateDiffPlusRelation(const AstRelation* rel);
 
@@ -324,11 +324,16 @@ private:
     std::unique_ptr<RamRelationReference> translateDiffMinusAppliedRelation(const AstRelation* rel);
     std::unique_ptr<RamRelationReference> translateDiffPlusAppliedRelation(const AstRelation* rel);
 
+    std::unique_ptr<RamRelationReference> translateDeltaDiffMinusAppliedRelation(const AstRelation* rel);
+
     std::unique_ptr<RamRelationReference> translateDiffMinusCountRelation(const AstRelation* rel);
     std::unique_ptr<RamRelationReference> translateDiffPlusCountRelation(const AstRelation* rel);
 
-    std::unique_ptr<RamRelationReference> translateDiffAppliedCompleteRelation(const AstRelation* rel);
+    std::unique_ptr<RamRelationReference> translateDeltaDiffMinusCountRelation(const AstRelation* rel);
+    std::unique_ptr<RamRelationReference> translateDeltaDiffPlusCountRelation(const AstRelation* rel);
+
     std::unique_ptr<RamRelationReference> translateDiffAppliedRelation(const AstRelation* rel);
+    std::unique_ptr<RamRelationReference> translateDeltaDiffAppliedRelation(const AstRelation* rel);
 
     /** translate an AST argument to a RAM value */
     std::unique_ptr<RamExpression> translateValue(const AstArgument* arg, const ValueIndex& index);
