@@ -60,7 +60,7 @@ public:
             query = parseTuple(command[1]);
             removeTuple("diff_minus@_" + query.first, query.second);
         } else if (command[0] == "commit") {
-            std::cout << "### BEGIN EPOCH " << currentEpoch << std::endl;
+            // std::cout << "### BEGIN EPOCH " << currentEpoch << std::endl;
             currentEpoch++;
             commit();
         } else if (command[0] == "exit" || command[0] == "q") {
