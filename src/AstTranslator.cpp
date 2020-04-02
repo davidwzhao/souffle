@@ -2060,6 +2060,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstNumberConstant>(1));
                             curAtom->setArgument(curAtom->getArity() - 2, std::make_unique<AstUnnamedVariable>());
 
+                            r1->addToBody(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(curAtom)));
+
+                            /*
                             // also ensure tuple isn't newly inserted in current epoch
                             auto notNewInsertion = atoms[i]->clone();
                             notNewInsertion->setName(translateDiffPlusCountRelation(getAtomRelation(atoms[i], program))->get()->getName());
@@ -2067,7 +2070,15 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             notNewInsertion->setArgument(notNewInsertion->getArity() - 1, std::make_unique<AstUnnamedVariable>());
                             notNewInsertion->setArgument(notNewInsertion->getArity() - 2, std::make_unique<AstNumberConstant>(0));
 
-                            r1->addToBody(std::make_unique<AstConjunctionConstraint>(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(notNewInsertion))));
+                            // unless it was an update to a smaller iteration
+                            auto notIterationUpdate = atoms[i]->clone();
+                            notIterationUpdate->setName(translateRelation(getAtomRelation(atoms[i], program))->get()->getName());
+
+                            notIterationUpdate->setArgument(notNewInsertion->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                            notIterationUpdate->setArgument(notNewInsertion->getArity() - 2, std::make_unique<AstNumberConstant>(1));
+
+                            r1->addToBody(std::make_unique<AstConjunctionConstraint>(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstConjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(notNewInsertion)), std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(notNewInsertion)))));
+                            */
                         }
 
                         // if we have incremental evaluation, we use iteration counts to simulate delta relations
