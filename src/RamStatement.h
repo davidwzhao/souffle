@@ -371,13 +371,8 @@ protected:
  */
 class RamPositiveMerge : public RamBinRelationStatement {
 public:
-    RamPositiveMerge(std::unique_ptr<RamRelationReference> tRef, std::unique_ptr<RamRelationReference> sRef, std::unique_ptr<RamRelationReference> eRef)
-            : RamBinRelationStatement(std::move(sRef), std::move(tRef)), existingRelation(std::move(eRef)) {
-        assert(first->get()->getArity() == existingRelation->get()->getArity() && "mismatching relations");
-        for (size_t i = 0; i < first->get()->getArity(); i++) {
-            assert(first->get()->getArgTypeQualifier(i) == existingRelation->get()->getArgTypeQualifier(i) &&
-                    "mismatching type");
-        }
+    RamPositiveMerge(std::unique_ptr<RamRelationReference> tRef, std::unique_ptr<RamRelationReference> sRef)
+            : RamBinRelationStatement(std::move(sRef), std::move(tRef)) {
     }
 
     /** @brief Get source relation */
@@ -390,31 +385,24 @@ public:
         return getSecondRelation();
     }
 
-    /** @brief Get target relation */
-    const RamRelation& getExistingRelation() const {
-        return *existingRelation->get();
-    }
-
     void print(std::ostream& os, int tabpos) const override {
         os << times(" ", tabpos);
-        os << "POSIMERGE " << getTargetRelation().getName() << " WITH " << getSourceRelation().getName() << " IF NOT " << getExistingRelation().getName();
+        os << "POSIMERGE " << getTargetRelation().getName() << " WITH " << getSourceRelation().getName();
         os << std::endl;
     }
 
     RamPositiveMerge* clone() const override {
         auto* res = new RamPositiveMerge(std::unique_ptr<RamRelationReference>(second->clone()),
-                std::unique_ptr<RamRelationReference>(first->clone()), std::unique_ptr<RamRelationReference>(existingRelation->clone()));
+                std::unique_ptr<RamRelationReference>(first->clone()));
         return res;
     }
 
 protected:
-    std::unique_ptr<RamRelationReference> existingRelation;
-
     bool equal(const RamNode& node) const override {
         bool res = RamBinRelationStatement::equal(node);
         assert(nullptr != dynamic_cast<const RamPositiveMerge*>(&node));
         const auto& other = static_cast<const RamPositiveMerge&>(node);
-        return res && getExistingRelation() == other.getExistingRelation();
+        return res;
     }
 };
 

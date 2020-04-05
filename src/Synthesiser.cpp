@@ -405,12 +405,12 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             PRINT_BEGIN_COMMENT(out);
             size_t arity = merge.getTargetRelation().getArity();
             auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
-            out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
+            out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getTargetRelation()) << ") {\n";
 
             // this is a bit of a mess, should integrate into search signatures
             int searchSignature = isa->getSearchSignature(&merge);
 
-            out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getExistingRelation()) << "->"
+            out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getSourceRelation()) << "->"
                 << "equalRange";
             // out << synthesiser.toIndex(ne.getSearchSignature());
             out << "_" << searchSignature;
@@ -427,7 +427,10 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             out << "bool insert = true;\n";
             out << "for (auto& t : existenceCheck) {\n";
-            out << "if (t[" << arity - 1 << "] > 0 && t[" << arity - 3 << "] > tup[" << arity - 3 << "]) insert = false;\n";
+            // out << "if (t[" << arity - 1 << "] > 0 && t[" << arity - 3 << "] > tup[" << arity - 3 << "]) insert = false;\n";
+
+            // merge only tuples that are in the current iteration
+            out << "if (t[" << arity - 3 << "] != iter - 1) insert = false;\n";
             out << "}\n";
 
             out << "if (insert) ";
