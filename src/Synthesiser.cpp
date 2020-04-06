@@ -405,8 +405,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             PRINT_BEGIN_COMMENT(out);
             size_t arity = merge.getTargetRelation().getArity();
             auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
-            out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getTargetRelation()) << ") {\n";
+            out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
 
+            /*
             // this is a bit of a mess, should integrate into search signatures
             int searchSignature = isa->getSearchSignature(&merge);
 
@@ -424,17 +425,78 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "0,0,0";
 
             out << "}});\n"; //  << ctxName << ");\n";
+            */
 
+            /*
             out << "bool insert = true;\n";
             out << "for (auto& t : existenceCheck) {\n";
             // out << "if (t[" << arity - 1 << "] > 0 && t[" << arity - 3 << "] > tup[" << arity - 3 << "]) insert = false;\n";
+            */
 
             // merge only tuples that are in the current iteration
-            out << "if (t[" << arity - 3 << "] != iter - 1) insert = false;\n";
+            out << "if (iter == 0) {\n";
+            out << "if (tup[" << arity - 3 << "] == 0)\n";
+            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
             out << "}\n";
+            out << "else if (tup[" << arity - 3 << "] == iter - 1)\n";
+            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
+            // out << "}\n";
 
+            /*
             out << "if (insert) ";
             out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
+            */
+
+            out << "}\n";
+
+            PRINT_END_COMMENT(out);
+        }
+
+        void visitExistingMerge(const RamExistingMerge& merge, std::ostream& out) override {
+            // ExistingMerge works as follows:
+            // ExistingMerge(A, B, C):
+            //   FOR tuple in B:
+            //     IF (tuple.iteration == iter - 1 || (iter == 0 && tuple.iteration == 0)):
+            //       INSERT tuple INTO A
+            //     ELSE IF (tuple in C) :
+            //       INSERT tuple INTO A
+
+            PRINT_BEGIN_COMMENT(out);
+            size_t arity = merge.getTargetRelation().getArity();
+            auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
+            out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
+
+            // out << "if ((iter == 0 && tup[" << arity - 3 << "] == 0) || tup[" << arity - 3 << "] == iter-1) {\n";
+            out << "if (tup[" << arity - 3 << "] == iter) {\n";
+            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
+            out << "}\n";
+
+            // else, check existence in ExistingRelation
+            out << "else {\n";
+
+            // this is a bit of a mess, should integrate into search signatures
+            int searchSignature = isa->getSearchSignature(&merge);
+
+            out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getExistingRelation()) << "->"
+                << "equalRange";
+            // out << synthesiser.toIndex(ne.getSearchSignature());
+            out << "_" << searchSignature;
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 3; i++) {
+                out << "tup[" << i << "]";
+                out << ",";
+            }
+
+            // extra 0s for incremental annotations
+            out << "0,0,0";
+
+            out << "}});\n"; //  << ctxName << ");\n";
+
+            out << "if (!existenceCheck.empty()) {\n";
+            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
+            out << "}\n";
+
+            out << "}\n";
 
             out << "}\n";
 
@@ -2191,7 +2253,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         auto relationType = SynthesiserRelation::getSynthesiserRelation(
                 rel, idxAnalysis->getIndexes(rel), (Global::config().has("provenance") || Global::config().has("incremental")) && !isProvInfo);
         tempType = isDelta ? relationType->getTypeName() : tempType;
-        const std::string& type = (rel.isTemp()) ? tempType : relationType->getTypeName();
+        const std::string& type = (rel.isTemp()) && raw_name.find("new_diff_plus@") == std::string::npos ? tempType : relationType->getTypeName();
 
         // defining table
         os << "// -- Table: " << raw_name << "\n";

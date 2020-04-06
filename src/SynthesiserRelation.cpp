@@ -193,6 +193,10 @@ std::string SynthesiserDirectRelation::getTypeName() {
         res << "__" << search;
     }
 
+    if (relation.getName().find("diff_") != std::string::npos) {
+        res << "_diff";
+    }
+
     if (relation.isTemp()) {
         res << "_temp";
     }

@@ -407,6 +407,67 @@ protected:
 };
 
 /**
+ * @class RamExistingMerge
+ * @brief Merge tuples from a source into target relation, 
+ * but only tuples that exist in a third relation.
+ *
+ * Note that semantically uniqueness of tuples is not checked.
+ *
+ * The following example merges A \ C into B:
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * POSIMERGE B WITH A IF IN C
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ */
+class RamExistingMerge : public RamBinRelationStatement {
+public:
+    RamExistingMerge(std::unique_ptr<RamRelationReference> tRef, std::unique_ptr<RamRelationReference> sRef, std::unique_ptr<RamRelationReference> eRef)
+            : RamBinRelationStatement(std::move(sRef), std::move(tRef)), existingRelation(std::move(eRef)) {
+        assert(first->get()->getArity() == existingRelation->get()->getArity() && "mismatching relations");
+        for (size_t i = 0; i < first->get()->getArity(); i++) {
+            assert(first->get()->getArgTypeQualifier(i) == existingRelation->get()->getArgTypeQualifier(i) &&
+                    "mismatching type");
+        }
+    }
+
+    /** @brief Get source relation */
+    const RamRelation& getSourceRelation() const {
+        return getFirstRelation();
+    }
+
+    /** @brief Get target relation */
+    const RamRelation& getTargetRelation() const {
+        return getSecondRelation();
+    }
+
+    /** @brief Get target relation */
+    const RamRelation& getExistingRelation() const {
+        return *existingRelation->get();
+    }
+
+    void print(std::ostream& os, int tabpos) const override {
+        os << times(" ", tabpos);
+        os << "EXISTING MERGE " << getTargetRelation().getName() << " WITH " << getSourceRelation().getName() << " IF IN " << getExistingRelation().getName();
+        os << std::endl;
+    }
+
+    RamExistingMerge* clone() const override {
+        auto* res = new RamExistingMerge(std::unique_ptr<RamRelationReference>(second->clone()),
+                std::unique_ptr<RamRelationReference>(first->clone()), std::unique_ptr<RamRelationReference>(existingRelation->clone()));
+        return res;
+    }
+
+protected:
+    std::unique_ptr<RamRelationReference> existingRelation;
+
+    bool equal(const RamNode& node) const override {
+        bool res = RamBinRelationStatement::equal(node);
+        assert(nullptr != dynamic_cast<const RamExistingMerge*>(&node));
+        const auto& other = static_cast<const RamExistingMerge&>(node);
+        return res && getExistingRelation() == other.getExistingRelation();
+    }
+};
+
+/**
  * @class RamSemiMerge
  * @brief Merge tuples from a source into target relation, 
  * but only tuples that already existed in the target relation.

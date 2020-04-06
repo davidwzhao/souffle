@@ -291,6 +291,10 @@ void RamIndexAnalysis::run(const RamTranslationUnit& translationUnit) {
             // this is a nasty hack: add another search signature that specifies the iteration number
             // indexes.addSearch(getSearchSignature(provExists) + 4);
         } else if (const auto* posiMerge = dynamic_cast<const RamPositiveMerge*>(&node)) {
+            MinIndexSelection& indexes = getIndexes(posiMerge->getSourceRelation());
+            indexes.addSearch(getSearchSignature(posiMerge));
+        } else if (const auto* posiMerge = dynamic_cast<const RamExistingMerge*>(&node)) {
+            std::cout << "adding index " << getSearchSignature(posiMerge) << " for ExistingMerge to: " << posiMerge->getExistingRelation() << std::endl;
             MinIndexSelection& indexes = getIndexes(posiMerge->getExistingRelation());
             indexes.addSearch(getSearchSignature(posiMerge));
         } else if (const auto* semiMerge = dynamic_cast<const RamSemiMerge*>(&node)) {
@@ -419,6 +423,17 @@ SearchSignature RamIndexAnalysis::getSearchSignature(
     }
     return res;
 }
+
+SearchSignature RamIndexAnalysis::getSearchSignature(
+        const RamExistingMerge* existMerge) const {
+    SearchSignature res = 0;
+    // - 3 because we don't want the iteration number
+    for (size_t i = 0; i < existMerge->getExistingRelation().getArity() - 3; i++) {
+        res |= (1 << i);
+    }
+    return res;
+}
+
 
 SearchSignature RamIndexAnalysis::getSearchSignature(
         const RamSemiMerge* semiMerge) const {
