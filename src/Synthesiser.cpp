@@ -434,11 +434,13 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             */
 
             // merge only tuples that are in the current iteration
+            /*
             out << "if (iter == 0) {\n";
             out << "if (tup[" << arity - 3 << "] == 0)\n";
             out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
             out << "}\n";
-            out << "else if (tup[" << arity - 3 << "] == iter - 1)\n";
+            */
+            out << "if (tup[" << arity - 3 << "] == iter)\n";
             out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
             // out << "}\n";
 
