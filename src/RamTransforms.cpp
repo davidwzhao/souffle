@@ -246,21 +246,25 @@ bool HoistConditionsTransformer::hoistConditions(RamProgram& program) {
 }
 
 std::unique_ptr<RamExpression> MakeIndexTransformer::getExpression(
-        RamCondition* c, size_t& element, int identifier) {
+        RamCondition* c, size_t& element, int identifier, const RamRelation& rel) {
     if (auto* binRelOp = dynamic_cast<RamConstraint*>(c)) {
         if (binRelOp->getOperator() == BinaryConstraintOp::EQ) {
             if (const auto* lhs = dynamic_cast<const RamTupleElement*>(&binRelOp->getLHS())) {
                 const RamExpression* rhs = &binRelOp->getRHS();
                 if (lhs->getTupleId() == identifier && rla->getLevel(rhs) < identifier) {
                     element = lhs->getElement();
-                    return std::unique_ptr<RamExpression>(rhs->clone());
+                    if (element < rel.getArity() - 3) {
+                        return std::unique_ptr<RamExpression>(rhs->clone());
+                    }
                 }
             }
             if (const auto* rhs = dynamic_cast<const RamTupleElement*>(&binRelOp->getRHS())) {
                 const RamExpression* lhs = &binRelOp->getLHS();
                 if (rhs->getTupleId() == identifier && rla->getLevel(lhs) < identifier) {
                     element = rhs->getElement();
-                    return std::unique_ptr<RamExpression>(lhs->clone());
+                    if (element < rel.getArity() - 3) {
+                        return std::unique_ptr<RamExpression>(lhs->clone());
+                    }
                 }
             }
         }
@@ -270,7 +274,7 @@ std::unique_ptr<RamExpression> MakeIndexTransformer::getExpression(
 
 std::unique_ptr<RamCondition> MakeIndexTransformer::constructPattern(
         std::vector<std::unique_ptr<RamExpression>>& queryPattern, bool& indexable,
-        std::vector<std::unique_ptr<RamCondition>> conditionList, int identifier) {
+        std::vector<std::unique_ptr<RamCondition>> conditionList, int identifier, const RamRelation& rel) {
     // Remaining conditions which cannot be handled by an index
     std::unique_ptr<RamCondition> condition;
     auto addCondition = [&](std::unique_ptr<RamCondition> c) {
@@ -284,7 +288,7 @@ std::unique_ptr<RamCondition> MakeIndexTransformer::constructPattern(
     // Build query pattern and remaining condition
     for (auto& cond : conditionList) {
         size_t element = 0;
-        if (std::unique_ptr<RamExpression> value = getExpression(cond.get(), element, identifier)) {
+        if (std::unique_ptr<RamExpression> value = getExpression(cond.get(), element, identifier, rel)) {
             if (queryPattern[element] == nullptr) {
                 indexable = true;
                 queryPattern[element] = std::move(value);
@@ -307,6 +311,12 @@ std::unique_ptr<RamCondition> MakeIndexTransformer::constructPattern(
             p = std::make_unique<RamUndefValue>();
         }
     }
+
+    std::cout << "query pattern: ";
+    for (auto& exp : queryPattern) {
+        std::cout << *exp << ", ";
+    }
+    std::cout << std::endl << "inner filter: " << *condition << std::endl;
     return condition;
 }
 
@@ -317,7 +327,7 @@ std::unique_ptr<RamOperation> MakeIndexTransformer::rewriteAggregate(const RamAg
         std::vector<std::unique_ptr<RamExpression>> queryPattern(rel.getArity());
         bool indexable = false;
         std::unique_ptr<RamCondition> condition = constructPattern(
-                queryPattern, indexable, toConjunctionList(&agg->getCondition()), identifier);
+                queryPattern, indexable, toConjunctionList(&agg->getCondition()), identifier, rel);
         if (indexable) {
             return std::make_unique<RamIndexAggregate>(
                     std::unique_ptr<RamOperation>(agg->getOperation().clone()), agg->getFunction(),
@@ -336,7 +346,7 @@ std::unique_ptr<RamOperation> MakeIndexTransformer::rewriteScan(const RamScan* s
         std::vector<std::unique_ptr<RamExpression>> queryPattern(rel.getArity());
         bool indexable = false;
         std::unique_ptr<RamCondition> condition = constructPattern(
-                queryPattern, indexable, toConjunctionList(&filter->getCondition()), identifier);
+                queryPattern, indexable, toConjunctionList(&filter->getCondition()), identifier, rel);
         if (indexable) {
             std::unique_ptr<RamOperation> op = std::unique_ptr<RamOperation>(filter->getOperation().clone());
             if (!isRamTrue(condition.get())) {
@@ -356,7 +366,7 @@ std::unique_ptr<RamOperation> MakeIndexTransformer::rewriteIndexScan(const RamIn
         std::vector<std::unique_ptr<RamExpression>> queryPattern(rel.getArity());
         bool indexable = false;
         std::unique_ptr<RamCondition> condition = constructPattern(
-                queryPattern, indexable, toConjunctionList(&filter->getCondition()), identifier);
+                queryPattern, indexable, toConjunctionList(&filter->getCondition()), identifier, rel);
         if (indexable) {
             // Merge Index Pattern here
             const auto prevPattern = iscan->getRangePattern();

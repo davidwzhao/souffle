@@ -364,7 +364,7 @@ public:
      * The method retrieves expression the expression of an equivalence constraint of the
      * format t1.x = <expr> or <expr> = t1.x
      */
-    std::unique_ptr<RamExpression> getExpression(RamCondition* c, size_t& element, int level);
+    std::unique_ptr<RamExpression> getExpression(RamCondition* c, size_t& element, int level, const RamRelation& rel);
 
     /**
      * @brief Construct query patterns for an indexable operation
@@ -375,7 +375,7 @@ public:
      * @result Remaining conditions that could not be transformed to an index
      */
     std::unique_ptr<RamCondition> constructPattern(std::vector<std::unique_ptr<RamExpression>>& queryPattern,
-            bool& indexable, std::vector<std::unique_ptr<RamCondition>> conditionList, int identifier);
+            bool& indexable, std::vector<std::unique_ptr<RamCondition>> conditionList, int identifier, const RamRelation& rel);
 
     /**
      * @brief Rewrite a scan operation to an indexed scan operation

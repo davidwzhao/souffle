@@ -1249,7 +1249,6 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                             cl->getAtoms()[j]->setName(translateDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
                         }
 
-
                         // process negations
                         for (size_t j = 0; j < negations.size(); j++) {
                             // each negation needs to have either not existed, or be deleted
@@ -1290,6 +1289,109 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                     }
 
                     // TODO: if there is a negation, then we need to add a version of the rule which applies when only the negations apply
+                    for (size_t i = 0; i < negations.size(); i++) {
+                        // an insertion rule should look as follows:
+                        // R :- R_1, R_2, ..., diff_plus_count_R_i, diff_applied_R_i+1, ..., diff_applied_R_n
+
+                        auto cl = clause->clone();
+
+                        // set the head of the rule to be the diff relation
+                        cl->getHead()->setName(translateDiffPlusRelation(&rel)->get()->getName());
+
+                        // clone the i-th negation's atom
+                        // each negation needs to have either not existed, or be deleted
+                        // for the non-existence case, we use a positive negation instead
+                        auto negatedAtom = negations[i]->getAtom()->clone();
+                        negatedAtom->setName(translateDiffMinusCountRelation(getAtomRelation(negatedAtom, program))->get()->getName());
+                        negatedAtom->setArgument(negatedAtom->getArity() - 1, std::make_unique<AstNumberConstant>(0));
+                        negatedAtom->setArgument(negatedAtom->getArity() - 3, std::make_unique<AstUnnamedVariable>());
+                        cl->addToBody(std::unique_ptr<AstAtom>(negatedAtom));
+
+                        /*
+                        // add constraints saying that the i-th negation atom should be deleted
+                        cl->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
+                                    std::unique_ptr<AstArgument>(atoms[i]->getArgument(atoms[i]->getArity() - 2)->clone()),
+                                    std::make_unique<AstNumberConstant>(0)));
+
+                        cl->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,
+                                    std::unique_ptr<AstArgument>(atoms[i]->getArgument(atoms[i]->getArity() - 1)->clone()),
+                                    std::make_unique<AstNumberConstant>(0)));
+                                    */
+
+                        // prevent double insertions across epochs
+                        auto noPrevious = negations[i]->getAtom()->clone();
+                        noPrevious->setName(translateDiffAppliedRelation(getAtomRelation(noPrevious, program))->get()->getName());
+                        noPrevious->setArgument(noPrevious->getArity() - 1, std::make_unique<AstNumberConstant>(1));
+                        noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstNumberConstant>(0));
+                        // noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());
+
+                        cl->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(noPrevious)));
+
+                        // atoms before the i-th position should not fulfill the conditions for incremental deletion, otherwise we will have double insertions
+                        for (size_t j = 0; j < i; j++) {
+                            // cl->getAtoms()[j]->setName(translateDiffMinusAppliedRelation(getAtomRelation(atoms[i], program))->get()->getName());
+
+                            // ensure tuple is not actually inserted
+                            auto curAtom = negations[j]->getAtom()->clone();
+                            curAtom->setName(translateDiffMinusCountRelation(getAtomRelation(curAtom, program))->get()->getName());
+
+                            curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                            curAtom->setArgument(curAtom->getArity() - 2, std::make_unique<AstNumberConstant>(-1));
+
+                            // also ensure tuple existed previously
+                            auto noPrevious = negations[j]->getAtom()->clone();
+                            noPrevious->setName(translateDiffAppliedRelation(getAtomRelation(noPrevious, program))->get()->getName());
+                            noPrevious->setArgument(noPrevious->getArity() - 1, std::make_unique<AstNumberConstant>(1));
+                            noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstNumberConstant>(0));
+                            // noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());
+
+                            cl->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
+                        }
+
+                        // process negations
+                        for (size_t j = 0; j < negations.size(); j++) {
+                            // each negation needs to have either not existed, or be deleted
+                            // for the non-existence case, we use a positive negation instead
+                            auto negatedAtom = negations[j]->getAtom()->clone();
+                            negatedAtom->setName(translateDiffAppliedRelation(getAtomRelation(negatedAtom, program))->get()->getName());
+                            cl->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(negatedAtom)));
+                        }
+
+                        // the base relation for addition should be diff_applied, so translate each positive atom to the diff applied version
+                        for (size_t j = 0; j < atoms.size(); j++) {
+                            cl->getAtoms()[j]->setName(translateDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                        }
+
+
+                        cl->clearNegations();
+
+                        std::cout << "non-recursive: " << *cl << std::endl;
+
+                        // translate cl
+                        std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *cl);
+
+                        // add logging
+                        if (Global::config().has("profile")) {
+                            const std::string& relationName = toString(rel.getName());
+                            const SrcLocation& srcLocation = cl->getSrcLoc();
+                            const std::string clText = stringify(toString(*cl));
+                            const std::string logTimerStatement =
+                                    LogStatement::tNonrecursiveRule(relationName, srcLocation, clText);
+                            const std::string logSizeStatement =
+                                    LogStatement::nNonrecursiveRule(relationName, srcLocation, clText);
+                            rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
+                                    logTimerStatement, std::unique_ptr<RamRelationReference>(rrel->clone())));
+                        }
+
+                        // add debug info
+                        std::ostringstream ds;
+                        ds << toString(*cl) << "\nin file ";
+                        ds << cl->getSrcLoc();
+                        rule = std::make_unique<RamDebugInfo>(std::move(rule), ds.str());
+
+                        // add rule to result
+                        appendStmt(res, std::move(rule));
+                    }
 
 
 
@@ -1462,6 +1564,114 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                             // negatedAtom->setName(translateDiffAppliedRelation(getAtomRelation(negatedAtom, program))->get()->getName());
                             cl->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(negatedAtom)));
                         }
+
+                        cl->clearNegations();
+
+                        std::cout << "non-recursive: " << *cl << std::endl;
+
+                        // translate cl
+                        std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *cl);
+
+                        // add logging
+                        if (Global::config().has("profile")) {
+                            const std::string& relationName = toString(rel.getName());
+                            const SrcLocation& srcLocation = cl->getSrcLoc();
+                            const std::string clText = stringify(toString(*cl));
+                            const std::string logTimerStatement =
+                                    LogStatement::tNonrecursiveRule(relationName, srcLocation, clText);
+                            const std::string logSizeStatement =
+                                    LogStatement::nNonrecursiveRule(relationName, srcLocation, clText);
+                            rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
+                                    logTimerStatement, std::unique_ptr<RamRelationReference>(rrel->clone())));
+                        }
+
+                        // add debug info
+                        std::ostringstream ds;
+                        ds << toString(*cl) << "\nin file ";
+                        ds << cl->getSrcLoc();
+                        rule = std::make_unique<RamDebugInfo>(std::move(rule), ds.str());
+
+                        // add rule to result
+                        appendStmt(res, std::move(rule));
+                    }
+
+                    // TODO: if there is a negation, then we need to add a version of the rule which applies when only the negations apply
+                    for (size_t i = 0; i < negations.size(); i++) {
+                        // an insertion rule should look as follows:
+                        // R :- R_1, R_2, ..., diff_plus_count_R_i, diff_applied_R_i+1, ..., diff_applied_R_n
+
+                        auto cl = clause->clone();
+
+                        // set the head of the rule to be the diff relation
+                        cl->getHead()->setName(translateDiffMinusRelation(&rel)->get()->getName());
+
+                        // clone the i-th negation's atom
+                        // each negation needs to have either not existed, or be deleted
+                        // for the non-existence case, we use a positive negation instead
+                        auto negatedAtom = negations[i]->getAtom()->clone();
+                        negatedAtom->setName(translateDiffPlusCountRelation(getAtomRelation(negatedAtom, program))->get()->getName());
+                        negatedAtom->setArgument(negatedAtom->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                        negatedAtom->setArgument(negatedAtom->getArity() - 2, std::make_unique<AstNumberConstant>(0));
+                        negatedAtom->setArgument(negatedAtom->getArity() - 3, std::make_unique<AstUnnamedVariable>());
+                        cl->addToBody(std::unique_ptr<AstAtom>(negatedAtom));
+
+                        /*
+                        // add constraints saying that the i-th negation atom should be deleted
+                        cl->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
+                                    std::make_unique<AstVariable>("@negated_current_count"),
+                                    std::make_unique<AstNumberConstant>(0)));
+                                    */
+
+                        /*
+                        // add constraints saying that the i-th negation atom should be deleted
+                        cl->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,
+                                    std::unique_ptr<AstArgument>(atoms[i]->getArgument(atoms[i]->getArity() - 2)->clone()),
+                                    std::make_unique<AstNumberConstant>(0)));
+
+                        cl->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
+                                    std::unique_ptr<AstArgument>(atoms[i]->getArgument(atoms[i]->getArity() - 1)->clone()),
+                                    std::make_unique<AstNumberConstant>(0)));
+                                    */
+
+                        // prevent double insertions across epochs
+                        auto noPrevious = negations[i]->getAtom()->clone();
+                        noPrevious->setName(translateRelation(getAtomRelation(noPrevious, program))->get()->getName());
+                        noPrevious->setArgument(noPrevious->getArity() - 1, std::make_unique<AstNumberConstant>(1));
+                        noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstNumberConstant>(0));
+                        // noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());
+
+                        cl->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(noPrevious)));
+
+                        // atoms before the i-th position should not fulfill the conditions for incremental deletion, otherwise we will have double insertions
+                        for (size_t j = 0; j < i; j++) {
+                            // cl->getAtoms()[j]->setName(translateDiffMinusAppliedRelation(getAtomRelation(atoms[i], program))->get()->getName());
+
+                            // ensure tuple is actually inserted
+                            auto curAtom = negations[j]->getAtom()->clone();
+                            curAtom->setName(translateDiffPlusCountRelation(getAtomRelation(curAtom, program))->get()->getName());
+
+                            curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                            curAtom->setArgument(curAtom->getArity() - 2, std::make_unique<AstNumberConstant>(0));
+
+                            // also ensure tuple existed previously
+                            auto noPrevious = negations[j]->getAtom()->clone();
+                            noPrevious->setName(translateRelation(getAtomRelation(noPrevious, program))->get()->getName());
+                            noPrevious->setArgument(noPrevious->getArity() - 1, std::make_unique<AstNumberConstant>(1));
+                            noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstNumberConstant>(0));
+                            // noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());
+
+                            cl->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
+                        }
+
+                        // process negations
+                        for (size_t j = 0; j < negations.size(); j++) {
+                            // each negation needs to have either not existed, or be deleted
+                            // for the non-existence case, we use a positive negation instead
+                            auto negatedAtom = negations[j]->getAtom()->clone();
+                            // negatedAtom->setName(translateDiffAppliedRelation(getAtomRelation(negatedAtom, program))->get()->getName());
+                            cl->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(negatedAtom)));
+                        }
+
 
                         cl->clearNegations();
 
@@ -1946,6 +2156,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                     std::make_unique<RamPositiveMerge>(std::unique_ptr<RamRelationReference>(translateDeltaRelation(rel)->clone()),
                             std::unique_ptr<RamRelationReference>(translateRelation(rel)->clone())));
 
+            /*
             // populate the applied relations
             appendStmt(preamble,
                     std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateTemporaryDeltaDiffAppliedRelation(rel)->clone()),
@@ -1953,12 +2164,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
             appendStmt(preamble,
                     std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateTemporaryDeltaDiffAppliedRelation(rel)->clone()),
                             std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(rel)->clone())));
+                            */
 
             // populate the applied relations
-            appendStmt(preamble,
-                    std::make_unique<RamExistingMerge>(std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone()),
-                            std::unique_ptr<RamRelationReference>(translateRelation(rel)->clone()),
-                            std::unique_ptr<RamRelationReference>(translateTemporaryDeltaDiffAppliedRelation(rel)->clone())));
             appendStmt(preamble,
                     std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone()),
                             std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(rel)->clone())));
@@ -2006,6 +2214,11 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
             appendStmt(preamble,
                     std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDiffPlusAppliedRelation(rel)->clone()),
                             std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(rel)->clone())));
+
+            appendStmt(preamble,
+                    std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone()),
+                            std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone())));
+                            // std::unique_ptr<RamRelationReference>(translateTemporaryDeltaDiffAppliedRelation(rel)->clone())));
 
             /*
             appendStmt(preamble,
