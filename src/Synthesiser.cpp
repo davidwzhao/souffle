@@ -1586,17 +1586,22 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "}\n";
             out << "return false;\n";
 
-            out << "}()\n";
+            out << "}()\n" << after;
             PRINT_END_COMMENT(out);
         }
 
         void visitSubsumptionExistenceCheck(
                 const RamSubsumptionExistenceCheck& subsumptionExists, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
+            std::string before, after;
             // get some details
             const auto& rel = subsumptionExists.getRelation();
             auto relName = synthesiser.getRelationName(rel);
             auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(rel) + ")";
+            if (Global::config().has("profile") && !subsumptionExists.getRelation().isTemp()) {
+                out << R"_((reads[)_" << synthesiser.lookupReadIdx(rel.getName()) << R"_(]++,)_";
+                after = ")";
+            }
             /*
             const auto& diffRel = subsumptionExists.getDiffRelation();
             auto diffRelName = synthesiser.getRelationName(diffRel);
@@ -1763,7 +1768,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
                 out << "))";
             }
-            out << ";}()\n";
+            out << ";}()\n" << after;
             PRINT_END_COMMENT(out);
         }
 
