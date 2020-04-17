@@ -203,6 +203,7 @@ bool MaxMinConditionsTransformer::transformMaxMinConditions(RamProgram& program)
                         if (expr->getOperator() == FunctorOp::MAX) {
                             // if LHS of a constraint is a max functor, then we can rewrite if the constraint
                             // is <, <=, or ==
+                            // TODO: check if this needs to be extended for other data types
                             if (constr->getOperator() == BinaryConstraintOp::LE ||
                                     constr->getOperator() == BinaryConstraintOp::EQ) {
                                 // create a filter of expanded conditions
@@ -211,6 +212,7 @@ bool MaxMinConditionsTransformer::transformMaxMinConditions(RamProgram& program)
                                         std::unique_ptr<RamOperation>(filter->getOperation().clone()));
                                 changed = true;
                             } else if (constr->getOperator() == BinaryConstraintOp::LT) {
+                                // create a filter of expanded conditions
                                 node = std::make_unique<RamFilter>(
                                         expandConditions(BinaryConstraintOp::LT, args, constr->getRHS()),
                                         std::unique_ptr<RamOperation>(filter->getOperation().clone()));
@@ -227,6 +229,7 @@ bool MaxMinConditionsTransformer::transformMaxMinConditions(RamProgram& program)
                                         std::unique_ptr<RamOperation>(filter->getOperation().clone()));
                                 changed = true;
                             } else if (constr->getOperator() == BinaryConstraintOp::GT) {
+                                // create a filter of expanded conditions
                                 node = std::make_unique<RamFilter>(
                                         expandConditions(BinaryConstraintOp::GT, args, constr->getRHS()),
                                         std::unique_ptr<RamOperation>(filter->getOperation().clone()));
@@ -250,6 +253,7 @@ bool MaxMinConditionsTransformer::transformMaxMinConditions(RamProgram& program)
                                         std::unique_ptr<RamOperation>(filter->getOperation().clone()));
                                 changed = true;
                             } else if (constr->getOperator() == BinaryConstraintOp::GT) {
+                                // create a filter of expanded conditions
                                 node = std::make_unique<RamFilter>(
                                         expandConditions(BinaryConstraintOp::LT, args, constr->getLHS()),
                                         std::unique_ptr<RamOperation>(filter->getOperation().clone()));
