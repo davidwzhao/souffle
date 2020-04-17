@@ -169,6 +169,105 @@ bool EliminateDuplicatesTransformer::eliminateDuplicates(RamProgram& program) {
     });
     return changed;
 }
+
+bool MaxMinConditionsTransformer::transformMaxMinConditions(RamProgram& program) {
+    bool changed = false;
+
+    // helper for collecting conditions from a list of expressions
+    auto expandConditions = [](BinaryConstraintOp op, const std::vector<RamExpression*>& args,
+                                    const RamExpression& rhs) -> std::unique_ptr<RamCondition> {
+        // generate the expanded condition, i.e., C1 <= X /\ C2 <= x /\ ...
+        std::vector<std::unique_ptr<RamCondition>> expandedConditions;
+        for (size_t i = 0; i < args.size(); i++) {
+            expandedConditions.push_back(
+                    std::make_unique<RamConstraint>(op, std::unique_ptr<RamExpression>(args[i]->clone()),
+                            std::unique_ptr<RamExpression>(rhs.clone())));
+        }
+
+        return toCondition(expandedConditions);
+    };
+
+    // find all conditions that contain a max or min operation
+    visitDepthFirst(program, [&](const RamQuery& query) {
+        std::function<std::unique_ptr<RamNode>(std::unique_ptr<RamNode>)> filterRewriter =
+                [&](std::unique_ptr<RamNode> node) -> std::unique_ptr<RamNode> {
+            if (auto* constr = dynamic_cast<RamConstraint*>(node.get())) {
+                if (auto* expr = dynamic_cast<const RamIntrinsicOperator*>(&constr->getLHS())) {
+                    // get arguments
+                    const auto& args = expr->getArguments();
+
+                    if (expr->getOperator() == FunctorOp::MAX) {
+                        // if LHS of a constraint is a max functor, then we can rewrite if the constraint
+                        // is <, <=, or ==
+                        // TODO: check if this needs to be extended for other data types
+                        if (constr->getOperator() == BinaryConstraintOp::LE ||
+                                constr->getOperator() == BinaryConstraintOp::EQ) {
+                            // create a filter of expanded conditions
+                            node = expandConditions(BinaryConstraintOp::LE, args, constr->getRHS());
+                            changed = true;
+                        } else if (constr->getOperator() == BinaryConstraintOp::LT) {
+                            // create a filter of expanded conditions
+                            node = expandConditions(BinaryConstraintOp::LT, args, constr->getRHS());
+                            changed = true;
+                        }
+                    } else if (expr->getOperator() == FunctorOp::MIN) {
+                        // if LHS of a constraint is a min functor, then we can rewrite if the constraint
+                        // is >, >=, or ==
+                        if (constr->getOperator() == BinaryConstraintOp::GE ||
+                                constr->getOperator() == BinaryConstraintOp::EQ) {
+                            // create a filter of expanded conditions
+                            node = expandConditions(BinaryConstraintOp::GE, args, constr->getRHS());
+                            changed = true;
+                        } else if (constr->getOperator() == BinaryConstraintOp::GT) {
+                            // create a filter of expanded conditions
+                            node = expandConditions(BinaryConstraintOp::GT, args, constr->getRHS());
+                            changed = true;
+                        }
+                    }
+                } else if (auto* expr = dynamic_cast<const RamIntrinsicOperator*>(&constr->getRHS())) {
+                    // get arguments
+                    const auto& args = expr->getArguments();
+
+                    if (expr->getOperator() == FunctorOp::MAX) {
+                        // if RHS of a constraint is a max functor, then we can rewrite if the constraint
+                        // is >, >=, or ==
+                        if (constr->getOperator() == BinaryConstraintOp::GE ||
+                                constr->getOperator() == BinaryConstraintOp::EQ) {
+                            // create a filter of expanded conditions
+                            node = expandConditions(BinaryConstraintOp::LE, args, constr->getLHS());
+                            changed = true;
+                        } else if (constr->getOperator() == BinaryConstraintOp::GT) {
+                            // create a filter of expanded conditions
+                            node = expandConditions(BinaryConstraintOp::LT, args, constr->getLHS());
+                            changed = true;
+                        }
+                    } else if (expr->getOperator() == FunctorOp::MIN) {
+                        // if RHS of a constraint is a min functor, then we can rewrite if the constraint
+                        // is <, <=, or ==
+                        if (constr->getOperator() == BinaryConstraintOp::LE ||
+                                constr->getOperator() == BinaryConstraintOp::EQ) {
+                            // create a filter of expanded conditions
+                            node = expandConditions(BinaryConstraintOp::GE, args, constr->getLHS());
+                            changed = true;
+                        } else if (constr->getOperator() == BinaryConstraintOp::LT) {
+                            node = expandConditions(BinaryConstraintOp::GT, args, constr->getLHS());
+                            changed = true;
+                        }
+                    }
+                }
+            }
+
+            std::cout << *node << std::endl;
+
+            node->apply(makeLambdaRamMapper(filterRewriter));
+            return node;
+        };
+        const_cast<RamQuery*>(&query)->apply(makeLambdaRamMapper(filterRewriter));
+    });
+
+    return changed;
+}
+
 bool HoistConditionsTransformer::hoistConditions(RamProgram& program) {
     bool changed = false;
 
