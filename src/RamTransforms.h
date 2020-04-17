@@ -211,6 +211,69 @@ protected:
 };
 
 /**
+ * @class MaxMinConditionsTransformer
+ * @brief Converts a condition containing a max/min into separate conditions
+ *
+ * Converts a condition containing a max/min operation into separate conditions,
+ * so that the HoistConditionsTransformer can produce further optimised code
+ *
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *  QUERY
+ *   ...
+ *    IF max(C1, C2, ...) < X then
+ *     ...
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * should be rewritten / or produced by the transformer as
+ *
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *  QUERY
+ *   ...
+ *    IF C1 < X
+ *     IF C2 < X
+ *      IF ...
+ *       ...
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * and similarly for min.
+ *
+ * Certain kinds of max/min conditions cannot be transformed, e.g.
+ * max(C1, C2) > X cannot be separated.
+ *
+ * This transformer should produce separate conditions for each expression
+ * rather than a conjunction, so that HoistConditionsTransformer
+ * can be applied afterwards.
+ *
+ */
+class MaxMinConditionsTransformer : public RamTransformer {
+public:
+    std::string getName() const override {
+        return "MaxMinConditionsTransformer";
+    }
+
+    /**
+     * @brief Hoist filter operations.
+     * @param program that is transformed
+     * @return Flag showing whether the program has been changed by the transformation
+     *
+     * There are two types of conditions in
+     * filter operations. The first type depends on tuples of
+     * RamTupleOperation operations. The second type are independent of
+     * tuple access. Both types of conditions will be hoisted to
+     * the most out-scope such that the program is still valid.
+     */
+    bool transformMaxMinConditions(RamProgram& program);
+
+protected:
+    RamLevelAnalysis* rla{nullptr};
+
+    bool transform(RamTranslationUnit& translationUnit) override {
+        rla = translationUnit.getAnalysis<RamLevelAnalysis>();
+        return transformMaxMinConditions(translationUnit.getProgram());
+    }
+};
+
+/**
  * @class HoistConditionsTransformer
  * @brief Hosts conditions in a loop-nest to the most-outer/semantically-correct loop
  *
