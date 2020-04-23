@@ -358,6 +358,10 @@ public:
         parseJson(json["root"], root);
     }
 
+    void clear() {
+        root = std::make_unique<DirectoryEntry>("root");
+    }
+
     // add size entry
     void addSizeEntry(std::vector<std::string> qualifier, size_t size) {
         assert(qualifier.size() > 0 && "no qualifier");

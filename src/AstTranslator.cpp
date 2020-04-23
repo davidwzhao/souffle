@@ -2584,9 +2584,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                 const SrcLocation& srcLocation = r1->getSrcLoc();
                                 const std::string clText = stringify(toString(*r1));
                                 const std::string logTimerStatement =
-                                        LogStatement::tNonrecursiveRule(relationName, srcLocation, clText);
+                                        LogStatement::tRecursiveRule(relationName, version, srcLocation, clText);
                                 const std::string logSizeStatement =
-                                        LogStatement::nNonrecursiveRule(relationName, srcLocation, clText);
+                                        LogStatement::nRecursiveRule(relationName, version, srcLocation, clText);
                                 rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
                                         logTimerStatement, std::unique_ptr<RamRelationReference>(relNew[rel]->clone())));
                             }
@@ -2767,9 +2767,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                         const SrcLocation& srcLocation = r1->getSrcLoc();
                                         const std::string clText = stringify(toString(*r1));
                                         const std::string logTimerStatement =
-                                                LogStatement::tNonrecursiveRule(relationName, srcLocation, clText);
+                                                LogStatement::tRecursiveRule(relationName, version, srcLocation, clText);
                                         const std::string logSizeStatement =
-                                                LogStatement::nNonrecursiveRule(relationName, srcLocation, clText);
+                                                LogStatement::nRecursiveRule(relationName, version, srcLocation, clText);
                                         rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
                                                 logTimerStatement, std::unique_ptr<RamRelationReference>(relNew[rel]->clone())));
                                     }
@@ -2918,9 +2918,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                         const SrcLocation& srcLocation = r1->getSrcLoc();
                                         const std::string clText = stringify(toString(*r1));
                                         const std::string logTimerStatement =
-                                                LogStatement::tNonrecursiveRule(relationName, srcLocation, clText);
+                                                LogStatement::tRecursiveRule(relationName, version, srcLocation, clText);
                                         const std::string logSizeStatement =
-                                                LogStatement::nNonrecursiveRule(relationName, srcLocation, clText);
+                                                LogStatement::nRecursiveRule(relationName, version, srcLocation, clText);
                                         rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
                                                 logTimerStatement, std::unique_ptr<RamRelationReference>(relNew[rel]->clone())));
                                     }
@@ -3147,9 +3147,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                         const SrcLocation& srcLocation = r1->getSrcLoc();
                                         const std::string clText = stringify(toString(*r1));
                                         const std::string logTimerStatement =
-                                                LogStatement::tNonrecursiveRule(relationName, srcLocation, clText);
+                                                LogStatement::tRecursiveRule(relationName, version, srcLocation, clText);
                                         const std::string logSizeStatement =
-                                                LogStatement::nNonrecursiveRule(relationName, srcLocation, clText);
+                                                LogStatement::nRecursiveRule(relationName, version, srcLocation, clText);
                                         rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
                                                 logTimerStatement, std::unique_ptr<RamRelationReference>(relNew[rel]->clone())));
                                     }
@@ -3320,9 +3320,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                         const SrcLocation& srcLocation = r1->getSrcLoc();
                                         const std::string clText = stringify(toString(*r1));
                                         const std::string logTimerStatement =
-                                                LogStatement::tNonrecursiveRule(relationName, srcLocation, clText);
+                                                LogStatement::tRecursiveRule(relationName, version, srcLocation, clText);
                                         const std::string logSizeStatement =
-                                                LogStatement::nNonrecursiveRule(relationName, srcLocation, clText);
+                                                LogStatement::nRecursiveRule(relationName, version, srcLocation, clText);
                                         rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
                                                 logTimerStatement, std::unique_ptr<RamRelationReference>(relNew[rel]->clone())));
                                     }

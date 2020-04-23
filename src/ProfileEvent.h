@@ -60,6 +60,10 @@ public:
         return singleton;
     }
 
+    void clear() {
+        database.clear();
+    }
+
     /** create config record */
     void makeConfigRecord(const std::string& key, const std::string& value) {
         profile::EventProcessorSingleton::instance().process(database, "@config", key.c_str(), value.c_str());
