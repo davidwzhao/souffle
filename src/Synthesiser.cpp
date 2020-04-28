@@ -509,7 +509,11 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             PRINT_BEGIN_COMMENT(out);
             size_t arity = merge.getTargetRelation().getArity();
             auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
-            out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getTargetRelation()) << ") {\n";
+            if (synthesiser.contexts.find(synthesiser.getOpContextName(merge.getSourceRelation())) == synthesiser.contexts.end()) {
+                out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getSourceRelation()) << "," << synthesiser.getRelationName(merge.getSourceRelation()) << "->createContext());\n";
+                synthesiser.contexts.insert(synthesiser.getOpContextName(merge.getSourceRelation()));
+            }
+            out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getRestrictionRelation()) << ") {\n";
 
             // TODO: enable generic conditions in the SemiMerge operation, this is temporarily just to get it to work
             // we want to only perform the semimerge if the tuple is in the current iteration
@@ -531,7 +535,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // extra 0s for incremental annotations
             out << "0,0,0";
 
-            out << "}});\n"; //  << ctxName << ");\n";
+            out << "}}, " << ctxName << ");\n";
 
             out << "if (existenceCheck.empty()) continue;\n";
             out << "for (auto& sourceTup : existenceCheck) {\n";
@@ -2222,12 +2226,12 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     }
     os << ";";
 
+    size_t numFreq = 0;
+    size_t numRead = 0;
     if (Global::config().has("profile")) {
         os << "private:\n";
-        size_t numFreq = 0;
         visitDepthFirst(*(prog.getMain()), [&](const RamStatement& node) { numFreq++; });
         os << "  size_t freqs[" << numFreq << "]{};\n";
-        size_t numRead = 0;
         visitDepthFirst(*(prog.getMain()), [&](const RamCreate& node) {
             if (!node.getRelation().isTemp()) numRead++;
         });
@@ -2333,6 +2337,11 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     os << "~" << classname << "() {\n";
     os << "}\n";
 
+    // epoch number
+    if (Global::config().has("incremental")) {
+        os << "int epochNumber = 0;\n";
+    }
+
     // -- run function --
     os << "private:\nvoid runFunction(std::string inputDirectory = \".\", "
           "std::string outputDirectory = \".\", size_t stratumIndex = (size_t) -1, bool performIO = false) "
@@ -2351,6 +2360,17 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         os << "std::atomic<RamDomain> ctr(0);\n\n";
     }
     os << "std::atomic<size_t> iter(0);\n\n";
+
+
+    if (Global::config().has("incremental") && Global::config().has("profile")) {
+        os << "ProfileEventSingleton::instance().setOutputFile(profiling_fname + std::to_string(epochNumber++));\n";
+
+        os << "for (size_t i = 0; i < " << numFreq << "; i++) { freqs[i] = 0; }\n";
+        os << "for (size_t i = 0; i < " << numRead << "; i++) { reads[i] = 0; }\n";
+
+        os << "ProfileEventSingleton::instance().clear();\n";
+    }
+
 
     // set default threads (in embedded mode)
     // if this is not set, and omp is used, the default omp setting of number of cores is used.
@@ -2465,6 +2485,10 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     os << "}\n";
 
     os << "SignalHandler::instance()->reset();\n";
+
+    if (Global::config().has("incremental") && Global::config().has("profile")) {
+        os << "ProfileEventSingleton::instance().dump();\n";
+    }
 
     os << "}\n";  // end of runFunction() method
 

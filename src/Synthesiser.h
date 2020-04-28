@@ -51,6 +51,9 @@ private:
     /** Cache for generated types for relations */
     std::set<std::string> typeCache;
 
+    /** Cache for contexts */
+    std::set<std::string> contexts;
+
 protected:
     /** Convert RAM identifier */
     const std::string convertRamIdent(const std::string& name);

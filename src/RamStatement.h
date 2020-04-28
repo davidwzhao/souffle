@@ -482,8 +482,11 @@ protected:
  */
 class RamSemiMerge : public RamBinRelationStatement {
 public:
+    RamSemiMerge(std::unique_ptr<RamRelationReference> tRef, std::unique_ptr<RamRelationReference> sRef, std::unique_ptr<RamRelationReference> rRef)
+            : RamBinRelationStatement(std::move(sRef), std::move(tRef)), restrictionRelation(std::move(rRef)) {}
+
     RamSemiMerge(std::unique_ptr<RamRelationReference> tRef, std::unique_ptr<RamRelationReference> sRef)
-            : RamBinRelationStatement(std::move(sRef), std::move(tRef)) {}
+            : RamBinRelationStatement(std::move(sRef), std::unique_ptr<RamRelationReference>(tRef->clone())), restrictionRelation(std::move(tRef)) {}
 
     /** @brief Get source relation */
     const RamRelation& getSourceRelation() const {
@@ -495,6 +498,11 @@ public:
         return getSecondRelation();
     }
 
+    /** @brief Get target relation */
+    const RamRelation& getRestrictionRelation() const {
+        return *restrictionRelation->get();
+    }
+
     void print(std::ostream& os, int tabpos) const override {
         os << times(" ", tabpos);
         os << "SEMIMERGE " << getTargetRelation().getName() << " WITH " << getSourceRelation().getName();
@@ -503,13 +511,18 @@ public:
 
     RamSemiMerge* clone() const override {
         auto* res = new RamSemiMerge(std::unique_ptr<RamRelationReference>(second->clone()),
-                std::unique_ptr<RamRelationReference>(first->clone()));
+                std::unique_ptr<RamRelationReference>(first->clone()), std::unique_ptr<RamRelationReference>(restrictionRelation->clone()));
         return res;
     }
 
 protected:
+    std::unique_ptr<RamRelationReference> restrictionRelation;
+
     bool equal(const RamNode& node) const override {
-        return RamBinRelationStatement::equal(node);
+        bool res = RamBinRelationStatement::equal(node);
+        assert(nullptr != dynamic_cast<const RamSemiMerge*>(&node));
+        const auto& other = static_cast<const RamSemiMerge&>(node);
+        return res && getRestrictionRelation() == other.getRestrictionRelation();
     }
 };
 

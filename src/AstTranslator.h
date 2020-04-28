@@ -313,6 +313,9 @@ private:
     /** translate a temporary `new` relation to a RAM relation for semi-naive evaluation */
     std::unique_ptr<RamRelationReference> translateNewRelation(const AstRelation* rel);
 
+    /** translate a temporary `new` relation to a RAM relation for semi-naive evaluation */
+    std::unique_ptr<RamRelationReference> translatePreviousIndexedRelation(const AstRelation* rel);
+
     /** translate diff minus and plus version of a relation to a RAM relation for incremental evaluation */
     std::unique_ptr<RamRelationReference> translateDiffMinusRelation(const AstRelation* rel);
     std::unique_ptr<RamRelationReference> translateDiffPlusRelation(const AstRelation* rel);
