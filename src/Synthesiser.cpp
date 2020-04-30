@@ -405,49 +405,28 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             PRINT_BEGIN_COMMENT(out);
             size_t arity = merge.getTargetRelation().getArity();
             auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
-            out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
 
-            /*
-            // this is a bit of a mess, should integrate into search signatures
             int searchSignature = isa->getSearchSignature(&merge);
 
-            out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getSourceRelation()) << "->"
+            out << "auto currentIteration = " << synthesiser.getRelationName(merge.getSourceRelation()) << "->"
                 << "equalRange";
-            // out << synthesiser.toIndex(ne.getSearchSignature());
             out << "_" << searchSignature;
             out << "(Tuple<RamDomain," << arity << ">{{";
+
+            // iteration should find all tuples
             for (size_t i = 0; i < arity - 3; i++) {
-                out << "tup[" << i << "]";
+                out << "0";
                 out << ",";
             }
 
-            // extra 0s for incremental annotations
-            out << "0,0,0";
+            // but only in the current iteration
+            out << "iter,0,0";
 
             out << "}});\n"; //  << ctxName << ");\n";
-            */
 
-            /*
-            out << "bool insert = true;\n";
-            out << "for (auto& t : existenceCheck) {\n";
-            // out << "if (t[" << arity - 1 << "] > 0 && t[" << arity - 3 << "] > tup[" << arity - 3 << "]) insert = false;\n";
-            */
 
-            // merge only tuples that are in the current iteration
-            /*
-            out << "if (iter == 0) {\n";
-            out << "if (tup[" << arity - 3 << "] == 0)\n";
+            out << "for (auto& tup : currentIteration) {\n";
             out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
-            out << "}\n";
-            */
-            out << "if (tup[" << arity - 3 << "] == iter)\n";
-            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
-            // out << "}\n";
-
-            /*
-            out << "if (insert) ";
-            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
-            */
 
             out << "}\n";
 

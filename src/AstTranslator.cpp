@@ -248,7 +248,7 @@ std::unique_ptr<RamRelationReference> AstTranslator::translateNewRelation(const 
 }
 
 std::unique_ptr<RamRelationReference> AstTranslator::translatePreviousIndexedRelation(const AstRelation* rel) {
-    return translateRelation(rel, "indexed_");
+    return translateRelation(rel, "indexed@_");
 }
 
 std::unique_ptr<RamRelationReference> AstTranslator::translateDiffMinusRelation(
@@ -1999,8 +1999,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                     std::make_unique<RamSequence>(
                             // populate the delta relation
                             std::make_unique<RamPositiveMerge>(std::unique_ptr<RamRelationReference>(translateDeltaRelation(rel)->clone()),
-                                    std::unique_ptr<RamRelationReference>(translateRelation(rel)->clone())),
-
+                                    std::unique_ptr<RamRelationReference>(translatePreviousIndexedRelation(rel)->clone())),
 
                             // populate the diff minus relations
                             std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(rel)->clone()),
@@ -2145,6 +2144,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
         if (Global::config().has("incremental")) {
             appendStmt(postamble, std::make_unique<RamSequence>(
                                           std::make_unique<RamDrop>(
+                                                  std::unique_ptr<RamRelationReference>(translatePreviousIndexedRelation(rel)->clone())),
+                                          std::make_unique<RamDrop>(
                                                   std::unique_ptr<RamRelationReference>(translateTemporaryDeltaDiffAppliedRelation(rel)->clone())),
                                           std::make_unique<RamDrop>(
                                                   std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone())),
@@ -2176,11 +2177,23 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
         /* Generate code for non-recursive part of relation */
         appendStmt(preamble, translateNonRecursiveRelation(*rel, recursiveClauses));
 
+        // for incremental, create a temporary table storing the previous epoch's tuples in a fully indexable relation
+        // we want the relation to be a copy of the full relation
+        if (Global::config().has("incremental")) {
+            for (const AstRelation* rel : scc) {
+                auto previousIndexedRelation = translatePreviousIndexedRelation(rel)->clone();
+
+                // appendStmt(preamble, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(translatePreviousIndexedRelation(rel)->clone())));
+                appendStmt(preamble, std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translatePreviousIndexedRelation(rel)->clone()),
+                        std::unique_ptr<RamRelationReference>(translateRelation(rel)->clone())));
+            }
+        }
+
         if (Global::config().has("incremental")) {
             // populate the delta relation
             appendStmt(preamble,
                     std::make_unique<RamPositiveMerge>(std::unique_ptr<RamRelationReference>(translateDeltaRelation(rel)->clone()),
-                            std::unique_ptr<RamRelationReference>(translateRelation(rel)->clone())));
+                            std::unique_ptr<RamRelationReference>(translatePreviousIndexedRelation(rel)->clone())));
 
             /*
             // populate the applied relations
@@ -2337,23 +2350,6 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
         appendStmt(preamble, std::make_unique<RamQuery>(std::move(outerMaxIterAggregate)));
     }
-
-    /*
-    // for incremental, create a temporary table storing the previous epoch's tuples in a fully indexable relation
-    // we want the relation to be a copy of the full relation
-    // TODO
-    for (const AstRelation* rel : scc) {
-        auto previousEpochRelation = new RamRelation(translatePreviousIndexedRelation(rel)->get()->getName(), rel->getArity(), 1,
-
-                std::vector<std::string>({"max_iter"}), std::vector<std::string>({"s"}), RelationRepresentation::DEFAULT);
-        auto maxIterRelationRef = std::make_unique<RamRelationReference>(maxIterRelation);
-
-        if (Global::config().has("incremental")) {
-            appendStmt(preamble, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(maxIterRelationRef->clone())));
-        }
-    }
-    */
-
 
     // --- build main loop ---
 
@@ -4181,6 +4177,8 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                                         std::unique_ptr<RamRelationReference>(translateRelation(relation))));
             
             if (Global::config().has("incremental")) {
+                appendStmt(current, std::make_unique<RamCreate>(
+                                            std::unique_ptr<RamRelationReference>(translatePreviousIndexedRelation(relation))));
                 appendStmt(current, std::make_unique<RamCreate>(
                                             std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(relation))));
                 appendStmt(current, std::make_unique<RamCreate>(

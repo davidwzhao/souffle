@@ -205,6 +205,10 @@ std::string SynthesiserDirectRelation::getTypeName() {
         res << "_count";
     }
 
+    if (relation.getName().find("indexed@") != std::string::npos) {
+        res << "_fullindexed";
+    }
+
     return res.str();
 }
 
@@ -224,47 +228,55 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
 
     // generate an updater class for provenance
     if (isProvenance) {
-        out << "struct updater_" << getTypeName() << " {\n";
-        out << "bool update(t_tuple& old_t, const t_tuple& new_t) {\n";
+        if (relation.getName().find("indexed@") == std::string::npos) {
+            out << "struct updater_" << getTypeName() << " {\n";
+            out << "bool update(t_tuple& old_t, const t_tuple& new_t) {\n";
 
-        out << "if (new_t[" << arity - 2 << "] < 0) {\n";
-        out << "old_t[" << arity - 2 << "] = old_t[" << arity - 1 << "];\n";
-        out << "return true;\n";
-        out << "}\n";
+            out << "if (new_t[" << arity - 2 << "] < 0) {\n";
+            out << "old_t[" << arity - 2 << "] = old_t[" << arity - 1 << "];\n";
+            out << "return true;\n";
+            out << "}\n";
 
-        /*
-        out << "else {\n";
-        // only for count relations do we wish to update prev count during a semi-merge
-        if (relation.getName().find("count@") != std::string::npos) {
+            /*
+            out << "else {\n";
+            // only for count relations do we wish to update prev count during a semi-merge
+            if (relation.getName().find("count@") != std::string::npos) {
+                out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
+            }
+            out << "old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
+            out << "}\n";
+            out << "return true;\n";
+            */
+
+            out << "if (new_t[" << arity - 3 << "] < old_t[" << arity - 3 << "]) {\n";
+            // if new_t iternum < old_t iternum, then we update
+            out << "old_t[" << arity - 3 << "] = new_t[" << arity - 3 << "];\n";
             out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
-        }
-        out << "old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
-        out << "}\n";
-        out << "return true;\n";
-        */
-
-        out << "if (new_t[" << arity - 3 << "] < old_t[" << arity - 3 << "]) {\n";
-        // if new_t iternum < old_t iternum, then we update
-        out << "old_t[" << arity - 3 << "] = new_t[" << arity - 3 << "];\n";
-        out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
-        out << "old_t[" << arity - 1 << "] = new_t[" << arity - 1 << "];\n";
-        out << "return true;\n";
-        out << "} else if (new_t[" << arity - 3 << "] == old_t[" << arity - 3 << "]) {\n";
-        if (relation.getName().find("count@") != std::string::npos) {
+            out << "old_t[" << arity - 1 << "] = new_t[" << arity - 1 << "];\n";
+            out << "return true;\n";
+            out << "} else if (new_t[" << arity - 3 << "] == old_t[" << arity - 3 << "]) {\n";
+            if (relation.getName().find("count@") != std::string::npos) {
+                out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
+            }
+            out << "old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
+            out << "return true;\n";
+            out << "} else if (new_t[" << arity - 3 << "] > old_t[" << arity - 3 << "] && old_t[" << arity - 1 << "] == 0) {\n";
+            out << "old_t[" << arity - 3 << "] = new_t[" << arity - 3 << "];\n";
             out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
-        }
-        out << "old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
-        out << "return true;\n";
-        out << "} else if (new_t[" << arity - 3 << "] > old_t[" << arity - 3 << "] && old_t[" << arity - 1 << "] == 0) {\n";
-        out << "old_t[" << arity - 3 << "] = new_t[" << arity - 3 << "];\n";
-        out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
-        out << "old_t[" << arity - 1 << "] = new_t[" << arity - 1 << "];\n";
-        out << "return true;\n";
-        out << "}\n";
+            out << "old_t[" << arity - 1 << "] = new_t[" << arity - 1 << "];\n";
+            out << "return true;\n";
+            out << "}\n";
 
-        out << "return false;\n";
-        out << "}\n";
-        out << "};\n";
+            out << "return false;\n";
+            out << "}\n";
+            out << "};\n";
+        } else {
+            out << "struct updater_" << getTypeName() << " {\n";
+            out << "bool update(t_tuple& old_t, const t_tuple& new_t) {\n";
+            out << "return false;\n";
+            out << "}\n";
+            out << "};\n";
+        }
     }
 
     // generate the btree type for each relation
@@ -278,7 +290,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         // for provenance, all indices must be full so we use btree_set
         // also strong/weak comparators and updater methods
         if (isProvenance) {
-            if (provenanceIndexNumbers.find(i) == provenanceIndexNumbers.end()) {  // index for bottom up
+            if (provenanceIndexNumbers.find(i) == provenanceIndexNumbers.end() && relation.getName().find("indexed@") == std::string::npos) {  // index for bottom up
                                                                                    // phase
                 out << "using t_ind_" << i << " = btree_set<t_tuple, index_utils::comparator<" << join(ind);
                 out << ">, std::allocator<t_tuple>, 256, typename "

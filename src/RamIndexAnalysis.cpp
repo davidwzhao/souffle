@@ -418,9 +418,13 @@ SearchSignature RamIndexAnalysis::getSearchSignature(
         const RamPositiveMerge* posiMerge) const {
     SearchSignature res = 0;
     // - 3 because we don't want the iteration number
+    /*
     for (size_t i = 0; i < posiMerge->getSourceRelation().getArity() - 3; i++) {
         res |= (1 << i);
     }
+    */
+
+    res |= (1 << (posiMerge->getSourceRelation().getArity() - 3));
     return res;
 }
 
