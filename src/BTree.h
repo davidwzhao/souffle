@@ -378,12 +378,14 @@ protected:
         // a simple constructor
         node(bool inner) : base(inner) {}
 
+        /*
         // a destructor cleaning up nodes
         ~node() {
             if (this->inner) {
                 asInnerNode().cleanup();
             }
         }
+        */
 
         /**
          * A deep-copy operation creating a clone of this node.
@@ -1066,7 +1068,13 @@ protected:
         // a destruction operation clearing up child nodes recursively
         void cleanup() {
             for (unsigned i = 0; i <= this->numElements; ++i) {
-                delete children[i];
+                if (children[i] != nullptr) {
+                    if (children[i]->isLeaf()) {
+                        delete static_cast<leaf_node*>(children[i]);
+                    } else {
+                        delete static_cast<inner_node*>(children[i]);
+                    }
+                }
             }
         }
     };
@@ -1935,7 +1943,13 @@ public:
      * Clears this tree.
      */
     void clear() {
-        delete root;
+        if (root != nullptr) {
+            if (root->isLeaf()) {
+                delete static_cast<leaf_node*>(root);
+            } else {
+                delete static_cast<inner_node*>(root);
+            }
+        }
         root = nullptr;
         leftmost = nullptr;
     }
