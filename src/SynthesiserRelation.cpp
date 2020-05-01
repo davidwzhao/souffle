@@ -205,7 +205,7 @@ std::string SynthesiserDirectRelation::getTypeName() {
         res << "_count";
     }
 
-    if (relation.getName().find("indexed@") != std::string::npos) {
+    if (relation.getName().find("@indexed") != std::string::npos) {
         res << "_fullindexed";
     }
 
@@ -228,7 +228,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
 
     // generate an updater class for provenance
     if (isProvenance) {
-        if (relation.getName().find("indexed@") == std::string::npos) {
+        if (relation.getName().find("@indexed") == std::string::npos) {
             out << "struct updater_" << getTypeName() << " {\n";
             out << "bool update(t_tuple& old_t, const t_tuple& new_t) {\n";
 
@@ -290,7 +290,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         // for provenance, all indices must be full so we use btree_set
         // also strong/weak comparators and updater methods
         if (isProvenance) {
-            if (provenanceIndexNumbers.find(i) == provenanceIndexNumbers.end() && relation.getName().find("indexed@") == std::string::npos) {  // index for bottom up
+            if (provenanceIndexNumbers.find(i) == provenanceIndexNumbers.end() && relation.getName().find("@indexed") == std::string::npos) {  // index for bottom up
                                                                                    // phase
                 out << "using t_ind_" << i << " = btree_set<t_tuple, index_utils::comparator<" << join(ind);
                 out << ">, std::allocator<t_tuple>, 256, typename "

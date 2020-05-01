@@ -248,7 +248,7 @@ std::unique_ptr<RamRelationReference> AstTranslator::translateNewRelation(const 
 }
 
 std::unique_ptr<RamRelationReference> AstTranslator::translatePreviousIndexedRelation(const AstRelation* rel) {
-    return translateRelation(rel, "indexed@_");
+    return translateRelation(rel, "@indexed_");
 }
 
 std::unique_ptr<RamRelationReference> AstTranslator::translateDiffMinusRelation(
@@ -4178,8 +4178,6 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
             
             if (Global::config().has("incremental")) {
                 appendStmt(current, std::make_unique<RamCreate>(
-                                            std::unique_ptr<RamRelationReference>(translatePreviousIndexedRelation(relation))));
-                appendStmt(current, std::make_unique<RamCreate>(
                                             std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(relation))));
                 appendStmt(current, std::make_unique<RamCreate>(
                                             std::unique_ptr<RamRelationReference>(translateDiffMinusAppliedRelation(relation))));
@@ -4202,6 +4200,9 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                 appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
                                             translateNewRelation(relation))));
                 if (Global::config().has("incremental")) {
+                    appendStmt(current, std::make_unique<RamCreate>(
+                                                std::unique_ptr<RamRelationReference>(translatePreviousIndexedRelation(relation))));
+
                     appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
                                                 translateNewDiffPlusRelation(relation))));
                     appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
