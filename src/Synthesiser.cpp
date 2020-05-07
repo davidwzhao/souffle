@@ -555,7 +555,14 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "}}, " << ctxName << ");\n";
 
                 out << "if (existenceCheck.empty()) continue;\n";
-                out << "else " << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
+                out << "else {\n";
+                out << "for (auto& restrictionTup : existenceCheck) {\n";
+                out << "if (restrictionTup[" << arity - 3 << "] == tup[" << arity - 3 << "]) {\n";
+                out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
+                out << "break;\n";
+                out << "}\n";
+                out << "}\n";
+                out << "}\n";
                 out << "}\n";
             }
 

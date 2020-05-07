@@ -257,8 +257,6 @@ bool MaxMinConditionsTransformer::transformMaxMinConditions(RamProgram& program)
                 }
             }
 
-            std::cout << *node << std::endl;
-
             node->apply(makeLambdaRamMapper(filterRewriter));
             return node;
         };
@@ -411,11 +409,6 @@ std::unique_ptr<RamCondition> MakeIndexTransformer::constructPattern(
         }
     }
 
-    std::cout << "query pattern: ";
-    for (auto& exp : queryPattern) {
-        std::cout << *exp << ", ";
-    }
-    std::cout << std::endl << "inner filter: " << *condition << std::endl;
     return condition;
 }
 
