@@ -366,8 +366,9 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
     // insertAll methods
     out << "template <typename T>\n";
     out << "void insertAll(T& other) {\n";
+    out << "context h;\n";
     out << "for (auto const& cur : other) {\n";
-    out << "insert(cur);\n";
+    out << "insert(cur, h);\n";
     out << "}\n";
     out << "}\n";  // end of insertAll<T>
 

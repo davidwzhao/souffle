@@ -300,6 +300,9 @@ void RamIndexAnalysis::run(const RamTranslationUnit& translationUnit) {
         } else if (const auto* semiMerge = dynamic_cast<const RamSemiMerge*>(&node)) {
             MinIndexSelection& indexes = getIndexes(semiMerge->getSourceRelation());
             indexes.addSearch(getSearchSignature(semiMerge));
+
+            MinIndexSelection& indexes2 = getIndexes(semiMerge->getRestrictionRelation());
+            indexes2.addSearch(getSearchSignature(semiMerge));
         } else if (const auto* ramRel = dynamic_cast<const RamRelation*>(&node)) {
             MinIndexSelection& indexes = getIndexes(*ramRel);
             indexes.addSearch(getSearchSignature(ramRel));

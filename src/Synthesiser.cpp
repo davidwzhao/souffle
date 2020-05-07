@@ -487,44 +487,78 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
         void visitSemiMerge(const RamSemiMerge& merge, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
             size_t arity = merge.getTargetRelation().getArity();
-            auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
-            if (synthesiser.contexts.find(synthesiser.getOpContextName(merge.getSourceRelation())) == synthesiser.contexts.end()) {
-                out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getSourceRelation()) << "," << synthesiser.getRelationName(merge.getSourceRelation()) << "->createContext());\n";
-                synthesiser.contexts.insert(synthesiser.getOpContextName(merge.getSourceRelation()));
-            }
-            out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getRestrictionRelation()) << ") {\n";
-
-            // TODO: enable generic conditions in the SemiMerge operation, this is temporarily just to get it to work
-            // we want to only perform the semimerge if the tuple is in the current iteration
-            out << "if (tup[" << arity - 3 << "] != iter) continue;\n";
 
             // this is a bit of a mess, should integrate into search signatures
             int searchSignature = isa->getSearchSignature(&merge);
 
-            out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getSourceRelation()) << "->"
-                << "equalRange";
-            // out << synthesiser.toIndex(ne.getSearchSignature());
-            out << "_" << searchSignature;
-            out << "(Tuple<RamDomain," << arity << ">{{";
-            for (size_t i = 0; i < arity - 3; i++) {
-                out << "tup[" << i << "]";
-                out << ",";
+            if (!merge.isSourceOuter()) {
+                auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
+                if (synthesiser.contexts.find(synthesiser.getOpContextName(merge.getSourceRelation())) == synthesiser.contexts.end()) {
+                    out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getSourceRelation()) << "," << synthesiser.getRelationName(merge.getSourceRelation()) << "->createContext());\n";
+                    synthesiser.contexts.insert(synthesiser.getOpContextName(merge.getSourceRelation()));
+                }
+                out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getRestrictionRelation()) << ") {\n";
+
+                // TODO: enable generic conditions in the SemiMerge operation, this is temporarily just to get it to work
+                // we want to only perform the semimerge if the tuple is in the current iteration
+                out << "if (tup[" << arity - 3 << "] != iter) continue;\n";
+
+                out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getSourceRelation()) << "->"
+                    << "equalRange";
+                // out << synthesiser.toIndex(ne.getSearchSignature());
+                out << "_" << searchSignature;
+                out << "(Tuple<RamDomain," << arity << ">{{";
+                for (size_t i = 0; i < arity - 3; i++) {
+                    out << "tup[" << i << "]";
+                    out << ",";
+                }
+
+                // extra 0s for incremental annotations
+                out << "0,0,0";
+
+                out << "}}, " << ctxName << ");\n";
+
+                out << "if (existenceCheck.empty()) continue;\n";
+                out << "for (auto& sourceTup : existenceCheck) {\n";
+                out << "if (sourceTup[" << arity - 3 << "] != tup[" << arity - 3 << "]) continue;\n";
+                out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(sourceTup);\n";
+                // out << "continue;\n";
+                // out << "}\n";
+                out << "}\n";
+
+                out << "}\n";
+            } else {
+                auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getRestrictionRelation()) + ")";
+                if (synthesiser.contexts.find(synthesiser.getOpContextName(merge.getRestrictionRelation())) == synthesiser.contexts.end()) {
+                    out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getRestrictionRelation()) << "," << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->createContext());\n";
+                    synthesiser.contexts.insert(synthesiser.getOpContextName(merge.getRestrictionRelation()));
+                }
+                out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
+
+                // TODO: enable generic conditions in the SemiMerge operation, this is temporarily just to get it to work
+                // we want to only perform the semimerge if the tuple is in the current iteration
+                out << "if (tup[" << arity - 3 << "] != iter) continue;\n";
+
+                out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->"
+                    << "equalRange";
+                // out << synthesiser.toIndex(ne.getSearchSignature());
+                out << "_" << searchSignature;
+                out << "(Tuple<RamDomain," << arity << ">{{";
+                for (size_t i = 0; i < arity - 3; i++) {
+                    out << "tup[" << i << "]";
+                    out << ",";
+                }
+
+                // extra 0s for incremental annotations
+                out << "0,0,0";
+
+                out << "}}, " << ctxName << ");\n";
+
+                out << "if (existenceCheck.empty()) continue;\n";
+                out << "else " << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
+                out << "}\n";
             }
 
-            // extra 0s for incremental annotations
-            out << "0,0,0";
-
-            out << "}}, " << ctxName << ");\n";
-
-            out << "if (existenceCheck.empty()) continue;\n";
-            out << "for (auto& sourceTup : existenceCheck) {\n";
-            out << "if (sourceTup[" << arity - 3 << "] != tup[" << arity - 3 << "]) continue;\n";
-            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(sourceTup);\n";
-            // out << "continue;\n";
-            // out << "}\n";
-            out << "}\n";
-
-            out << "}\n";
 
             PRINT_END_COMMENT(out);
         }
