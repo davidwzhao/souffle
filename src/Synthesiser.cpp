@@ -408,7 +408,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             int searchSignature = isa->getSearchSignature(&merge);
 
-            out << "auto currentIteration = " << synthesiser.getRelationName(merge.getSourceRelation()) << "->"
+            out << "{ auto currentIteration = " << synthesiser.getRelationName(merge.getSourceRelation()) << "->"
                 << "equalRange";
             out << "_" << searchSignature;
             out << "(Tuple<RamDomain," << arity << ">{{";
@@ -428,7 +428,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "for (auto& tup : currentIteration) {\n";
             out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
 
-            out << "}\n";
+            out << "} }\n";
 
             PRINT_END_COMMENT(out);
         }

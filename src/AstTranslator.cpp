@@ -2408,10 +2408,10 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
             }
 
             // each recursive rule results in several operations
-            int version = 0;
             const auto& atoms = cl->getAtoms();
             const auto& negations = cl->getNegations();
 
+            int version = 0;
             if (Global::config().has("incremental")) {
                 // store previous count and current count to determine if the rule is insertion or deletion
                 auto prevCount = cl->getHead()->getArgument(rel->getArity() - 2);
@@ -2617,6 +2617,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             rdiff->addToBody(std::move(notDeleted));
                         }
 
+                        version = 0;
                         // use delta versions of relations for semi-naive evaluation
                         for (size_t j = 0; j < atoms.size(); j++) {
                             if (!isInSameSCC(getAtomRelation(atoms[j], program))) {
@@ -2674,6 +2675,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                             // add rule to result
                             appendStmt(loopRelSeq, std::move(rule));
+
+                            version++;
                         }
 
                         /*
@@ -2795,6 +2798,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                 rdiff->addToBody(std::make_unique<AstSubsumptionNegation>(
                                         std::unique_ptr<AstAtom>(diffAppliedHeadAtom), 1));
 
+                                version = 0;
                                 // use delta versions of relations for semi-naive evaluation
                                 for (size_t j = 0; j < atoms.size(); j++) {
                                     if (!isInSameSCC(getAtomRelation(atoms[j], program))) {
@@ -2860,6 +2864,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                                     // add rule to result
                                     appendStmt(loopRelSeq, std::move(rule));
+
+                                    version++;
                                 }
                             }
 
@@ -2956,6 +2962,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                                 std::cout << "recursive: " << *rdiff << std::endl;
 
+                                version = 0;
                                 // use delta versions of relations for semi-naive evaluation
                                 for (size_t j = 0; j < atoms.size(); j++) {
                                     if (!isInSameSCC(getAtomRelation(atoms[j], program))) {
@@ -3013,6 +3020,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                                     // add rule to result
                                     appendStmt(loopRelSeq, std::move(rule));
+
+                                    version++;
                                 }
                             }
                             /*
@@ -3180,6 +3189,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                 rdiff->addToBody(std::make_unique<AstSubsumptionNegation>(
                                         std::unique_ptr<AstAtom>(diffAppliedHeadAtom), 1));
 
+                                version = 0;
                                 // use delta versions of relations for semi-naive evaluation
                                 for (size_t j = 0; j < atoms.size(); j++) {
                                     if (!isInSameSCC(getAtomRelation(atoms[j], program))) {
@@ -3245,6 +3255,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                                     // add rule to result
                                     appendStmt(loopRelSeq, std::move(rule));
+
+                                    version++;
                                 }
 
                                 /*
@@ -3363,6 +3375,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                                 std::cout << "recursive: " << *rdiff << std::endl;
 
+                                version = 0;
                                 // use delta versions of relations for semi-naive evaluation
                                 for (size_t j = 0; j < atoms.size(); j++) {
                                     if (!isInSameSCC(getAtomRelation(atoms[j], program))) {
@@ -3420,6 +3433,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                                     // add rule to result
                                     appendStmt(loopRelSeq, std::move(rule));
+
+                                    version++;
                                 }
                             }
 
@@ -3594,12 +3609,13 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             */
 
                             // increment version counter
-                            version++;
+                            // version++;
                         // }
 
                     // }
                 }
             } else {
+                version = 0;
                 for (size_t j = 0; j < atoms.size(); ++j) {
                     AstAtom* atom = atoms[j];
                     const AstRelation* atomRelation = getAtomRelation(atom, program);
