@@ -561,16 +561,46 @@ std::unique_ptr<AstClause> AstTranslator::ClauseTranslator::getReorderedClause(
         // get the imposed order
         const auto& order = plan->getOrderFor(version);
 
+        std::cout << "plan order: " << order << std::endl;
+
         // create a copy and fix order
         std::unique_ptr<AstClause> reorderedClause(clause.clone());
 
-        // Change order to start at zero
-        std::vector<unsigned int> newOrder(order.size());
-        std::transform(order.begin(), order.end(), newOrder.begin(),
-                [](unsigned int i) -> unsigned int { return i - 1; });
+        if (Global::config().has("incremental")) {
+            // these should not be nullptrs
+            auto prevCountNum = dynamic_cast<AstNumberConstant*>(clause.getHead()->getArgument(clause.getHead()->getArity() - 2));
+            auto curCountNum = dynamic_cast<AstNumberConstant*>(clause.getHead()->getArgument(clause.getHead()->getArity() - 1));
 
-        // re-order atoms
-        reorderedClause->reorderAtoms(newOrder);
+            // check if this clause is re-inserting hidden tuples
+            bool isReinsertionRule = (*prevCountNum == AstNumberConstant(1) && *curCountNum == AstNumberConstant(1));
+
+            if (isReinsertionRule) {
+                // Change order to start at zero
+                std::vector<unsigned int> newOrder(order.size() + 1);
+
+                std::transform(order.begin(), order.end(), newOrder.begin() + 1,
+                        [](unsigned int i) -> unsigned int { return i; });
+
+                // re-order atoms
+                reorderedClause->reorderAtoms(newOrder);
+            } else {
+                // Change order to start at zero
+                std::vector<unsigned int> newOrder(order.size());
+                std::transform(order.begin(), order.end(), newOrder.begin(),
+                        [](unsigned int i) -> unsigned int { return i - 1; });
+
+                // re-order atoms
+                reorderedClause->reorderAtoms(newOrder);
+            }
+        } else {
+            // Change order to start at zero
+            std::vector<unsigned int> newOrder(order.size());
+            std::transform(order.begin(), order.end(), newOrder.begin(),
+                    [](unsigned int i) -> unsigned int { return i - 1; });
+
+            // re-order atoms
+            reorderedClause->reorderAtoms(newOrder);
+        }
 
         // clear other order and fix plan
         reorderedClause->clearExecutionPlan();
@@ -783,6 +813,8 @@ std::unique_ptr<RamStatement> AstTranslator::ClauseTranslator::translateClause(
         // translate reordered clause
         return translateClause(*reorderedClause, originalClause, version);
     }
+
+    std::cout << "translating version " << version << " clause: " << clause << std::endl;
 
     // get extract some details
     const AstAtom* head = clause.getHead();
@@ -2652,7 +2684,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             std::cout << "recursive: " << *r1 << std::endl;
 
                             // translate rdiff
-                            std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1);
+                            std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1, version);
 
                             // add logging
                             if (Global::config().has("profile")) {
@@ -2841,7 +2873,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                     // r1->reorderAtoms(reordering);
 
                                     // translate rdiff
-                                    std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1);
+                                    std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1, version);
 
                                     // add logging
                                     if (Global::config().has("profile")) {
@@ -2997,7 +3029,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                     // r1->reorderAtoms(reordering);
 
                                     // translate rdiff
-                                    std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1);
+                                    std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1, version);
 
                                     // add logging
                                     if (Global::config().has("profile")) {
@@ -3232,7 +3264,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                     // r1->reorderAtoms(reordering);
 
                                     // translate rdiff
-                                    std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1);
+                                    std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1, version);
 
                                     // add logging
                                     if (Global::config().has("profile")) {
@@ -3410,7 +3442,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                     // r1->reorderAtoms(reordering);
 
                                     // translate rdiff
-                                    std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1);
+                                    std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1, version);
 
                                     // add logging
                                     if (Global::config().has("profile")) {
