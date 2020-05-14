@@ -675,6 +675,21 @@ exec_plan_list
         $curr_list = nullptr;
         $exec_order_list = nullptr;
     }
+  | NUMBER[deltanumber] MINUS NUMBER[diffnumber]  COLON  LPAREN exec_order_list RPAREN {
+        $exec_order_list->setSrcLoc(@LPAREN);
+        $$ = new AstExecutionPlan();
+        $$->setOrderFor($deltanumber, $diffnumber, std::unique_ptr<AstExecutionOrder>($exec_order_list));
+
+        $exec_order_list = nullptr;
+    }
+  | exec_plan_list[curr_list] COMMA NUMBER[deltanumber] MINUS NUMBER[diffnumber] COLON LPAREN exec_order_list RPAREN {
+        $exec_order_list->setSrcLoc(@LPAREN);
+        $$ = $curr_list;
+        $$->setOrderFor($deltanumber, $diffnumber, std::unique_ptr<AstExecutionOrder>($exec_order_list));
+
+        $curr_list = nullptr;
+        $exec_order_list = nullptr;
+    }
   ;
 
 /* Rule execution order */

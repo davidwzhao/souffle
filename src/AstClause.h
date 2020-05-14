@@ -122,15 +122,35 @@ public:
 
     /** Updates the execution order for a special version of a rule */
     void setOrderFor(int version, std::unique_ptr<AstExecutionOrder> plan) {
-        plans[version] = std::move(plan);
+        plans[std::make_pair(version,0)] = std::move(plan);
         if (version > maxVersion) {
             maxVersion = version;
         }
     }
 
+    void setOrderFor(int version1, int version2, std::unique_ptr<AstExecutionOrder> plan) {
+        // assert(version2 > 0 && "wrong diff number"); 
+        plans[std::make_pair(version1,version2)] = std::move(plan);
+        if (version1 > maxVersion) {
+            maxVersion = version1;
+        }
+    }
+
+    void setOrderFor(std::pair<int, int> version, std::unique_ptr<AstExecutionOrder> plan) {
+        // assert(version.second > 0 && "wrong diff number"); 
+        plans[version] = std::move(plan);
+        if (version.first > maxVersion) {
+            maxVersion = version.first;
+        }
+    }
+
     /** Determines whether for the given version a plan has been specified */
     bool hasOrderFor(int version) const {
-        return plans.find(version) != plans.end();
+        return plans.find(std::make_pair(version,0)) != plans.end();
+    }
+
+    bool hasOrderFor(int version1, int version2) const {
+        return plans.find(std::make_pair(version1,version2)) != plans.end() || hasOrderFor(version1);
     }
 
     /** get maximal version number */
@@ -141,7 +161,16 @@ public:
     /** Obtains the order defined for the given version */
     const AstExecutionOrder& getOrderFor(int version) const {
         assert(hasOrderFor(version));
-        return *plans.find(version)->second;
+        return *plans.find(std::make_pair(version,0))->second;
+    }
+
+    const AstExecutionOrder& getOrderFor(int version1, int version2) const {
+        assert(hasOrderFor(version1, version2));
+        auto res = plans.find(std::make_pair(version1,version2));
+        if (res == plans.end()) {
+            res = plans.find(std::make_pair(version1,0));
+        }
+        return *res->second;
     }
 
     /** Tests whether there has any order been defined */
@@ -149,8 +178,8 @@ public:
         return plans.empty();
     }
 
-    std::map<int, const AstExecutionOrder*> getOrders() const {
-        std::map<int, const AstExecutionOrder*> result;
+    std::map<std::pair<int,int>, const AstExecutionOrder*> getOrders() const {
+        std::map<std::pair<int,int>, const AstExecutionOrder*> result;
         for (auto& plan : plans) {
             result.insert(std::make_pair(plan.first, plan.second.get()));
         }
@@ -223,7 +252,7 @@ protected:
 
 private:
     /** Mapping versions of clauses to execution plans */
-    std::map<int, std::unique_ptr<AstExecutionOrder>> plans;
+    std::map<std::pair<int,int>, std::unique_ptr<AstExecutionOrder>> plans;
 
     /** remember maximal version number */
     int maxVersion = -1;

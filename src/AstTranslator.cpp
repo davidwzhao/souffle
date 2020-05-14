@@ -553,13 +553,13 @@ std::unique_ptr<RamCondition> AstTranslator::translateConstraint(
 }
 
 std::unique_ptr<AstClause> AstTranslator::ClauseTranslator::getReorderedClause(
-        const AstClause& clause, const int version) const {
+        const AstClause& clause, const int version, const int version2) const {
     const auto plan = clause.getExecutionPlan();
 
     // check whether there is an imposed order constraint
-    if (plan != nullptr && plan->hasOrderFor(version)) {
+    if (plan != nullptr && plan->hasOrderFor(version, version2)) {
         // get the imposed order
-        const auto& order = plan->getOrderFor(version);
+        const auto& order = plan->getOrderFor(version, version2);
 
         std::cout << "plan order: " << order << std::endl;
 
@@ -808,13 +808,13 @@ std::unique_ptr<RamCondition> AstTranslator::ProvenanceClauseTranslator::createC
 
 /** generate RAM code for a clause */
 std::unique_ptr<RamStatement> AstTranslator::ClauseTranslator::translateClause(
-        const AstClause& clause, const AstClause& originalClause, const int version) {
-    if (auto reorderedClause = getReorderedClause(clause, version)) {
+        const AstClause& clause, const AstClause& originalClause, const int version, const int version2) {
+    if (auto reorderedClause = getReorderedClause(clause, version, version2)) {
         // translate reordered clause
-        return translateClause(*reorderedClause, originalClause, version);
+        return translateClause(*reorderedClause, originalClause, version, version2);
     }
 
-    std::cout << "translating version " << version << " clause: " << clause << std::endl;
+    std::cout << "translating version " << version << "," << version2 << " clause: " << clause << std::endl;
 
     // get extract some details
     const AstAtom* head = clause.getHead();
@@ -2444,6 +2444,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
             const auto& negations = cl->getNegations();
 
             int version = 0;
+            int diffVersion = 1;
             if (Global::config().has("incremental")) {
                 // store previous count and current count to determine if the rule is insertion or deletion
                 auto prevCount = cl->getHead()->getArgument(rel->getArity() - 2);
@@ -2490,6 +2491,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                         // add constraints saying that each body tuple must have existed in the previous epoch
                         std::vector<AstConstraint*> existsReinsertion;
+
+                        diffVersion = 1;
                         for (size_t i = 0; i < atoms.size(); i++) {
                             // ensure tuple actually existed
                             auto curAtom = atoms[i]->clone();
@@ -2683,8 +2686,10 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                             std::cout << "recursive: " << *r1 << std::endl;
 
+                            diffVersion = 0;
+
                             // translate rdiff
-                            std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1, version);
+                            std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1, version, diffVersion);
 
                             // add logging
                             if (Global::config().has("profile")) {
@@ -2751,6 +2756,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                         // std::unique_ptr<AstClause> rdiff(cl->clone());
 
                         if (isInsertionRule) {
+                            diffVersion = 1;
                             for (size_t i = 0; i < atoms.size(); i++) {
                                 // an insertion rule should look as follows:
                                 // R :- R_1, R_2, ..., diff_plus_count_R_i, diff_applied_R_i+1, ..., diff_applied_R_n
@@ -2873,7 +2879,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                     // r1->reorderAtoms(reordering);
 
                                     // translate rdiff
-                                    std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1, version);
+                                    std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1, version, diffVersion);
 
                                     // add logging
                                     if (Global::config().has("profile")) {
@@ -2899,8 +2905,11 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                                     version++;
                                 }
+                                diffVersion++;
                             }
 
+                            // TODO: fix this
+                            diffVersion = 0;
                             // TODO: if there is a negation, then we need to add a version of the rule which applies when only the negations apply
                             for (size_t i = 0; i < negations.size(); i++) {
                                 // an insertion rule should look as follows:
@@ -3029,7 +3038,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                     // r1->reorderAtoms(reordering);
 
                                     // translate rdiff
-                                    std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1, version);
+                                    std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1, version, diffVersion);
 
                                     // add logging
                                     if (Global::config().has("profile")) {
@@ -3139,6 +3148,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                 */
                             // }
                         } else if (isDeletionRule) {
+                            diffVersion = 1;
                             for (size_t i = 0; i < atoms.size(); i++) {
                                 // an insertion rule should look as follows:
                                 // R :- R_1, R_2, ..., diff_plus_count_R_i, diff_applied_R_i+1, ..., diff_applied_R_n
@@ -3264,7 +3274,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                     // r1->reorderAtoms(reordering);
 
                                     // translate rdiff
-                                    std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1, version);
+                                    std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1, version, diffVersion);
 
                                     // add logging
                                     if (Global::config().has("profile")) {
@@ -3317,6 +3327,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                 // add rule to result
                                 appendStmt(loopRelSeq, std::move(rule));
                                 */
+                                diffVersion++;
                             }
 
                             // TODO: if there is a negation, then we need to add a version of the rule which applies when only the negations apply
@@ -3442,7 +3453,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                     // r1->reorderAtoms(reordering);
 
                                     // translate rdiff
-                                    std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1, version);
+                                    std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *r1, version, diffVersion);
 
                                     // add logging
                                     if (Global::config().has("profile")) {

@@ -355,7 +355,7 @@ private:
         // the order of processed operations
         std::vector<const AstNode*> op_nesting;
 
-        std::unique_ptr<AstClause> getReorderedClause(const AstClause& clause, const int version) const;
+        std::unique_ptr<AstClause> getReorderedClause(const AstClause& clause, const int version, const int version2 = 0) const;
 
         arg_list* getArgList(
                 const AstNode* curNode, std::map<const AstNode*, std::unique_ptr<arg_list>>& nodeArgs) const;
@@ -382,7 +382,7 @@ private:
         ClauseTranslator(AstTranslator& translator) : translator(translator) {}
 
         std::unique_ptr<RamStatement> translateClause(
-                const AstClause& clause, const AstClause& originalClause, const int version = 0);
+                const AstClause& clause, const AstClause& originalClause, const int version = 0, const int version2 = 0);
     };
 
     class ProvenanceClauseTranslator : public ClauseTranslator {
