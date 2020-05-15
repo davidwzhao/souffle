@@ -29,6 +29,11 @@ int RamComplexityAnalysis::getComplexity(const RamNode* node) const {
             return visit(conj.getLHS()) + visit(conj.getRHS());
         }
 
+        // disjunction
+        int visitDisjunction(const RamDisjunction& disj) override {
+            return visit(disj.getLHS()) + visit(disj.getRHS());
+        }
+
         // negation
         int visitNegation(const RamNegation& neg) override {
             return visit(neg.getOperand());
@@ -41,6 +46,11 @@ int RamComplexityAnalysis::getComplexity(const RamNode* node) const {
 
         // provenance existence check
         int visitSubsumptionExistenceCheck(const RamSubsumptionExistenceCheck& provExists) override {
+            return 2;
+        }
+
+        // provenance existence check
+        int visitPositiveExistenceCheck(const RamPositiveExistenceCheck& posExists) override {
             return 2;
         }
 
