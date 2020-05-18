@@ -2140,9 +2140,14 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                             // create the delta diff applied relations
                             // merge delta into delta_diff_applied, but only tuples *in the current iteration* in diff_applied
+                            /*
                             std::make_unique<RamSemiMerge>(std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateDeltaRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()), true),
+                                    */
+                            // turns out, diff_applied is always a subset of delta, so the extra restriction is not needed
+                            std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone()),
+                                    std::unique_ptr<RamRelationReference>(translateDeltaRelation(rel)->clone())),
                             // merge new_diff_minus into delta_diff_applied, to update counts
                             std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateNewDiffMinusRelation(rel)->clone())),
@@ -2240,6 +2245,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
         /* Generate code for non-recursive part of relation */
         appendStmt(preamble, translateNonRecursiveRelation(*rel, recursiveClauses));
 
+        /*
         // for incremental, create a temporary table storing the previous epoch's tuples in a fully indexable relation
         // we want the relation to be a copy of the full relation
         if (Global::config().has("incremental")) {
@@ -2251,8 +2257,12 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                         std::unique_ptr<RamRelationReference>(translateRelation(rel)->clone())));
             }
         }
+        */
 
         if (Global::config().has("incremental")) {
+            appendStmt(preamble, std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translatePreviousIndexedRelation(rel)->clone()),
+                    std::unique_ptr<RamRelationReference>(translateRelation(rel)->clone())));
+
             // populate the delta relation
             appendStmt(preamble,
                     std::make_unique<RamPositiveMerge>(std::unique_ptr<RamRelationReference>(translateDeltaRelation(rel)->clone()),
