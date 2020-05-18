@@ -1696,6 +1696,11 @@ public:
             return;
         }
 
+        if (other.empty()) {
+            return;
+        }
+
+        /*
         // make sure bigger tree is inserted in smaller tree
         if ((size() + 10000) < other.size()) {
             // switch sides
@@ -1704,6 +1709,7 @@ public:
             swap(tmp);
             return;
         }
+        */
 
         // by default use the iterator based insertion
         insert(other.begin(), other.end());

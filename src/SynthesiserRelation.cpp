@@ -366,18 +366,21 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
     // insertAll methods
     out << "template <typename T>\n";
     out << "void insertAll(T& other) {\n";
+    out << "if (other.empty()) return;\n";
     out << "context h;\n";
     out << "for (auto const& cur : other) {\n";
     out << "insert(cur, h);\n";
     out << "}\n";
     out << "}\n";  // end of insertAll<T>
 
+    /*
     out << "void insertAll(" << getTypeName() << "& other) {\n";
     for (size_t i = 0; i < numIndexes; i++) {
         if (provenanceIndexNumbers.find(i) == provenanceIndexNumbers.end())
             out << "ind_" << i << ".insertAll(other.ind_" << i << ");\n";
     }
     out << "}\n";  // end of insertAll(relationType& other)
+    */
 
     // contains methods
     out << "bool contains(const t_tuple& t, context& h) const {\n";
