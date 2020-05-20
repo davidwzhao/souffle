@@ -2263,6 +2263,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     std::string registerRel;  // registration of relations
     int relCtr = 0;
     std::string tempType;  // string to hold the type of the temporary relations
+    std::string diffAppliedType;
     std::set<std::string> storeRelations;
     std::set<std::string> loadRelations;
     visitDepthFirst(*(prog.getMain()),
@@ -2270,6 +2271,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     visitDepthFirst(*(prog.getMain()),
             [&](const RamLoad& load) { loadRelations.insert(load.getRelation().getName()); });
     visitDepthFirst(*(prog.getMain()), [&](const RamCreate& create) {
+            /*
         // get some table details
         const auto& rel = create.getRelation();
         int arity = rel.getArity();
@@ -2288,7 +2290,54 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         // tempType means a cached version of the type, which is necessary for new and delta versions of the relations to have the same type
         // i.e., tempType = type of new relation, then delta = tempType so the types match
         // however, in the case of provenance or incremental, some relations e.g. @info or @indexed are counted as temp types, but should have their own type because there is no corresponding new type
-        const std::string& type = (rel.isTemp()) && raw_name.find("new_diff_plus@") == std::string::npos && !isProvInfo ? tempType : relationType->getTypeName();
+        const std::string& type = (rel.isTemp()) && raw_name.find("new_diff_plus@") == std::string::npos && raw_name.find("new_diff_minus@") == std::string::npos && !isProvInfo ? tempType : relationType->getTypeName();
+        */
+
+        // get details of the relation
+        const auto& rel = create.getRelation();
+        int arity = rel.getArity();
+        int numberOfHeights = rel.getNumberOfHeights();
+        const std::string& raw_name = rel.getName();
+        const std::string& name = getRelationName(rel);
+
+        std::string type;
+
+        if (Global::config().has("incremental")) {
+            bool isDiffApplied = raw_name.find("diff_applied@") != std::string::npos;
+            bool isNormalRelation = raw_name.find("diff_minus@") == std::string::npos && raw_name.find("diff_plus@") == std::string::npos && raw_name.find("applied@") == std::string::npos;
+            bool isSpecial = raw_name.find("@max_iter") != std::string::npos || raw_name.find("@indexed") != std::string::npos;
+
+            auto relationType = SynthesiserRelation::getSynthesiserRelation(
+                    rel, idxAnalysis->getIndexes(rel), true && !isSpecial);
+            type = relationType->getTypeName();
+
+            // set diffAppliedType
+            if (isDiffApplied) {
+                diffAppliedType = relationType->getTypeName();
+            }
+
+            // if it's a normal relation, we want to use the same type as diff_applied
+            if (isNormalRelation && !isSpecial) {
+                type = diffAppliedType;
+            }
+        } else {
+            bool isDelta = rel.isTemp() && raw_name.find("@delta") != std::string::npos;
+            bool isProvInfo = raw_name.find("@info") != std::string::npos;
+
+            auto relationType = SynthesiserRelation::getSynthesiserRelation(
+                    rel, idxAnalysis->getIndexes(rel), Global::config().has("provenance") && !isProvInfo);
+            type = relationType->getTypeName();
+
+            // store the temp type for delta relations
+            if (isDelta) {
+                tempType = type;
+            }
+
+            // if the relation is new, use the same type as the delta
+            if (rel.isTemp() && !isDelta) {
+                type = tempType;
+            }
+        }
 
         // defining table
         os << "// -- Table: " << raw_name << "\n";

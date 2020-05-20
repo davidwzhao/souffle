@@ -193,17 +193,24 @@ std::string SynthesiserDirectRelation::getTypeName() {
         res << "__" << search;
     }
 
+    if (relation.isTemp()) {
+        res << "_temp";
+    }
+
+    // the diff_applied version should have the same type as the standard relation
+    if (relation.getName().find("diff_applied@") != std::string::npos) {
+        return res.str();
+    }
+    
     if (relation.getName().find("diff_") != std::string::npos) {
         res << "_diff";
     }
 
-    if (relation.isTemp()) {
-        res << "_temp";
-    }
-    
+    /*
     if (relation.getName().find("count@") != std::string::npos) {
         res << "_count";
     }
+    */
 
     if (relation.getName().find("@indexed") != std::string::npos) {
         res << "_fullindexed";

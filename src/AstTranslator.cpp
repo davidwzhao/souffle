@@ -4322,9 +4322,6 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
 
         // create all internal relations of the current scc
         for (const auto& relation : allInterns) {
-            appendStmt(current, std::make_unique<RamCreate>(
-                                        std::unique_ptr<RamRelationReference>(translateRelation(relation))));
-            
             if (Global::config().has("incremental")) {
                 appendStmt(current, std::make_unique<RamCreate>(
                                             std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(relation))));
@@ -4338,16 +4335,17 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                 //                             std::unique_ptr<RamRelationReference>(translateDiffPlusAppliedRelation(relation))));
                 // appendStmt(current, std::make_unique<RamCreate>(
                 //                             std::unique_ptr<RamRelationReference>(translateDiffPlusCountRelation(relation))));
+
+                // ensure that diff_applied is the last relation before the standard relation
                 appendStmt(current, std::make_unique<RamCreate>(
                                             std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation))));
             }
 
+            appendStmt(current, std::make_unique<RamCreate>(
+                                        std::unique_ptr<RamRelationReference>(translateRelation(relation))));
+            
             // create new and delta relations if required
             if (isRecursive) {
-                appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
-                                            translateDeltaRelation(relation))));
-                appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
-                                            translateNewRelation(relation))));
                 if (Global::config().has("incremental")) {
                     appendStmt(current, std::make_unique<RamCreate>(
                                                 std::unique_ptr<RamRelationReference>(translatePreviousIndexedRelation(relation))));
@@ -4369,9 +4367,15 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                                                 translateDeltaDiffMinusRelation(relation))));
                     appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
                                                 translateDeltaDiffPlusRelation(relation))));
+
+                    // ensure that delta_diff_applied is the last relation before the standard delta relation
                     appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
                                                 translateDeltaDiffAppliedRelation(relation))));
                 }
+                appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
+                                            translateDeltaRelation(relation))));
+                appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
+                                            translateNewRelation(relation))));
             }
         }
 
