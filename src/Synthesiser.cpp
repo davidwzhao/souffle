@@ -493,10 +493,11 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             if (!merge.isSourceOuter()) {
                 auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
-                if (synthesiser.contexts.find(synthesiser.getOpContextName(merge.getSourceRelation())) == synthesiser.contexts.end()) {
+                out << "{\n";
+                // if (synthesiser.contexts.find(synthesiser.getOpContextName(merge.getSourceRelation())) == synthesiser.contexts.end()) {
                     out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getSourceRelation()) << "," << synthesiser.getRelationName(merge.getSourceRelation()) << "->createContext());\n";
-                    synthesiser.contexts.insert(synthesiser.getOpContextName(merge.getSourceRelation()));
-                }
+                    // synthesiser.contexts.insert(synthesiser.getOpContextName(merge.getSourceRelation()));
+                // }
                 out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getRestrictionRelation()) << ") {\n";
 
                 // TODO: enable generic conditions in the SemiMerge operation, this is temporarily just to get it to work
@@ -527,12 +528,15 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "}\n";
 
                 out << "}\n";
+
+                out << "}\n";
             } else {
                 auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getRestrictionRelation()) + ")";
-                if (synthesiser.contexts.find(synthesiser.getOpContextName(merge.getRestrictionRelation())) == synthesiser.contexts.end()) {
+                out << "{\n";
+                // if (synthesiser.contexts.find(synthesiser.getOpContextName(merge.getRestrictionRelation())) == synthesiser.contexts.end()) {
                     out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getRestrictionRelation()) << "," << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->createContext());\n";
-                    synthesiser.contexts.insert(synthesiser.getOpContextName(merge.getRestrictionRelation()));
-                }
+                    // synthesiser.contexts.insert(synthesiser.getOpContextName(merge.getRestrictionRelation()));
+                // }
                 out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
 
                 // TODO: enable generic conditions in the SemiMerge operation, this is temporarily just to get it to work
@@ -563,6 +567,8 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "}\n";
                 out << "}\n";
                 out << "}\n";
+                out << "}\n";
+
                 out << "}\n";
             }
 

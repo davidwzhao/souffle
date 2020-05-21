@@ -175,6 +175,12 @@ void SynthesiserDirectRelation::computeIndices() {
         masterIndex = 0;
     }
 
+    if (isProvenance) {
+        // sort indexes so that the master index is more likely to be the same across relations
+        // std::sort(inds.begin(), inds.end());
+        masterIndex = std::distance(std::begin(inds), std::min_element(std::begin(inds), std::end(inds)));
+    }
+
     assert(masterIndex >= 0 && masterIndex < inds.size());
 
     computedIndices = inds;
