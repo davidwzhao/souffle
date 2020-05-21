@@ -2035,17 +2035,18 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
         relNew[rel] = translateNewRelation(rel);
 
         /* create update statements for fixpoint (even iteration) */
-        appendStmt(updateRelTable,
-                std::make_unique<RamSequence>(
-                        std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(rrel[rel]->clone()),
-                                std::unique_ptr<RamRelationReference>(relNew[rel]->clone())),
-                        std::make_unique<RamSwap>(
-                                std::unique_ptr<RamRelationReference>(relDelta[rel]->clone()),
-                                std::unique_ptr<RamRelationReference>(relNew[rel]->clone())),
-                        std::make_unique<RamClear>(
-                                std::unique_ptr<RamRelationReference>(relNew[rel]->clone()))));
+        if (!Global::config().has("incremental")) {
+            appendStmt(updateRelTable,
+                    std::make_unique<RamSequence>(
+                            std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(rrel[rel]->clone()),
+                                    std::unique_ptr<RamRelationReference>(relNew[rel]->clone())),
+                            std::make_unique<RamSwap>(
+                                    std::unique_ptr<RamRelationReference>(relDelta[rel]->clone()),
+                                    std::unique_ptr<RamRelationReference>(relNew[rel]->clone())),
+                            std::make_unique<RamClear>(
+                                    std::unique_ptr<RamRelationReference>(relNew[rel]->clone()))));
 
-        if (Global::config().has("incremental")) {
+        } else {
             appendStmt(clearRelTable,
                     std::make_unique<RamSequence>(
                             // all the deltas should be cleared
@@ -3856,10 +3857,40 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalCleanupSubroutine(co
                     std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(relation))));
                     */
 
+        /*
         appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateRelation(relation)->clone())));
         appendStmt(cleanupSequence, std::make_unique<RamMerge>(
                     std::unique_ptr<RamRelationReference>(translateRelation(relation)->clone()),
                     std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation))));
+                    */
+
+        /*
+        appendStmt(cleanupSequence, std::make_unique<RamSwap>(
+                    std::unique_ptr<RamRelationReference>(translateRelation(relation)->clone()),
+                    std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation))));
+                    */
+
+        // the subroutine needs to be built from inside out
+        // build the insertion step first
+        std::vector<std::unique_ptr<RamExpression>> updateTuple;
+        
+        // insert the original tuple
+        for (size_t i = 0; i < relation->getArity() - 2; i++) {
+            updateTuple.push_back(std::make_unique<RamTupleElement>(0, i));
+        }
+
+        // insert -1 for both counts
+        updateTuple.push_back(std::make_unique<RamTupleElement>(0, relation->getArity() - 1));
+        updateTuple.push_back(std::make_unique<RamTupleElement>(0, relation->getArity() - 1));
+
+        // create the projection
+        auto insertUpdate = std::make_unique<RamProject>(std::unique_ptr<RamRelationReference>(relationReference->clone()), std::move(updateTuple));
+
+        // create the scan
+        auto cleanupScan = std::make_unique<RamScan>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)->clone()), 0, std::move(insertUpdate));
+        appendStmt(cleanupSequence, std::make_unique<RamQuery>(std::move(cleanupScan)));
+
+        appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)->clone())));
 
         /*
         appendStmt(cleanupSequence, std::make_unique<RamMerge>(
@@ -3883,6 +3914,7 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalCleanupSubroutine(co
         appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffMinusAppliedRelation(relation)->clone())));
         appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)->clone())));
         
+        /*
         // the subroutine needs to be built from inside out
         // build the insertion step first
         std::vector<std::unique_ptr<RamExpression>> updateTuple;
@@ -3902,6 +3934,7 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalCleanupSubroutine(co
         // create the scan
         auto cleanupScan = std::make_unique<RamScan>(std::unique_ptr<RamRelationReference>(relationReference->clone()), 0, std::move(insertUpdate));
         appendStmt(cleanupSequence, std::make_unique<RamQuery>(std::move(cleanupScan)));
+        */
     }
 
     return cleanupSequence;

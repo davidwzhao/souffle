@@ -2304,7 +2304,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
 
         if (Global::config().has("incremental")) {
             bool isDiffApplied = raw_name.find("diff_applied@") != std::string::npos;
-            bool isNormalRelation = raw_name.find("diff_minus@") == std::string::npos && raw_name.find("diff_plus@") == std::string::npos && raw_name.find("applied@") == std::string::npos;
+            bool isNormalRelation = raw_name.find("diff_minus@") == std::string::npos && raw_name.find("diff_plus@") == std::string::npos && raw_name.find("applied@") == std::string::npos && raw_name.find("@delta") != std::string::npos;
             bool isSpecial = raw_name.find("@max_iter") != std::string::npos || raw_name.find("@indexed") != std::string::npos;
 
             auto relationType = SynthesiserRelation::getSynthesiserRelation(
