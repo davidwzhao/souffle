@@ -2323,9 +2323,11 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
             // merge new_diff_minus and new_diff_plus into diff_plus_applied to update with new tuples from current iteration
             // order is important - minus should be applied before plus,
             // as plus may be able to update tuples that are deleted in the current epoch
+            /*
             appendStmt(preamble,
                     std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
                             std::unique_ptr<RamRelationReference>(translateRelation(rel)->clone())));
+                            */
             appendStmt(preamble,
                     std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
                             std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(rel)->clone())));
@@ -2451,12 +2453,13 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             std::unique_ptr<RamRelationReference>(translateDiffMinusAppliedRelation(rel)->clone())));
                             */
 
-        }
+        } else {
 
-        /* Generate merge operation for temp tables */
-        appendStmt(preamble,
-                std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(relDelta[rel]->clone()),
+            /* Generate merge operation for temp tables */
+            appendStmt(preamble,
+                    std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(relDelta[rel]->clone()),
                         std::unique_ptr<RamRelationReference>(rrel[rel]->clone())));
+        }
 
         /*
         if (Global::config().has("incremental")) {
@@ -4004,7 +4007,7 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalCleanupSubroutine(co
         // appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffMinusCountRelation(relation)->clone())));
         // appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffPlusAppliedRelation(relation)->clone())));
         appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffMinusAppliedRelation(relation)->clone())));
-        appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)->clone())));
+        // appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)->clone())));
         
         /*
         // the subroutine needs to be built from inside out
@@ -4589,17 +4592,19 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
             if (!isRecursive) {
                 for (const auto& relation : allInterns) {
                     // populate diff_minus_applied relation
-                    appendStmt(current, std::make_unique<RamMerge>(
+                    appendStmt(current, std::make_unique<RamRelationLoad>(
                                 std::unique_ptr<RamRelationReference>(translateDiffMinusAppliedRelation(relation)),
                                 std::unique_ptr<RamRelationReference>(translateRelation(relation))));
                     appendStmt(current, std::make_unique<RamMerge>(
                                 std::unique_ptr<RamRelationReference>(translateDiffMinusAppliedRelation(relation)),
                                 std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(relation))));
 
+                    /*
                     // populate diff_applied relation
                     appendStmt(current, std::make_unique<RamMerge>(
                                 std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)),
                                 std::unique_ptr<RamRelationReference>(translateRelation(relation))));
+                                */
                     appendStmt(current, std::make_unique<RamMerge>(
                                 std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)),
                                 std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(relation))));
