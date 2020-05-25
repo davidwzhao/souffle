@@ -332,6 +332,24 @@ void RamIndexAnalysis::run(const RamTranslationUnit& translationUnit) {
         }
     });
 
+    // A RelationLoad happening between rel A and rel B indicates A should include all indices of B, vice versa.
+    visitDepthFirst(*translationUnit.getProgram(), [&](const RamRelationLoad& load) {
+        const RamRelation& relA = load.getSourceRelation();
+        const RamRelation& relB = load.getTargetRelation();
+
+        MinIndexSelection& indexesA = getIndexes(relA);
+        MinIndexSelection& indexesB = getIndexes(relB);
+        // Add all searchSignature of A into B
+        for (const auto& signature : indexesA.getSearches()) {
+            indexesB.addSearch(signature);
+        }
+
+        // Add all searchSignature of B into A
+        for (const auto& signature : indexesB.getSearches()) {
+            indexesA.addSearch(signature);
+        }
+    });
+
     // find optimal indexes for relations
     for (auto& cur : minIndexCover) {
         MinIndexSelection& indexes = cur.second;

@@ -2194,7 +2194,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                     std::unique_ptr<RamRelationReference>(translateNewDiffPlusRelation(rel)->clone())),
 
                             // create delta_diff_minus_applied relation from delta and new_diff_minus
-                            std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDeltaDiffMinusAppliedRelation(rel)->clone()),
+                            std::make_unique<RamRelationLoad>(std::unique_ptr<RamRelationReference>(translateDeltaDiffMinusAppliedRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateDeltaRelation(rel)->clone())),
                             std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDeltaDiffMinusAppliedRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateNewDiffMinusRelation(rel)->clone())),
@@ -2310,7 +2310,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
             // update the diff minus applied relations
             // insert tuples from previous epoch into diff_minus_applied
             appendStmt(preamble,
-                    std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDiffMinusAppliedRelation(rel)->clone()),
+                    std::make_unique<RamRelationLoad>(std::unique_ptr<RamRelationReference>(translateDiffMinusAppliedRelation(rel)->clone()),
                             std::unique_ptr<RamRelationReference>(translateRelation(rel)->clone())));
 
             // merge diff_minus (contains only tuples from non-recursive part of stratum) into diff_minus_applied
@@ -4453,8 +4453,6 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
             if (Global::config().has("incremental")) {
                 appendStmt(current, std::make_unique<RamCreate>(
                                             std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(relation))));
-                appendStmt(current, std::make_unique<RamCreate>(
-                                            std::unique_ptr<RamRelationReference>(translateDiffMinusAppliedRelation(relation))));
                 // appendStmt(current, std::make_unique<RamCreate>(
                 //                             std::unique_ptr<RamRelationReference>(translateDiffMinusCountRelation(relation))));
                 appendStmt(current, std::make_unique<RamCreate>(
@@ -4464,9 +4462,11 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                 // appendStmt(current, std::make_unique<RamCreate>(
                 //                             std::unique_ptr<RamRelationReference>(translateDiffPlusCountRelation(relation))));
 
-                // ensure that diff_applied is the last relation before the standard relation
                 appendStmt(current, std::make_unique<RamCreate>(
                                             std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation))));
+                // ensure that diff_minus_applied is the last relation before the standard relation, so they can share the same type
+                appendStmt(current, std::make_unique<RamCreate>(
+                                            std::unique_ptr<RamRelationReference>(translateDiffMinusAppliedRelation(relation))));
             }
 
             appendStmt(current, std::make_unique<RamCreate>(
@@ -4483,8 +4483,6 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                     appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
                                                 translateNewDiffMinusRelation(relation))));
 
-                    appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
-                                                translateDeltaDiffMinusAppliedRelation(relation))));
                     /*
                     appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
                                                 translateDeltaDiffMinusCountRelation(relation))));
@@ -4496,9 +4494,12 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                     appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
                                                 translateDeltaDiffPlusRelation(relation))));
 
-                    // ensure that delta_diff_applied is the last relation before the standard delta relation
                     appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
                                                 translateDeltaDiffAppliedRelation(relation))));
+
+                    // ensure that delta_diff_minus_applied is the last relation before the standard delta relation
+                    appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
+                                                translateDeltaDiffMinusAppliedRelation(relation))));
                 }
                 appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
                                             translateDeltaRelation(relation))));

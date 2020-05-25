@@ -358,6 +358,48 @@ protected:
 };
 
 /**
+ * @class RamRelationLoad
+ * @brief Merge tuples from a source into target relation, using the super fast B-Tree load method.
+ *
+ * The following example merges A into B:
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * MERGE B WITH A
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ */
+class RamRelationLoad : public RamBinRelationStatement {
+public:
+    RamRelationLoad(std::unique_ptr<RamRelationReference> tRef, std::unique_ptr<RamRelationReference> sRef)
+            : RamBinRelationStatement(std::move(sRef), std::move(tRef)) {}
+
+    /** @brief Get source relation */
+    const RamRelation& getSourceRelation() const {
+        return getFirstRelation();
+    }
+
+    /** @brief Get target relation */
+    const RamRelation& getTargetRelation() const {
+        return getSecondRelation();
+    }
+
+    void print(std::ostream& os, int tabpos) const override {
+        os << times(" ", tabpos);
+        os << "LOAD RELATION " << getTargetRelation().getName() << " FROM " << getSourceRelation().getName();
+        os << std::endl;
+    }
+
+    RamRelationLoad* clone() const override {
+        auto* res = new RamRelationLoad(std::unique_ptr<RamRelationReference>(first->clone()),
+                std::unique_ptr<RamRelationReference>(second->clone()));
+        return res;
+    }
+
+protected:
+    bool equal(const RamNode& node) const override {
+        return RamBinRelationStatement::equal(node);
+    }
+};
+
+/**
  * @class RamPositiveMerge
  * @brief Merge tuples from a source into target relation, 
  * but only tuples that do not exist in a third relation.

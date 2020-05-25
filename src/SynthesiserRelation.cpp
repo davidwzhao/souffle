@@ -204,7 +204,7 @@ std::string SynthesiserDirectRelation::getTypeName() {
     }
 
     // the diff_applied version should have the same type as the standard relation
-    if (relation.getName().find("diff_applied@") != std::string::npos) {
+    if (relation.getName().find("diff_minus_applied@") != std::string::npos) {
         return res.str();
     }
     

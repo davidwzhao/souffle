@@ -401,6 +401,19 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             PRINT_END_COMMENT(out);
         }
 
+        void visitRelationLoad(const RamRelationLoad& merge, std::ostream& out) override {
+            PRINT_BEGIN_COMMENT(out);
+            if (merge.getTargetRelation().getRepresentation() == RelationRepresentation::EQREL) {
+                out << synthesiser.getRelationName(merge.getSourceRelation()) << "->"
+                    << "extend("
+                    << "*" << synthesiser.getRelationName(merge.getTargetRelation()) << ");\n";
+            }
+            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->"
+                << "insertAll("
+                << "*" << synthesiser.getRelationName(merge.getSourceRelation()) << ");\n";
+            PRINT_END_COMMENT(out);
+        }
+
         void visitPositiveMerge(const RamPositiveMerge& merge, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
             size_t arity = merge.getTargetRelation().getArity();
@@ -2350,8 +2363,8 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         std::string type;
 
         if (Global::config().has("incremental")) {
-            bool isDiffApplied = raw_name.find("diff_applied@") != std::string::npos;
-            bool isNormalRelation = raw_name.find("diff_minus@") == std::string::npos && raw_name.find("diff_plus@") == std::string::npos && raw_name.find("applied@") == std::string::npos && raw_name.find("@delta") != std::string::npos;
+            bool isDiffApplied = raw_name.find("diff_minus_applied@") != std::string::npos;
+            bool isNormalRelation = raw_name.find("diff_minus@") == std::string::npos && raw_name.find("diff_plus@") == std::string::npos && raw_name.find("applied@") == std::string::npos; // && raw_name.find("@delta") != std::string::npos;
             bool isSpecial = raw_name.find("@max_iter") != std::string::npos || raw_name.find("@indexed") != std::string::npos;
 
             auto relationType = SynthesiserRelation::getSynthesiserRelation(
