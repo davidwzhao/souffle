@@ -409,7 +409,9 @@ protected:
 /**
  * @class RamExistingMerge
  * @brief Merge tuples from a source into target relation, 
- * but only tuples that exist in a third relation.
+ * but only tuples that don't exist in an earlier iteration in the third relation.
+ * This is used to maintain the state of the delta_diff_applied relation
+ * - it should contain tuples from the current iteration, but not those where a smaller proof has been found
  *
  * Note that semantically uniqueness of tuples is not checked.
  *

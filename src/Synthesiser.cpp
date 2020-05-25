@@ -444,9 +444,43 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             PRINT_BEGIN_COMMENT(out);
             size_t arity = merge.getTargetRelation().getArity();
-            auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
+            auto existingCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getExistingRelation()) + ")";
+            auto targetCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getTargetRelation()) + ")";
+
+            out << "{\n";
+            out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getExistingRelation()) << "," << synthesiser.getRelationName(merge.getExistingRelation()) << "->createContext());\n";
+            out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getTargetRelation()) << "," << synthesiser.getRelationName(merge.getTargetRelation()) << "->createContext());\n";
+
+            // this is a bit of a mess, should integrate into search signatures
+            int searchSignature = isa->getSearchSignature(&merge);
+
             out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
 
+            out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getExistingRelation()) << "->"
+                << "equalRange";
+            // out << synthesiser.toIndex(ne.getSearchSignature());
+            out << "_" << searchSignature;
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 3; i++) {
+                out << "tup[" << i << "]";
+                out << ",";
+            }
+
+            // extra 0s for incremental annotations
+            out << "0,0,0";
+
+            out << "}}, " << existingCtxName << ");\n";
+
+            out << "if (!existenceCheck.empty() && *existenceCheck.begin()[" << arity - 3 << "] != iter) {\n";
+            out << "continue;\n";
+            out << "}\n";
+
+            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup, " << targetCtxName << ");\n";
+
+
+            
+
+            /*
             // out << "if ((iter == 0 && tup[" << arity - 3 << "] == 0) || tup[" << arity - 3 << "] == iter-1) {\n";
             out << "if (tup[" << arity - 3 << "] == iter) {\n";
             out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
@@ -476,6 +510,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "if (!existenceCheck.empty()) {\n";
             out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
             out << "}\n";
+
+            out << "}\n";
+            */
 
             out << "}\n";
 
