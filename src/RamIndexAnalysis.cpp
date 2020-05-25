@@ -294,7 +294,6 @@ void RamIndexAnalysis::run(const RamTranslationUnit& translationUnit) {
             MinIndexSelection& indexes = getIndexes(posiMerge->getSourceRelation());
             indexes.addSearch(getSearchSignature(posiMerge));
         } else if (const auto* posiMerge = dynamic_cast<const RamExistingMerge*>(&node)) {
-            std::cout << "adding index " << getSearchSignature(posiMerge) << " for ExistingMerge to: " << posiMerge->getExistingRelation() << std::endl;
             MinIndexSelection& indexes = getIndexes(posiMerge->getExistingRelation());
             indexes.addSearch(getSearchSignature(posiMerge));
         } else if (const auto* semiMerge = dynamic_cast<const RamSemiMerge*>(&node)) {

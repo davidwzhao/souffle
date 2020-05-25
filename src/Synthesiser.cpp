@@ -471,7 +471,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             out << "}}, " << existingCtxName << ");\n";
 
-            out << "if (!existenceCheck.empty() && *existenceCheck.begin()[" << arity - 3 << "] != iter) {\n";
+            out << "if (!existenceCheck.empty() && (*existenceCheck.begin())[" << arity - 3 << "] != iter) {\n";
             out << "continue;\n";
             out << "}\n";
 
@@ -529,10 +529,12 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             int searchSignature = isa->getSearchSignature(&merge);
 
             if (!merge.isSourceOuter()) {
-                auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
+                auto sourceCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
+                auto targetCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getTargetRelation()) + ")";
                 out << "{\n";
                 // if (synthesiser.contexts.find(synthesiser.getOpContextName(merge.getSourceRelation())) == synthesiser.contexts.end()) {
                     out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getSourceRelation()) << "," << synthesiser.getRelationName(merge.getSourceRelation()) << "->createContext());\n";
+                    out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getTargetRelation()) << "," << synthesiser.getRelationName(merge.getTargetRelation()) << "->createContext());\n";
                     // synthesiser.contexts.insert(synthesiser.getOpContextName(merge.getSourceRelation()));
                 // }
                 out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getRestrictionRelation()) << ") {\n";
@@ -554,12 +556,12 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 // extra 0s for incremental annotations
                 out << "0,0,0";
 
-                out << "}}, " << ctxName << ");\n";
+                out << "}}, " << sourceCtxName << ");\n";
 
                 out << "if (existenceCheck.empty()) continue;\n";
                 out << "for (auto& sourceTup : existenceCheck) {\n";
                 out << "if (sourceTup[" << arity - 3 << "] != tup[" << arity - 3 << "]) continue;\n";
-                out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(sourceTup);\n";
+                out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(sourceTup, " << targetCtxName << ");\n";
                 // out << "continue;\n";
                 // out << "}\n";
                 out << "}\n";
@@ -568,10 +570,12 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
                 out << "}\n";
             } else {
-                auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getRestrictionRelation()) + ")";
+                auto sourceCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getRestrictionRelation()) + ")";
+                auto targetCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getTargetRelation()) + ")";
                 out << "{\n";
                 // if (synthesiser.contexts.find(synthesiser.getOpContextName(merge.getRestrictionRelation())) == synthesiser.contexts.end()) {
                     out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getRestrictionRelation()) << "," << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->createContext());\n";
+                    out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getTargetRelation()) << "," << synthesiser.getRelationName(merge.getTargetRelation()) << "->createContext());\n";
                     // synthesiser.contexts.insert(synthesiser.getOpContextName(merge.getRestrictionRelation()));
                 // }
                 out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
@@ -593,13 +597,13 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 // extra 0s for incremental annotations
                 out << "0,0,0";
 
-                out << "}}, " << ctxName << ");\n";
+                out << "}}, " << sourceCtxName << ");\n";
 
                 out << "if (existenceCheck.empty()) continue;\n";
                 out << "else {\n";
                 out << "for (auto& restrictionTup : existenceCheck) {\n";
                 out << "if (restrictionTup[" << arity - 3 << "] == tup[" << arity - 3 << "]) {\n";
-                out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
+                out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup, " << targetCtxName << ");\n";
                 out << "break;\n";
                 out << "}\n";
                 out << "}\n";

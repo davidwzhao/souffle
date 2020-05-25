@@ -2178,9 +2178,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             // merge delta into delta_diff_applied, but only tuples *in the current iteration* in diff_applied
                             // this is important in the case where a tuple is inserted in an earlier iteration,
                             // we shouldn't insert the later tuple into delta_diff_applied
-                            std::make_unique<RamSemiMerge>(std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone()),
+                            std::make_unique<RamExistingMerge>(std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateDeltaRelation(rel)->clone()),
-                                    std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()), true),
+                                    std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(rel)->clone())),
                             /*
                             // turns out, diff_applied is always a subset of delta, so the extra restriction is not needed
                             std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone()),
