@@ -386,6 +386,15 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
     out << "}\n";
     out << "}\n";  // end of insertAll<T>
 
+    // relationLoad methods
+    out << "void relationLoad(const " << getTypeName() << "& other) {\n";
+    for (size_t i = 0; i < numIndexes; i++) {
+        out << "ind_" << i << ".clear();\n";
+        out << "ind_" << i << " = other.ind_" << i << ";\n";
+    }
+    out << "}\n"; // end of relationLoad
+
+
     /*
     out << "void insertAll(" << getTypeName() << "& other) {\n";
     for (size_t i = 0; i < numIndexes; i++) {

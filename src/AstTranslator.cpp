@@ -2337,7 +2337,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
             // populate the applied relations
             appendStmt(preamble,
-                    std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDeltaDiffMinusAppliedRelation(rel)->clone()),
+                    std::make_unique<RamRelationLoad>(std::unique_ptr<RamRelationReference>(translateDeltaDiffMinusAppliedRelation(rel)->clone()),
                             std::unique_ptr<RamRelationReference>(translateDeltaRelation(rel)->clone())));
             appendStmt(preamble,
                     std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDeltaDiffMinusAppliedRelation(rel)->clone()),
