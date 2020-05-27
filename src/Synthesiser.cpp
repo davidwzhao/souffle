@@ -2327,6 +2327,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     int relCtr = 0;
     std::string tempType;  // string to hold the type of the temporary relations
     std::string diffAppliedType;
+    std::string diffMinusAppliedType;
     std::set<std::string> storeRelations;
     std::set<std::string> loadRelations;
     visitDepthFirst(*(prog.getMain()),
@@ -2366,7 +2367,10 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         std::string type;
 
         if (Global::config().has("incremental")) {
-            bool isDiffApplied = raw_name.find("diff_minus_applied@") != std::string::npos;
+            bool isDiffMinusApplied = raw_name.find("diff_minus_applied@") != std::string::npos;
+            bool isDiffApplied = raw_name.find("diff_applied@") != std::string::npos;
+
+            // we consider diff_applied to be normal also
             bool isNormalRelation = raw_name.find("diff_minus@") == std::string::npos && raw_name.find("diff_plus@") == std::string::npos && raw_name.find("applied@") == std::string::npos; // && raw_name.find("@delta") != std::string::npos;
             bool isSpecial = raw_name.find("@max_iter") != std::string::npos || raw_name.find("@indexed") != std::string::npos;
 
@@ -2379,9 +2383,23 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
                 diffAppliedType = relationType->getTypeName();
             }
 
+            // set diffMinusAppliedType
+            if (isDiffMinusApplied) {
+                diffMinusAppliedType = relationType->getTypeName();
+
+                // if it's delta, then use the same type as diff_applied
+                if (rel.isTemp()) {
+                    type = diffAppliedType;
+                }
+            }
+
             // if it's a normal relation, we want to use the same type as diff_applied
             if (isNormalRelation && !isSpecial) {
-                type = diffAppliedType;
+                if (rel.isTemp()) {
+                    type = diffAppliedType;
+                } else {
+                    type = diffMinusAppliedType;
+                }
             }
         } else {
             bool isDelta = rel.isTemp() && raw_name.find("@delta") != std::string::npos;
