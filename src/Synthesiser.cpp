@@ -449,6 +449,49 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             PRINT_END_COMMENT(out);
         }
 
+        void visitUpdateMerge(const RamUpdateMerge& merge, std::ostream& out) override {
+            PRINT_BEGIN_COMMENT(out);
+            size_t arity = merge.getTargetRelation().getArity();
+            auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getTargetRelation()) + ")";
+
+            int searchSignature = isa->getSearchSignature(&merge);
+
+            out << "{\n";
+
+            out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getTargetRelation()) << "," << synthesiser.getRelationName(merge.getTargetRelation()) << "->createContext());\n";
+
+            out << "for (const auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
+            out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getTargetRelation()) << "->equalRange_" << searchSignature;
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 3; i++) {
+                out << "tup[" << i << "]";
+                out << ",";
+            }
+
+            // extra 0s for incremental annotations
+            out << "0,0,0";
+            out << "}}, " << ctxName << ");\n";
+
+            out << "for (const auto& existingTup : existenceCheck) {\n";
+            out << "if (existingTup[" << arity - 3 << "] > tup[" << arity - 3 << "]) {\n";
+            out << "auto updateTuple = existingTup;\n";
+            out << "updateTuple[" << arity - 1 << "] = 0;\n";
+            out << "updateTuple[" << arity - 2 << "] = 0;\n";
+
+            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(updateTuple," << ctxName << ");\n";
+            out << "}\n";
+
+            out << "}\n"; // end of for existingTup
+
+            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup," << ctxName << ");\n";
+
+            out << "}\n"; // end of for tup
+
+            out << "}\n"; // end of inner context
+
+            PRINT_END_COMMENT(out);
+        }
+
         void visitExistingMerge(const RamExistingMerge& merge, std::ostream& out) override {
             // ExistingMerge works as follows:
             // ExistingMerge(A, B, C):
@@ -1772,6 +1815,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 // if tuple doesn't exist, then we insert it
                 out << "if (existenceCheck.empty()) return false;\n";
 
+                /*
                 // otherwise, only insert if all tuples have zero count
                 // iterate through all tuples matching the payload
                 out << "for (auto& tup : existenceCheck) {\n";
@@ -1784,6 +1828,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 visit(*iteration, out);
                 out << ") return false;\n";
                 out << "}\n";
+                */
 
                 // otherwise, only insert if all tuples have zero count
                 // iterate through all tuples matching the payload

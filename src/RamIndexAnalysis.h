@@ -369,11 +369,18 @@ public:
     SearchSignature getSearchSignature(const RamSubsumptionExistenceCheck* existCheck) const;
 
     /**
-     * @Brief Get the index signature for a provenance existence check
-     * @param Subsumption-existence check
-     * @result index signature of provenance-existence check
+     * @Brief Get the index signature for a positive merge, which merges tuples only in the current iteration
+     * @param Positive merge
+     * @result index signature of Positive merge
      */
     SearchSignature getSearchSignature(const RamPositiveMerge* semiMerge) const;
+
+    /**
+     * @Brief Get the index signature for a updating merge
+     * @param Updater merge
+     * @result index signature of updating merge
+     */
+    SearchSignature getSearchSignature(const RamUpdateMerge* semiMerge) const;
 
     /**
      * @Brief Get the index signature for a provenance existence check

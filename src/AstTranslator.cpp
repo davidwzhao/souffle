@@ -561,8 +561,6 @@ std::unique_ptr<AstClause> AstTranslator::ClauseTranslator::getReorderedClause(
         // get the imposed order
         const auto& order = plan->getOrderFor(version, version2);
 
-        std::cout << "plan order: " << order << std::endl;
-
         // create a copy and fix order
         std::unique_ptr<AstClause> reorderedClause(clause.clone());
 
@@ -814,8 +812,6 @@ std::unique_ptr<RamStatement> AstTranslator::ClauseTranslator::translateClause(
         return translateClause(*reorderedClause, originalClause, version, version2);
     }
 
-    std::cout << "translating version " << version << "," << version2 << " clause: " << clause << std::endl;
-
     // get extract some details
     const AstAtom* head = clause.getHead();
 
@@ -992,8 +988,6 @@ std::unique_ptr<RamStatement> AstTranslator::ClauseTranslator::translateClause(
         isInsertionRule = (*curCountNum == AstNumberConstant(1)) && (*prevCountNum == AstNumberConstant(0));
     }
 
-    std::cout << "clause: " << clause << std::endl;
-
     // build operation bottom-up
     while (!op_nesting.empty()) {
         // get next operator
@@ -1021,8 +1015,6 @@ std::unique_ptr<RamStatement> AstTranslator::ClauseTranslator::translateClause(
                     isAllArgsUnnamed = false;
                 }
             }
-
-            std::cout << "level " << level << " atom: " << *atom << std::endl;
 
             // assume any added negation searches are at the end of the rule, so level < version2 - 1 should only hold for originally positive atoms in the body
             if (isInsertionRule && version2 > 1 && level < version2 - 1) {
@@ -1134,7 +1126,6 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
             } else {
                 result = std::make_unique<AstDisjunctionConstraint>(std::move(result), std::unique_ptr<AstConstraint>(cur->clone()));
             }
-            std::cout << "cur: " << *cur << " res: " << *result << std::endl;
         }
         return result;
     };
@@ -2132,7 +2123,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             std::make_unique<RamMerge>(
                                     std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateNewDiffMinusRelation(rel)->clone())),
-                            std::make_unique<RamMerge>(
+                            std::make_unique<RamUpdateMerge>(
                                     std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateNewDiffPlusRelation(rel)->clone())),
 
@@ -2340,7 +2331,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                     std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
                             std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(rel)->clone())));
             appendStmt(preamble,
-                    std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
+                    std::make_unique<RamUpdateMerge>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
                             std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(rel)->clone())));
 
             /*
@@ -4657,7 +4648,7 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                                 std::unique_ptr<RamRelationReference>(translateRelation(relation))
                                 ));
                                 */
-                    appendStmt(current, std::make_unique<RamMerge>(
+                    appendStmt(current, std::make_unique<RamUpdateMerge>(
                                 std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)),
                                 std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(relation))
                                 ));

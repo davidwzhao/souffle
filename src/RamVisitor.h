@@ -134,6 +134,7 @@ struct RamVisitor : public ram_visitor_tag {
         FORWARD(Merge);
         FORWARD(RelationLoad);
         FORWARD(PositiveMerge);
+        FORWARD(UpdateMerge);
         FORWARD(ExistingMerge);
         FORWARD(SemiMerge);
         FORWARD(Swap);
@@ -184,6 +185,7 @@ protected:
     LINK(Merge, BinRelationStatement);
     LINK(RelationLoad, BinRelationStatement);
     LINK(PositiveMerge, BinRelationStatement);
+    LINK(UpdateMerge, BinRelationStatement);
     LINK(ExistingMerge, BinRelationStatement);
     LINK(SemiMerge, BinRelationStatement);
     LINK(Swap, BinRelationStatement);

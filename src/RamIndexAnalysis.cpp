@@ -293,6 +293,9 @@ void RamIndexAnalysis::run(const RamTranslationUnit& translationUnit) {
         } else if (const auto* posiMerge = dynamic_cast<const RamPositiveMerge*>(&node)) {
             MinIndexSelection& indexes = getIndexes(posiMerge->getSourceRelation());
             indexes.addSearch(getSearchSignature(posiMerge));
+        } else if (const auto* updateMerge = dynamic_cast<const RamUpdateMerge*>(&node)) {
+            MinIndexSelection& indexes = getIndexes(updateMerge->getTargetRelation());
+            indexes.addSearch(getSearchSignature(updateMerge));
         } else if (const auto* posiMerge = dynamic_cast<const RamExistingMerge*>(&node)) {
             MinIndexSelection& indexes = getIndexes(posiMerge->getExistingRelation());
             indexes.addSearch(getSearchSignature(posiMerge));
@@ -445,6 +448,17 @@ SearchSignature RamIndexAnalysis::getSearchSignature(
     */
 
     res |= (1 << (posiMerge->getSourceRelation().getArity() - 3));
+    return res;
+}
+
+SearchSignature RamIndexAnalysis::getSearchSignature(
+        const RamUpdateMerge* updateMerge) const {
+    SearchSignature res = 0;
+    // - 3 because we don't want the iteration number
+    for (size_t i = 0; i < updateMerge->getTargetRelation().getArity() - 3; i++) {
+        res |= (1 << i);
+    }
+
     return res;
 }
 

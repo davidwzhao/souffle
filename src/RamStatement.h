@@ -449,6 +449,55 @@ protected:
 };
 
 /**
+ * @class RamUpdateMerge
+ * @brief Merge tuples from a source into target relation, 
+ * but only tuples that do not exist in a third relation.
+ *
+ * Note that semantically uniqueness of tuples is not checked.
+ *
+ * The following example merges A \ C into B:
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * POSIMERGE B WITH A IF NOT C
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ */
+class RamUpdateMerge : public RamBinRelationStatement {
+public:
+    RamUpdateMerge(std::unique_ptr<RamRelationReference> tRef, std::unique_ptr<RamRelationReference> sRef)
+            : RamBinRelationStatement(std::move(sRef), std::move(tRef)) {
+    }
+
+    /** @brief Get source relation */
+    const RamRelation& getSourceRelation() const {
+        return getFirstRelation();
+    }
+
+    /** @brief Get target relation */
+    const RamRelation& getTargetRelation() const {
+        return getSecondRelation();
+    }
+
+    void print(std::ostream& os, int tabpos) const override {
+        os << times(" ", tabpos);
+        os << "UPDATEMERGE " << getTargetRelation().getName() << " WITH " << getSourceRelation().getName();
+        os << std::endl;
+    }
+
+    RamUpdateMerge* clone() const override {
+        auto* res = new RamUpdateMerge(std::unique_ptr<RamRelationReference>(second->clone()),
+                std::unique_ptr<RamRelationReference>(first->clone()));
+        return res;
+    }
+
+protected:
+    bool equal(const RamNode& node) const override {
+        bool res = RamBinRelationStatement::equal(node);
+        assert(nullptr != dynamic_cast<const RamUpdateMerge*>(&node));
+        const auto& other = static_cast<const RamUpdateMerge&>(node);
+        return res;
+    }
+};
+
+/**
  * @class RamExistingMerge
  * @brief Merge tuples from a source into target relation, 
  * but only tuples that don't exist in an earlier iteration in the third relation.
