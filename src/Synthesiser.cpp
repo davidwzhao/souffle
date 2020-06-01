@@ -2378,28 +2378,35 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
                     rel, idxAnalysis->getIndexes(rel), true && !isSpecial);
             type = relationType->getTypeName();
 
+            /*
             // set diffAppliedType
             if (isDiffApplied) {
                 diffAppliedType = relationType->getTypeName();
             }
+            */
 
             // set diffMinusAppliedType
             if (isDiffMinusApplied) {
                 diffMinusAppliedType = relationType->getTypeName();
 
+                /*
                 // if it's delta, then use the same type as diff_applied
                 if (rel.isTemp()) {
                     type = diffAppliedType;
                 }
+                */
             }
 
             // if it's a normal relation, we want to use the same type as diff_applied
             if (isNormalRelation && !isSpecial) {
+                /*
                 if (rel.isTemp()) {
                     type = diffAppliedType;
                 } else {
+                */
                     type = diffMinusAppliedType;
-                }
+                // }
+
             }
         } else {
             bool isDelta = rel.isTemp() && raw_name.find("@delta") != std::string::npos;
