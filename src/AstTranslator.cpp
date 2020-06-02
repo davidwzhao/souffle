@@ -1316,6 +1316,17 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
 
                         cl->clearNegations();
 
+                        // set an execution plan so the diff_plus version of the relation is evaluated first
+                        auto plan = std::make_unique<AstExecutionPlan>();
+                        AstExecutionOrder order;
+                        order.appendAtomIndex(i);
+                        for (size_t j = 0; j < cl->getAtoms().size(); j++) {
+                            if (j != i) order.appendAtomIndex(j);
+                        }
+
+                        plan->setOrderFor(0, i, std::unique_ptr<AstExecutionOrder>(&order));
+                        cl->setExecutionPlan(std::move(plan));
+
                         std::cout << "non-recursive: " << *cl << std::endl;
 
                         // translate cl
@@ -1439,6 +1450,17 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
 
 
                         cl->clearNegations();
+
+                        // set an execution plan so the diff_plus version of the relation is evaluated first
+                        auto plan = std::make_unique<AstExecutionPlan>();
+                        AstExecutionOrder order;
+                        order.appendAtomIndex(i);
+                        for (size_t j = 0; j < cl->getAtoms().size(); j++) {
+                            if (j != i) order.appendAtomIndex(j);
+                        }
+
+                        plan->setOrderFor(0, i, std::unique_ptr<AstExecutionOrder>(&order));
+                        cl->setExecutionPlan(std::move(plan));
 
                         std::cout << "non-recursive: " << *cl << std::endl;
 
@@ -1644,6 +1666,17 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
 
                         cl->clearNegations();
 
+                        // set an execution plan so the diff_minus version of the relation is evaluated first
+                        auto plan = std::make_unique<AstExecutionPlan>();
+                        AstExecutionOrder order;
+                        order.appendAtomIndex(i);
+                        for (size_t j = 0; j < cl->getAtoms().size(); j++) {
+                            if (j != i) order.appendAtomIndex(j);
+                        }
+
+                        plan->setOrderFor(0, i, std::unique_ptr<AstExecutionOrder>(&order));
+                        cl->setExecutionPlan(std::move(plan));
+
                         std::cout << "non-recursive: " << *cl << std::endl;
 
                         // translate cl
@@ -1771,6 +1804,17 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                         }
 
                         cl->clearNegations();
+
+                        // set an execution plan so the diff_minus version of the relation is evaluated first
+                        auto plan = std::make_unique<AstExecutionPlan>();
+                        AstExecutionOrder order;
+                        order.appendAtomIndex(i);
+                        for (size_t j = 0; j < cl->getAtoms().size(); j++) {
+                            if (j != i) order.appendAtomIndex(j);
+                        }
+
+                        plan->setOrderFor(0, i, std::unique_ptr<AstExecutionOrder>(&order));
+                        cl->setExecutionPlan(std::move(plan));
 
                         std::cout << "non-recursive: " << *cl << std::endl;
 
