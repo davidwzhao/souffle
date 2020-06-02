@@ -4003,16 +4003,33 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalCleanupSubroutine(co
             updateTuple.push_back(std::make_unique<RamTupleElement>(0, i));
         }
 
+        /*
         // insert -1 for both counts
         updateTuple.push_back(std::make_unique<RamTupleElement>(0, relation->getArity() - 1));
         updateTuple.push_back(std::make_unique<RamTupleElement>(0, relation->getArity() - 1));
+        */
+
+        // insert -1 for both counts
+        updateTuple.push_back(std::make_unique<RamNumber>(-1));
+        updateTuple.push_back(std::make_unique<RamNumber>(-1));
 
         // create the projection
-        auto insertUpdate = std::make_unique<RamProject>(std::unique_ptr<RamRelationReference>(relationReference->clone()), std::move(updateTuple));
+        auto insertUpdate = std::make_unique<RamProject>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)->clone()), std::move(updateTuple));
+
+        // create a filter so we only update if the counts didn't match originally
+        auto insertUpdateFilter = std::make_unique<RamFilter>(std::make_unique<RamConstraint>(BinaryConstraintOp::NE,
+                    std::make_unique<RamTupleElement>(0, relation->getArity() - 2),
+                    std::make_unique<RamTupleElement>(0, relation->getArity() - 1)),
+                std::move(insertUpdate));
+
 
         // create the scan
-        auto cleanupScan = std::make_unique<RamScan>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)->clone()), 0, std::move(insertUpdate));
+        auto cleanupScan = std::make_unique<RamScan>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)->clone()), 0, std::move(insertUpdateFilter));
         appendStmt(cleanupSequence, std::make_unique<RamQuery>(std::move(cleanupScan)));
+
+        appendStmt(cleanupSequence, std::make_unique<RamRelationLoad>(
+                    std::unique_ptr<RamRelationReference>(translateRelation(relation)->clone()),
+                    std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation))));
 
         // appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)->clone())));
 

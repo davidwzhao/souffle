@@ -350,8 +350,14 @@ std::unique_ptr<RamExpression> MakeIndexTransformer::getExpression(
                 const RamExpression* rhs = &binRelOp->getRHS();
                 if (lhs->getTupleId() == identifier && rla->getLevel(rhs) < identifier) {
                     element = lhs->getElement();
-                    if (element < rel.getArity() - 2) {
-                        return std::unique_ptr<RamExpression>(rhs->clone());
+                    if (identifier > 0) {
+                        if (element < rel.getArity() - 2) {
+                            return std::unique_ptr<RamExpression>(rhs->clone());
+                        }
+                    } else {
+                        if (element < rel.getArity() - 3) {
+                            return std::unique_ptr<RamExpression>(rhs->clone());
+                        }
                     }
                 }
             }
@@ -359,8 +365,14 @@ std::unique_ptr<RamExpression> MakeIndexTransformer::getExpression(
                 const RamExpression* lhs = &binRelOp->getLHS();
                 if (rhs->getTupleId() == identifier && rla->getLevel(lhs) < identifier) {
                     element = rhs->getElement();
-                    if (element < rel.getArity() - 2) {
-                        return std::unique_ptr<RamExpression>(lhs->clone());
+                    if (identifier > 0) {
+                        if (element < rel.getArity() - 2) {
+                            return std::unique_ptr<RamExpression>(lhs->clone());
+                        }
+                    } else {
+                        if (element < rel.getArity() - 3) {
+                            return std::unique_ptr<RamExpression>(lhs->clone());
+                        }
                     }
                 }
             }
