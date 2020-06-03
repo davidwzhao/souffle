@@ -393,6 +393,18 @@ private:
     std::unique_ptr<RamStatement> translateRecursiveRelation(
             const std::set<const AstRelation*>& scc, const RecursiveClauses* recursiveClauses, int indexOfScc);
 
+    /**
+     * translate RAM code for the non-recursive clauses of the given relation for the incremental update.
+     *
+     * @return a corresponding statement or null if there are no non-recursive clauses.
+     */
+    std::unique_ptr<RamStatement> translateUpdateNonRecursiveRelation(
+            const AstRelation& rel, const RecursiveClauses* recursiveClauses);
+
+    /** translate RAM code for recursive relations in a strongly-connected component */
+    std::unique_ptr<RamStatement> translateUpdateRecursiveRelation(
+            const std::set<const AstRelation*>& scc, const RecursiveClauses* recursiveClauses, int indexOfScc);
+
     /** translate RAM code for subroutine to get subproofs */
     std::unique_ptr<RamStatement> makeIncrementalCleanupSubroutine(const AstProgram& program);
 
@@ -410,6 +422,9 @@ private:
 
     /** translate AST to RAM Program */
     void translateProgram(const AstTranslationUnit& translationUnit);
+
+    /** translate AST to RAM Program for an incremental update */
+    void translateUpdateProgram(const AstTranslationUnit& translationUnit);
 };
 
 }  // end of namespace souffle
