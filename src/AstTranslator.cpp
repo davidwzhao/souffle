@@ -517,11 +517,6 @@ std::unique_ptr<AstClause> AstTranslator::ClauseTranslator::getReorderedClause(
         const AstClause& clause, const int version, const int version2) const {
     const auto plan = clause.getExecutionPlan();
 
-    std::cout << "reordering version: " << version << ", version2: " << version2 << std::endl;
-    if (plan != nullptr) {
-        std::cout << "plan: " << *plan << std::endl;
-    }
-
     // check whether there is an imposed order constraint
     if (plan != nullptr && plan->hasOrderFor(version, version2)) {
         // get the imposed order
@@ -2231,7 +2226,6 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
             } else {
                 result = std::make_unique<AstDisjunctionConstraint>(std::move(result), std::unique_ptr<AstConstraint>(cur->clone()));
             }
-            std::cout << "cur: " << *cur << " res: " << *result << std::endl;
         }
         return result;
     };
@@ -2591,7 +2585,6 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                         for (unsigned int k = 0; k < atoms.size(); k++) {
                             reordering.push_back(k);
                         }
-                        std::cout << "recursive re-insertion: " << *r1 << " reorder: " << reordering << std::endl;
                         r1->reorderAtoms(reordering);
 
 
@@ -3377,7 +3370,6 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
             } else {
                 result = std::make_unique<AstDisjunctionConstraint>(std::move(result), std::unique_ptr<AstConstraint>(cur->clone()));
             }
-            std::cout << "cur: " << *cur << " res: " << *result << std::endl;
         }
         return result;
     };
@@ -3737,7 +3729,6 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                         for (unsigned int k = 0; k < atoms.size(); k++) {
                             reordering.push_back(k);
                         }
-                        std::cout << "recursive re-insertion: " << *r1 << " reorder: " << reordering << std::endl;
                         r1->reorderAtoms(reordering);
 
 
@@ -4597,6 +4588,175 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalCleanupSubroutine(co
     return cleanupSequence;
 }
 
+std::unique_ptr<RamStatement> AstTranslator::makeIncrementalUpdateCleanupSubroutine(const AstProgram& program) {
+    // create a RamSequence for cleaning up all relations
+    std::unique_ptr<RamStatement> cleanupSequence;
+
+    /* construct exit conditions for odd and even iteration */
+    auto addCondition = [](std::unique_ptr<RamCondition>& cond, std::unique_ptr<RamCondition> clause) {
+        cond = ((cond) ? std::make_unique<RamConjunction>(std::move(cond), std::move(clause))
+                       : std::move(clause));
+    };
+
+    for (const auto& relation : program.getRelations()) {
+
+        // make a RamRelationReference to be used to build the subroutine
+        auto relationReference = translateRelation(relation);
+
+        appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateRelation(relation)->clone())));
+
+        // update every tuple in diff_applied relation so that the previous and current counts match
+        // FOR t0 in diff_plus_relation:
+        //   INSERT (t0.0, t0.2, ..., -1, -1) into diff_applied_relation
+        // we scan over diff_plus because we only want to update the tuples that have changed this epoch
+        // insert -1 as both counts and handle this case in the B-Tree update method
+        {
+            // the subroutine needs to be built from inside out
+            // build the insertion step first
+            std::vector<std::unique_ptr<RamExpression>> updateTuple;
+            
+            // insert the original tuple
+            for (size_t i = 0; i < relation->getArity() - 2; i++) {
+                updateTuple.push_back(std::make_unique<RamTupleElement>(0, i));
+            }
+
+            // insert -1 for both counts
+            updateTuple.push_back(std::make_unique<RamNumber>(-1));
+            updateTuple.push_back(std::make_unique<RamNumber>(-1));
+
+            // create the projection into diff_applied
+            auto insertUpdate = std::make_unique<RamProject>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)->clone()), std::move(updateTuple));
+
+
+            // create the scan over diff_plus
+            auto cleanupScan = std::make_unique<RamScan>(std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(relation)->clone()), 0, std::move(insertUpdate));
+            appendStmt(cleanupSequence, std::make_unique<RamQuery>(std::move(cleanupScan)));
+        }
+
+        // update every tuple in diff_applied relation so that the previous and current counts match
+        // FOR t0 in diff_minus_relation:
+        //   INSERT (t0.0, t0.2, ..., -1, -1) into diff_applied_relation
+        // we scan over diff_minus because we only want to update the tuples that have changed this epoch
+        // insert -1 as both counts and handle this case in the B-Tree update method
+        {
+            // the subroutine needs to be built from inside out
+            // build the insertion step first
+            std::vector<std::unique_ptr<RamExpression>> updateTuple;
+            
+            // insert the original tuple
+            for (size_t i = 0; i < relation->getArity() - 2; i++) {
+                updateTuple.push_back(std::make_unique<RamTupleElement>(0, i));
+            }
+
+            // insert -1 for both counts
+            updateTuple.push_back(std::make_unique<RamNumber>(-1));
+            updateTuple.push_back(std::make_unique<RamNumber>(-1));
+
+            // create the projection into diff_applied
+            auto insertUpdate = std::make_unique<RamProject>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)->clone()), std::move(updateTuple));
+
+
+            // create the scan over diff_minus
+            auto cleanupScan = std::make_unique<RamScan>(std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(relation)->clone()), 0, std::move(insertUpdate));
+            appendStmt(cleanupSequence, std::make_unique<RamQuery>(std::move(cleanupScan)));
+        }
+
+        /*
+        // update every tuple in relation to match diff_applied_relation
+        // FOR t0 in diff_plus_relation:
+        //   FOR t1 in diff_applied_relation:
+        //     IF t0.payload = t1.payload:
+        //       INSERT t1 into relation
+        // we scan over diff_plus because we only want to update the tuples that have changed this epoch
+        // insert -1 as both counts and handle this case in the B-Tree update method
+        {
+            // the subroutine needs to be built from inside out
+            // build the insertion step first
+            std::vector<std::unique_ptr<RamExpression>> updateTuple;
+            
+            // insert the original tuple
+            for (size_t i = 0; i < relation->getArity() - 2; i++) {
+                updateTuple.push_back(std::make_unique<RamTupleElement>(1, i));
+            }
+
+            // duplicate the current count
+            updateTuple.push_back(std::make_unique<RamTupleElement>(1, relation->getArity() - 1));
+            updateTuple.push_back(std::make_unique<RamTupleElement>(1, relation->getArity() - 1));
+
+            // create the projection into diff_applied
+            auto insertUpdate = std::make_unique<RamProject>(std::unique_ptr<RamRelationReference>(translateRelation(relation)->clone()), std::move(updateTuple));
+
+            // create a filter so we only update if the tuple is the same as the outermost loop
+            std::unique_ptr<RamCondition> insertUpdateFilterCondition;
+
+            for (size_t i = 0; i < relation->getArity() - 2; i++) {
+                addCondition(insertUpdateFilterCondition, std::make_unique<RamConstraint>(BinaryConstraintOp::EQ, std::make_unique<RamTupleElement>(1, i), std::make_unique<RamTupleElement>(0, i)));
+            }
+
+            auto insertUpdateFilter = std::make_unique<RamFilter>(std::move(insertUpdateFilterCondition), std::move(insertUpdate));
+
+            // create the scan over diff_plus
+            auto insertScan = std::make_unique<RamScan>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)->clone()), 1, std::move(insertUpdateFilter));
+
+            // create the scan over diff_plus
+            auto cleanupScan = std::make_unique<RamScan>(std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(relation)->clone()), 0, std::move(insertScan));
+            appendStmt(cleanupSequence, std::make_unique<RamQuery>(std::move(cleanupScan)));
+        }
+
+        // update every tuple in relation to match diff_applied_relation
+        // FOR t0 in diff_minus_relation:
+        //   FOR t1 in diff_applied_relation:
+        //     IF t0.payload = t1.payload:
+        //       INSERT t1 into relation
+        // we scan over diff_minus because we only want to update the tuples that have changed this epoch
+        // insert -1 as both counts and handle this case in the B-Tree update method
+        {
+            // the subroutine needs to be built from inside out
+            // build the insertion step first
+            std::vector<std::unique_ptr<RamExpression>> updateTuple;
+            
+            // insert the original tuple
+            for (size_t i = 0; i < relation->getArity() - 2; i++) {
+                updateTuple.push_back(std::make_unique<RamTupleElement>(1, i));
+            }
+
+            // duplicate the current count
+            updateTuple.push_back(std::make_unique<RamTupleElement>(1, relation->getArity() - 1));
+            updateTuple.push_back(std::make_unique<RamTupleElement>(1, relation->getArity() - 1));
+
+            // create the projection into diff_applied
+            auto insertUpdate = std::make_unique<RamProject>(std::unique_ptr<RamRelationReference>(translateRelation(relation)->clone()), std::move(updateTuple));
+
+            // create a filter so we only update if the tuple is the same as the outermost loop
+            std::unique_ptr<RamCondition> insertUpdateFilterCondition;
+
+            for (size_t i = 0; i < relation->getArity() - 2; i++) {
+                addCondition(insertUpdateFilterCondition, std::make_unique<RamConstraint>(BinaryConstraintOp::EQ, std::make_unique<RamTupleElement>(1, i), std::make_unique<RamTupleElement>(0, i)));
+            }
+
+            auto insertUpdateFilter = std::make_unique<RamFilter>(std::move(insertUpdateFilterCondition), std::move(insertUpdate));
+
+            // create the scan over diff_plus
+            auto insertScan = std::make_unique<RamScan>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)->clone()), 1, std::move(insertUpdateFilter));
+
+            // create the scan over diff_plus
+            auto cleanupScan = std::make_unique<RamScan>(std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(relation)->clone()), 0, std::move(insertScan));
+            appendStmt(cleanupSequence, std::make_unique<RamQuery>(std::move(cleanupScan)));
+        }
+        */
+
+        appendStmt(cleanupSequence, std::make_unique<RamRelationLoad>(
+                    std::unique_ptr<RamRelationReference>(translateRelation(relation)->clone()),
+                    std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation))));
+
+        appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(relation)->clone())));
+        appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(relation)->clone())));
+        appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffMinusAppliedRelation(relation)->clone())));
+    }
+
+    return cleanupSequence;
+}
+
 std::unique_ptr<RamStatement> AstTranslator::makeIncrementalExitCondSubroutine(const RamRelationReference& maxIterRelationRef) {
     // we want a subroutine that looks like:
     // FOR t0 in maxIterRel:
@@ -5422,7 +5582,7 @@ void AstTranslator::translateUpdateProgram(const AstTranslationUnit& translation
         // add the cleanup subroutine
         if (Global::config().has("incremental") && indexOfScc == sccGraph.getNumberOfSCCs() - 1) {
             // make subroutine condition, don't actually use return value
-            auto cleanupCond = std::make_unique<RamSubroutineCondition>("incremental_cleanup");
+            auto cleanupCond = std::make_unique<RamSubroutineCondition>("incremental_update_cleanup");
 
             // put it into a RamExit
             appendStmt(current, std::make_unique<RamExit>(std::move(cleanupCond), false));
@@ -5485,12 +5645,10 @@ void AstTranslator::translateUpdateProgram(const AstTranslationUnit& translation
     */
 
     // this is already created in translateProgram
-    /*
     // add cleanup subroutine for incremental
     if (Global::config().has("incremental")) {
-        ramProg->addSubroutine("incremental_cleanup", makeIncrementalCleanupSubroutine(*translationUnit.getProgram()));
+        ramProg->addSubroutine("incremental_update_cleanup", makeIncrementalUpdateCleanupSubroutine(*translationUnit.getProgram()));
     }
-    */
 }
 
 std::unique_ptr<RamTranslationUnit> AstTranslator::translateUnit(AstTranslationUnit& tu) {

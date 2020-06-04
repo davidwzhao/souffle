@@ -250,6 +250,14 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
             out << "return true;\n";
             out << "}\n";
 
+            /*
+            out << "if (new_t[" << arity - 2 << "] == new_t[" << arity - 1 << "]) {\n";
+            out << "old_t[" << arity - 2 << "] = new_t[" << arity - 2 << "];\n";
+            out << "old_t[" << arity - 1 << "] = new_t[" << arity - 1 << "];\n";
+            out << "return true;\n";
+            out << "}\n";
+            */
+
             if (relation.getName().find("applied@") != std::string::npos) {
                 out << "if (new_t[" << arity - 1 << "] == 0 && new_t[" << arity - 2 << "] == 0) {\n";
                 out << "old_t[" << arity - 2 << "] = 0;\n";
@@ -292,8 +300,10 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
 
             // out << "return false;\n";
 
-            out << "old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
-            out << "return true;\n";
+            if (relation.getName().find("@") != std::string::npos) {
+                out << "old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
+                out << "return true;\n";
+            }
             out << "}\n";
             out << "};\n";
         } else {

@@ -2987,7 +2987,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     }
 
     if (Global::config().has("incremental")) {
-        os << "startIncremental(obj);\n";
+        os << "startIncremental(obj, opt);\n";
     }
     os << "return 0;\n";
     os << "} catch(std::exception &e) { souffle::SignalHandler::instance()->error(e.what());}\n";

@@ -22,6 +22,8 @@
 #include <string>
 #include <unistd.h>
 
+#include "CompiledOptions.h"
+#include "ProfileEvent.h"
 #include "SouffleInterface.h"
 #include "WriteStreamCSV.h"
 
@@ -30,8 +32,9 @@ namespace souffle {
 class Incremental {
 public:
     SouffleProgram& prog;
+    CmdOptions& opt;
 
-    Incremental(SouffleProgram& prog) : prog(prog), currentEpoch(0) {}
+    Incremental(SouffleProgram& prog, CmdOptions& opt) : prog(prog), opt(opt), currentEpoch(0) {}
     ~Incremental() = default;
 
     /* Process a command, a return value of true indicates to continue, returning false indicates to break (if
@@ -136,10 +139,20 @@ private:
     }
 
     void commit() {
+        if (opt.isProfiling()) {
+            std::cout << "profile filename: " << opt.getProfileName() << std::endl;
+            ProfileEventSingleton::instance().setOutputFile(opt.getProfileName() + std::to_string(currentEpoch));
+            ProfileEventSingleton::instance().clear();
+        }
         std::vector<RamDomain> args;
         std::vector<RamDomain> ret;
         std::vector<bool> retErr;
         prog.executeSubroutine("update", args, ret, retErr);
+
+        if (opt.isProfiling()) {
+            ProfileEventSingleton::instance().stopTimer();
+            ProfileEventSingleton::instance().dump();
+        }
     }
 
     void insertTuple(const std::string& relName, std::vector<std::string> tup) {
@@ -254,8 +267,8 @@ private:
 
 };
 
-inline void startIncremental(SouffleProgram& prog) {
-    Incremental incr(prog);
+inline void startIncremental(SouffleProgram& prog, CmdOptions& opt) {
+    Incremental incr(prog, opt);
     incr.startIncremental();
 }
 
