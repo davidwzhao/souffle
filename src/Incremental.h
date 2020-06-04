@@ -93,7 +93,7 @@ public:
             }
 
             // print all tuples - just for debugging for now
-            prog.printAll();
+            // prog.printAll();
         }
     }
 
