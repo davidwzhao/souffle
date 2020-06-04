@@ -136,7 +136,10 @@ private:
     }
 
     void commit() {
-        prog.run();
+        std::vector<RamDomain> args;
+        std::vector<RamDomain> ret;
+        std::vector<bool> retErr;
+        prog.executeSubroutine("update", args, ret, retErr);
     }
 
     void insertTuple(const std::string& relName, std::vector<std::string> tup) {

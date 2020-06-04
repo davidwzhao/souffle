@@ -829,6 +829,19 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
         void visitStratum(const RamStratum& stratum, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
+            out << "/* BEGIN STRATUM " << stratum.getIndex() << " */\n";
+            if (Global::config().has("engine")) {
+                // go to the stratum with the max value for int as a suffix if calling the master stratum
+                auto i = stratum.getIndex();
+                out << "STRATUM_" << i << ":\n";
+            }
+            out << "[&]() {\n";
+            visit(stratum.getBody(), out);
+            out << "}();\n";
+            if (Global::config().has("engine")) {
+                out << "if (stratumIndex != (size_t) -1) goto EXIT;\n";
+            }
+            out << "/* END STRATUM " << stratum.getIndex() << " */\n";
             PRINT_END_COMMENT(out);
         }
 
@@ -2547,25 +2560,27 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         os << "int epochNumber = 0;\n";
     }
 
+    os << "private:\n";
+    // issue state variables for the evaluation
+    os << "std::string inputDirectory;\n";
+    os << "std::string outputDirectory;\n";
+    os << "bool performIO;\n";
+    os << "std::atomic<RamDomain> ctr{};\n\n";
+    os << "std::atomic<size_t> iter{};\n";
+
     // -- run function --
     os << "private:\nvoid runFunction(std::string inputDirectory = \".\", "
           "std::string outputDirectory = \".\", size_t stratumIndex = (size_t) -1, bool performIO = false) "
           "{\n";
 
+    os << "this->inputDirectory = inputDirectory;\n";
+    os << "this->outputDirectory = outputDirectory;\n";
+    os << "this->performIO = performIO;\n";
+
     os << "SignalHandler::instance()->set();\n";
     if (Global::config().has("verbose")) {
         os << "SignalHandler::instance()->enableLogging();\n";
     }
-
-    bool hasIncrement = false;
-    visitDepthFirst(*(prog.getMain()), [&](const RamAutoIncrement& inc) { hasIncrement = true; });
-    // initialize counter
-    if (hasIncrement) {
-        os << "// -- initialize counter --\n";
-        os << "std::atomic<RamDomain> ctr(0);\n\n";
-    }
-    os << "std::atomic<size_t> iter(0);\n\n";
-
 
     if (Global::config().has("incremental") && Global::config().has("profile")) {
         os << "ProfileEventSingleton::instance().setOutputFile(profiling_fname + std::to_string(epochNumber++));\n";
@@ -2643,7 +2658,8 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
 
     // Set up stratum
     visitDepthFirst(*(prog.getMain()), [&](const RamStratum& stratum) {
-        os << "/* BEGIN STRATUM " << stratum.getIndex() << " */\n";
+            /*
+        os << "/ * BEGIN STRATUM " << stratum.getIndex() << " * /\n";
         if (Global::config().has("engine")) {
             // go to the stratum with the max value for int as a suffix if calling the master stratum
             auto i = stratum.getIndex();
@@ -2655,7 +2671,10 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         if (Global::config().has("engine")) {
             os << "if (stratumIndex != (size_t) -1) goto EXIT;\n";
         }
-        os << "/* END STRATUM " << stratum.getIndex() << " */\n";
+        os << "/ * END STRATUM " << stratum.getIndex() << " * /\n";
+        */
+
+        emitCode(os, stratum);
     });
 
     if (Global::config().has("engine")) {
