@@ -203,10 +203,12 @@ std::string SynthesiserDirectRelation::getTypeName() {
         res << "_temp";
     }
 
+    /*
     // the diff_applied version should have the same type as the standard relation
     if (relation.getName().find("diff_applied@") != std::string::npos) {
         return res.str();
     }
+    */
     
     if (relation.getName().find("diff_") != std::string::npos) {
         res << "_diff";
@@ -258,7 +260,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
             out << "}\n";
             */
 
-            if (relation.getName().find("applied@") != std::string::npos) {
+            if (relation.getName().find("applied@") != std::string::npos || relation.getName().find("@") == std::string::npos) {
                 out << "if (new_t[" << arity - 1 << "] == 0 && new_t[" << arity - 2 << "] == 0) {\n";
                 out << "old_t[" << arity - 2 << "] = 0;\n";
                 out << "old_t[" << arity - 1 << "] = 0;\n";
@@ -302,6 +304,9 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
 
             if (relation.getName().find("@") != std::string::npos) {
                 out << "old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
+                out << "return true;\n";
+            } else {
+                out << "old_t[" << arity - 1 << "] = new_t[" << arity - 1 << "];\n";
                 out << "return true;\n";
             }
             out << "}\n";
