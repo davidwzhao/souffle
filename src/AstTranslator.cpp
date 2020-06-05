@@ -1211,6 +1211,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                         appendStmt(res, std::move(rule));
                     }
 
+                    /*
                     // TODO: if there is a negation, then we need to add a version of the rule which applies when only the negations apply
                     for (size_t i = 0; i < negations.size(); i++) {
                         // an insertion rule should look as follows:
@@ -1323,7 +1324,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                         // add rule to result
                         appendStmt(res, std::move(rule));
                     }
+                    */
                 } else if (isDeletionRule) {
+                    /*
                     for (size_t i = 0; i < atoms.size(); i++) {
                         // a deletion rule should look as follows:
                         // diff_minus_R :- R_1, R_2, ..., diff_minus_R_i, diff_applied_R_i+1, ..., diff_applied_R_n
@@ -1531,6 +1534,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                         // add rule to result
                         appendStmt(res, std::move(rule));
                     }
+                */
                 }
             }
         } else {
@@ -2418,6 +2422,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                 bool isDeletionRule = (*curCountNum == AstNumberConstant(-1));
 
                 if (isReinsertionRule) {
+                    /*
                     std::unique_ptr<AstClause> rdiff(cl->clone());
 
                     rdiff->getHead()->setName(translateNewDiffPlusRelation(rel)->get()->getName());
@@ -2554,6 +2559,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                         version++;
                     }
+                    */
                 } else {
                     // AstAtom* atom = atoms[j];
                     // const AstRelation* atomRelation = getAtomRelation(atom, program);
@@ -2698,6 +2704,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             diffVersion++;
                         }
 
+                        /*
                         diffVersion = atoms.size() + 1;
                         // TODO: if there is a negation, then we need to add a version of the rule which applies when only the negations apply
                         for (size_t i = 0; i < negations.size(); i++) {
@@ -2850,7 +2857,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             }
                             diffVersion++;
                         }
+                        */
                     } else if (isDeletionRule) {
+                        /*
                         diffVersion = 1;
                         for (size_t i = 0; i < atoms.size(); i++) {
                             // a deletion rule should look as follows:
@@ -3142,6 +3151,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             }
                             diffVersion++;
                         }
+                        */
                     }
                 }
             } else {
