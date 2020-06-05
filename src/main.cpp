@@ -485,9 +485,6 @@ int main(int argc, char** argv) {
     std::unique_ptr<RamTranslationUnit> ramTranslationUnit =
             AstTranslator().translateUnit(*astTranslationUnit);
 
-    std::cout << "RAM PROGRAM: " << std::endl;
-    std::cout << *(ramTranslationUnit->getProgram()) << std::endl;
-
     std::unique_ptr<RamTransformer> ramTransform = std::make_unique<RamTransformerSequence>(
             std::make_unique<RamLoopTransformer>(
                     std::make_unique<RamTransformerSequence>(std::make_unique<MaxMinConditionsTransformer>(),

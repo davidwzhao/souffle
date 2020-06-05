@@ -302,13 +302,15 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
 
             // out << "return false;\n";
 
-            if (relation.getName().find("@") != std::string::npos) {
+            // if (relation.getName().find("@") != std::string::npos) {
                 out << "old_t[" << arity - 1 << "] += new_t[" << arity - 1 << "];\n";
                 out << "return true;\n";
+                /*
             } else {
                 out << "old_t[" << arity - 1 << "] = new_t[" << arity - 1 << "];\n";
                 out << "return true;\n";
             }
+            */
             out << "}\n";
             out << "};\n";
         } else {
