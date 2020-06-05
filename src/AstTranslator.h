@@ -320,10 +320,6 @@ private:
     std::unique_ptr<RamRelationReference> translateNewDiffMinusRelation(const AstRelation* rel);
     std::unique_ptr<RamRelationReference> translateNewDiffPlusRelation(const AstRelation* rel);
 
-    /** translate a temporary `new` relation to a RAM relation for semi-naive evaluation */
-    std::unique_ptr<RamRelationReference> translateDiffMinusAppliedRelation(const AstRelation* rel);
-    std::unique_ptr<RamRelationReference> translateDiffPlusAppliedRelation(const AstRelation* rel);
-
     std::unique_ptr<RamRelationReference> translateDiffAppliedRelation(const AstRelation* rel);
 
     /** translate an AST argument to a RAM value */

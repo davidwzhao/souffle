@@ -2436,18 +2436,19 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
                     rel, idxAnalysis->getIndexes(rel), true && !isSpecial);
             type = relationType->getTypeName();
 
-            /*
             // set diffAppliedType
             if (isDiffApplied) {
                 diffAppliedType = relationType->getTypeName();
             }
 
+            /*
             // set diffMinusAppliedType
             if (isDiffMinusApplied) {
                 // diffMinusAppliedType = relationType->getTypeName();
 
                 type = diffAppliedType;
             }
+            */
 
             // if it's a normal relation, we want to use the same type as diff_applied
             if (isNormalRelation && !isSpecial) {
@@ -2455,7 +2456,6 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
                 // }
 
             }
-            */
         } else {
             bool isDelta = rel.isTemp() && raw_name.find("@delta") != std::string::npos;
             bool isProvInfo = raw_name.find("@info") != std::string::npos;
@@ -2875,11 +2875,11 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         size_t subroutineNum = 0;
         for (auto& sub : prog.getSubroutines()) {
             os << "if (name == \"" << sub.first << "\") {\n"
-               << "auto start = std::chrono::high_resolution_clock::now();\n"
+               // << "auto start = std::chrono::high_resolution_clock::now();\n"
                << "subproof_" << subroutineNum
                << "(args, ret, err);\n"  // subproof_i to deal with special characters in relation names
-               << "auto end = std::chrono::high_resolution_clock::now();\n"
-               << "std::cout << \"" << sub.first << " running time: \" << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << std::endl;\n"
+               // << "auto end = std::chrono::high_resolution_clock::now();\n"
+               // << "std::cout << \"" << sub.first << " running time: \" << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << std::endl;\n"
                << "}\n";
             subroutineNum++;
         }
