@@ -247,10 +247,12 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
             out << "struct updater_" << getTypeName() << " {\n";
             out << "bool update(t_tuple& old_t, const t_tuple& new_t) {\n";
 
+            /*
             out << "if (new_t[" << arity - 2 << "] < 0) {\n";
             out << "old_t[" << arity - 2 << "] = old_t[" << arity - 1 << "];\n";
             out << "return true;\n";
             out << "}\n";
+            */
 
             /*
             out << "if (new_t[" << arity - 2 << "] == new_t[" << arity - 1 << "]) {\n";
@@ -261,8 +263,9 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
             */
 
             if (relation.getName().find("applied@") != std::string::npos || relation.getName().find("@") == std::string::npos) {
-                out << "if (new_t[" << arity - 1 << "] == 0 && new_t[" << arity - 2 << "] == 0) {\n";
-                out << "old_t[" << arity - 2 << "] = 0;\n";
+                // out << "if (new_t[" << arity - 1 << "] == 0 && new_t[" << arity - 2 << "] == 0) {\n";
+                out << "if (new_t[" << arity - 1 << "] == 0) {\n";
+                // out << "old_t[" << arity - 2 << "] = 0;\n";
                 out << "old_t[" << arity - 1 << "] = 0;\n";
                 out << "return true;\n";
                 out << "}\n";
@@ -339,7 +342,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
                 out << ">, std::allocator<t_tuple>, 256, typename "
                        "souffle::detail::default_strategy<t_tuple>::type, index_utils::comparator<";
                 // out << join(ind.begin(), ind.end() - 1 - numberOfHeights) << ">, updater_" << getTypeName()
-                out << join(ind.begin(), ind.end() - 2) << ">, updater_" << getTypeName()
+                out << join(ind.begin(), ind.end() - 1) << ">, updater_" << getTypeName()
                     << ">;\n";
             } else {  // index for top down phase
                 out << "using t_ind_" << i << " = btree_set<t_tuple, index_utils::comparator<" << join(ind);

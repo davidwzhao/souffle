@@ -463,20 +463,20 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "for (const auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
             out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getTargetRelation()) << "->equalRange_" << searchSignature;
             out << "(Tuple<RamDomain," << arity << ">{{";
-            for (size_t i = 0; i < arity - 3; i++) {
+            for (size_t i = 0; i < arity - 2; i++) {
                 out << "tup[" << i << "]";
                 out << ",";
             }
 
             // extra 0s for incremental annotations
-            out << "0,0,0";
+            out << "0,0";
             out << "}}, " << ctxName << ");\n";
 
             out << "for (const auto& existingTup : existenceCheck) {\n";
-            out << "if (existingTup[" << arity - 3 << "] > tup[" << arity - 3 << "]) {\n";
+            out << "if (existingTup[" << arity - 2 << "] > tup[" << arity - 2 << "]) {\n";
             out << "auto updateTuple = existingTup;\n";
             out << "updateTuple[" << arity - 1 << "] = 0;\n";
-            out << "updateTuple[" << arity - 2 << "] = 0;\n";
+            // out << "updateTuple[" << arity - 2 << "] = 0;\n";
 
             out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(updateTuple," << ctxName << ");\n";
             out << "}\n";
@@ -1632,8 +1632,8 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             }
 
             RamExpression* currentCount = exists.getValues()[exists.getValues().size() - 1];
-            RamExpression* previousCount = exists.getValues()[exists.getValues().size() - 2];
-            RamExpression* iteration = exists.getValues()[exists.getValues().size() - 3];
+            // RamExpression* previousCount = exists.getValues()[exists.getValues().size() - 2];
+            RamExpression* iteration = exists.getValues()[exists.getValues().size() - 2];
 
             out << "[&]() -> bool {\n";
 
@@ -1642,7 +1642,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "_" << isa->getSearchSignature(&exists);
             out << "(Tuple<RamDomain," << arity << ">{{";
 
-            for (size_t i = 0; i < exists.getValues().size() - 3; i++) {
+            for (size_t i = 0; i < exists.getValues().size() - 2; i++) {
                 RamExpression* val = exists.getValues()[i];
                 if (!isRamUndefValue(val)) {
                     visit(*val, out);
@@ -1651,11 +1651,68 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 }
                 out << ",";
             }
-            out << "0,0,0";
+            out << "0,0";
             out << "}}," << ctxName << ");\n";
 
             out << "for (const auto& tup : existenceCheck) {\n";
 
+            if (!isRamUndefValue(currentCount)) {
+                // count of 1 indicates that we want to check previous iterations
+                out << "if (";
+                visit(*currentCount, out);
+                out << " == 1) {\n";
+
+                // we want to encode (I_no \ Delta_o union Delta_n \ I_o)
+                // if count is positive, then we find the tuple
+                out << "if (tup[" << arity - 1 << "] > 0) {\n"; //  && tup[" << arity - 3 << "] == (iter-1)";
+
+                // if tuple is in Delta_n, then it shouldn't be in I_o
+                out << "if (";
+                visit(*iteration, out);
+                out << " == -1 || (";
+                visit(*iteration, out);
+                out << " == (iter-1) && tup[" << arity - 2 << "] <= (iter - 1))";
+
+                // if tuple is in I_no, then it shouldn't be in Delta_o
+                out << "|| (";
+                visit(*iteration, out);
+                out << " < (iter-1) && tup[" << arity - 2 << "] <= (iter - 1))";
+
+                out << ") return true;\n";
+                out << "}\n";
+                out << "}\n";
+
+                // count of 0 indicates that we want to check existence in earlier iterations
+                out << "else if (";
+                visit(*currentCount, out);
+                out << " == 0) {\n";
+
+                // if count is positive and iteration is lower than current, then we find the tuple
+                out << "if (tup[" << arity - 1 << "] > 0 && (";
+                visit(*iteration, out);
+                out << " == -1 || iter == 0 || tup[" << arity - 2 << "] <= (iter-1))) {\n"; //  && tup[" << arity - 3 << "] == (iter-1)";
+                /*
+                out << "if (tup[" << arity - 1 << "] > 0 && tup[" << arity - 3 << "] == ";
+                visit(*iteration, out);
+                out << ") {\n"; //  && tup[" << arity - 3 << "] == (iter-1)";
+                */
+                out << "return true;\n";
+                out << "}\n";
+                out << "}\n";
+
+                // count of -1 indicates that we want to check that the tuple is not deleted
+                out << "else if (";
+                visit(*currentCount, out);
+                out << " == -1) {\n";
+
+                // if count is positive and iteration is lower than current, then we find the tuple
+                out << "if (tup[" << arity - 1 << "] <= 0) {\n";
+                out << "return true;\n";
+                out << "}\n";
+                out << "}\n";
+            }
+
+            /*
             if (!isRamUndefValue(currentCount) && !isRamUndefValue(previousCount)) {
                 out << "if (";
                 visit(*currentCount, out);
@@ -1690,11 +1747,6 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
                 // if count is positive and iteration is lower than current, then we find the tuple
                 out << "if (tup[" << arity - 1 << "] > 0 && (iter == 0 || tup[" << arity - 3 << "] <= (iter-1))) {\n"; //  && tup[" << arity - 3 << "] == (iter-1)";
-                /*
-                out << "if (tup[" << arity - 1 << "] > 0 && tup[" << arity - 3 << "] == ";
-                visit(*iteration, out);
-                out << ") {\n"; //  && tup[" << arity - 3 << "] == (iter-1)";
-                */
                 out << "return true;\n";
                 out << "}\n";
                 out << "}\n";
@@ -1726,6 +1778,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << ") return true;\n";
                 out << "}\n";
             }
+            */
             out << "}\n";
             out << "return false;\n";
 
@@ -1754,10 +1807,10 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             auto numberOfHeights = rel.getNumberOfHeights();
 
             // get the iteration number
-            RamExpression* iteration = subsumptionExists.getValues()[subsumptionExists.getValues().size() - 3];
+            RamExpression* iteration = subsumptionExists.getValues()[subsumptionExists.getValues().size() - 2];
 
             // get the value signifying whether the tuple is addition or deletion
-            RamExpression* prevCount = subsumptionExists.getValues()[subsumptionExists.getValues().size() - 2];
+            // RamExpression* prevCount = subsumptionExists.getValues()[subsumptionExists.getValues().size() - 2];
 
             // get the value signifying whether the tuple is addition or deletion
             RamExpression* count = subsumptionExists.getValues()[subsumptionExists.getValues().size() - 1];
@@ -1779,7 +1832,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "_" << isa->getSearchSignature(&subsumptionExists);
                 out << "(Tuple<RamDomain," << arity << ">{{";
 
-                for (size_t i = 0; i < subsumptionExists.getValues().size() - 3; i++) {
+                for (size_t i = 0; i < subsumptionExists.getValues().size() - 2; i++) {
                     RamExpression* val = subsumptionExists.getValues()[i];
                     if (!isRamUndefValue(val)) {
                         visit(*val, out);
@@ -1788,7 +1841,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                     }
                     out << ",";
                 }
-                out << "0,0,0";
+                out << "0,0";
                 out << "}}, " << ctxName << ");\n";
 
                 // check whether tuple is deletion
@@ -1808,7 +1861,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "for (auto& tup : existenceCheck) {\n";
 
                 // check that the iteration matches
-                out << "if (tup[" << arity - 3 << "] == ";
+                out << "if (tup[" << arity - 2 << "] == ";
                 visit(*iteration, out);
 
                 // and that the count is positive
@@ -1848,7 +1901,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "for (auto& tup : existenceCheck) {\n";
                 // and that the count is positive
                 // out << " && tup[" << arity - 1 << "] > 0) ";
-                out << "if (tup[" << arity - 3 << "] < ";
+                out << "if (tup[" << arity - 2 << "] < ";
                 visit(*iteration, out);
                 out << " && tup[" << arity - 1 << "] > 0) ";
 
@@ -1856,17 +1909,24 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "return true;\n";
                 out << "}\n";
 
+                /*
                 // check if this is an update of a previously generated tuple
                 out << "if (";
                 visit(*prevCount, out);
                 out << " == ";
                 visit(*count, out);
                 out << ") {\n";
+                */
+
+                // the 2 indicates a re-insertion
+                out << "if (";
+                visit(*count, out);
+                out << " == 2) {\n";
 
                 // if it is intended to be inserting a new tuple
                 // do a check if there is a tuple in the current iteration with positive count
                 out << "for (auto& tup : existenceCheck) {\n";
-                out << "if (tup[" << arity - 3 << "] == ";
+                out << "if (tup[" << arity - 2 << "] == ";
                 visit(*iteration, out);
                 out << " && tup[" << arity - 1 << "] > 0) return true;\n";
                 out << "}\n";

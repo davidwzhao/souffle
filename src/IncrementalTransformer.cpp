@@ -119,7 +119,7 @@ std::vector<AstClause*> IncrementalTransformer::makeNegativeUpdateClause(const A
 
     // store the body counts to allow building arguments in the head atom
     std::vector<AstArgument*> bodyLevels;
-    std::vector<AstArgument*> bodyPreviousCounts;
+    // std::vector<AstArgument*> bodyPreviousCounts;
     // std::vector<AstArgument*> bodyCountDiffs;
     std::vector<AstArgument*> bodyCounts;
 
@@ -138,7 +138,7 @@ std::vector<AstClause*> IncrementalTransformer::makeNegativeUpdateClause(const A
             numAtoms++;
 
             atom->addArgument(std::make_unique<AstVariable>("@iteration_" + std::to_string(i)));
-            atom->addArgument(std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)));
+            // atom->addArgument(std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)));
             atom->addArgument(std::make_unique<AstVariable>("@current_count_" + std::to_string(i)));
             
             // store the iterations and body counts to build arguments later
@@ -147,14 +147,14 @@ std::vector<AstClause*> IncrementalTransformer::makeNegativeUpdateClause(const A
             if (contains(sccGraph.getInternalRelations(sccGraph.getSCC(headRelation)), translationUnit.getProgram()->getRelation(atom->getName()))) {
                 bodyLevels.push_back(new AstVariable("@iteration_" + std::to_string(i)));
             }
-            bodyPreviousCounts.push_back(new AstVariable("@prev_count_" + std::to_string(i)));
+            // bodyPreviousCounts.push_back(new AstVariable("@prev_count_" + std::to_string(i)));
             // bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i))));
             bodyCounts.push_back(new AstVariable("@current_count_" + std::to_string(i)));
         } else if (auto neg = dynamic_cast<AstNegation*>(lit)) {
 
             // for negations, we don't care about iteration number or previous count
             neg->getAtom()->addArgument(std::make_unique<AstNumberConstant>(-1));
-            neg->getAtom()->addArgument(std::make_unique<AstUnnamedVariable>());
+            // neg->getAtom()->addArgument(std::make_unique<AstUnnamedVariable>());
 
             // set current count to be 0, which signifies that we want to check that a tuple either doesn't exist, or exists with count of 0
             neg->getAtom()->addArgument(std::make_unique<AstNumberConstant>(0));
@@ -175,15 +175,17 @@ std::vector<AstClause*> IncrementalTransformer::makeNegativeUpdateClause(const A
     }
 
     // second is the previous epoch's count, which we set to 0 signifying that we are updating the head tuple
-    negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
+    // negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
 
     // third is the current epoch's count, which we set to -1, triggering a decrement in the count
     negativeUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(-1));
 
+    /*
     // all tuples must have existed in prior iterations, i.e., tuples that are already deleted should not be deleted again
     negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
                 std::unique_ptr<AstArgument>(applyFunctorToVars(bodyPreviousCounts, FunctorOp::MIN)),
                 std::make_unique<AstNumberConstant>(0)));
+                */
 
     if (bodyLevels.size() > 0) {
         // add constraint to the rule saying that at least one body atom must have generated in the previous iteration
@@ -220,7 +222,7 @@ std::vector<AstClause*> IncrementalTransformer::makePositiveUpdateClause(const A
     // store the body counts to allow building arguments in the head atom
     std::vector<AstArgument*> bodyLevels;
     // std::vector<AstArgument*> bodyCountDiffs;
-    std::vector<AstArgument*> bodyPreviousCounts;
+    // std::vector<AstArgument*> bodyPreviousCounts;
     std::vector<AstArgument*> bodyCounts;
 
     // store number of atoms to be used for reordering
@@ -238,7 +240,7 @@ std::vector<AstClause*> IncrementalTransformer::makePositiveUpdateClause(const A
             numAtoms++;
 
             atom->addArgument(std::make_unique<AstVariable>("@iteration_" + std::to_string(i)));
-            atom->addArgument(std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)));
+            // atom->addArgument(std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)));
             atom->addArgument(std::make_unique<AstVariable>("@current_count_" + std::to_string(i)));
             
             // store the iterations and body counts to build arguments later
@@ -256,13 +258,13 @@ std::vector<AstClause*> IncrementalTransformer::makePositiveUpdateClause(const A
                             (std::make_unique<AstIntrinsicFunctor>(FunctorOp::LNOT, std::make_unique<AstIntrinsicFunctor>(FunctorOp::BOR, std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)), std::make_unique<AstNumberConstant>(0)))),
                             (std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)))))));
                             */
-            bodyPreviousCounts.push_back(new AstVariable("@prev_count_" + std::to_string(i)));
+            // bodyPreviousCounts.push_back(new AstVariable("@prev_count_" + std::to_string(i)));
             bodyCounts.push_back(new AstVariable("@current_count_" + std::to_string(i)));
         } else if (auto neg = dynamic_cast<AstNegation*>(lit)) {
 
             // for negations, we don't care about iteration number or previous count
             neg->getAtom()->addArgument(std::make_unique<AstNumberConstant>(-1));
-            neg->getAtom()->addArgument(std::make_unique<AstUnnamedVariable>());
+            // neg->getAtom()->addArgument(std::make_unique<AstUnnamedVariable>());
 
             // set current count to be 0, which signifies that we want to check that a tuple either doesn't exist, or exists with count of 0
             neg->getAtom()->addArgument(std::make_unique<AstNumberConstant>(0));
@@ -283,7 +285,7 @@ std::vector<AstClause*> IncrementalTransformer::makePositiveUpdateClause(const A
     }
     
     // second is the previous epoch's count, which we set to 0, signifying that we are updating the head tuple
-    positiveUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
+    // positiveUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
 
     // third is the current epoch's count, which we set to 1, triggering an increment in the count
     positiveUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
@@ -325,7 +327,7 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
     std::vector<AstArgument*> bodyLevels;
     // std::vector<AstArgument*> bodyCountDiffs;
     std::vector<AstArgument*> bodyCounts;
-    std::vector<AstArgument*> bodyPreviousCounts;
+    // std::vector<AstArgument*> bodyPreviousCounts;
 
     // store number of atoms to be used for reordering
     size_t numAtoms = 0;
@@ -341,7 +343,7 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
         if (auto atom = dynamic_cast<AstAtom*>(lit)) {
             numAtoms++;
             atom->addArgument(std::make_unique<AstVariable>("@iteration_" + std::to_string(i)));
-            atom->addArgument(std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)));
+            // atom->addArgument(std::make_unique<AstVariable>("@prev_count_" + std::to_string(i)));
             atom->addArgument(std::make_unique<AstVariable>("@current_count_" + std::to_string(i)));
             
             // store the iterations and body counts to build arguments later
@@ -352,12 +354,12 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
             }
             // bodyCountDiffs.push_back(new AstIntrinsicFunctor(FunctorOp::SUB, std::make_unique<AstVariable>("@current_count_" + std::to_string(i)), std::make_unique<AstVariable>("@prev_count_" + std::to_string(i))));
             bodyCounts.push_back(new AstVariable("@current_count_" + std::to_string(i)));
-            bodyPreviousCounts.push_back(new AstVariable("@prev_count_" + std::to_string(i)));
+            // bodyPreviousCounts.push_back(new AstVariable("@prev_count_" + std::to_string(i)));
         } else if (auto neg = dynamic_cast<AstNegation*>(lit)) {
 
             // for negations, we don't care about iteration number or previous count
             neg->getAtom()->addArgument(std::make_unique<AstNumberConstant>(-1));
-            neg->getAtom()->addArgument(std::make_unique<AstUnnamedVariable>());
+            // neg->getAtom()->addArgument(std::make_unique<AstUnnamedVariable>());
 
             // set current count to be 0, which signifies that we want to check that a tuple either doesn't exist, or exists with count of 0
             neg->getAtom()->addArgument(std::make_unique<AstNumberConstant>(0));
@@ -378,10 +380,12 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
     }
 
     // second is the previous epoch's count, which we set to 1, signifying that this tuple should have always existed, but was not generated in a prior epoch for some other reason
-    positiveGenerationClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
+    // positiveGenerationClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
 
     // third is the current epoch's count, which we set to 1, inserting a new tuple with positive count
-    positiveGenerationClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
+    // THE CONSTANT 2 IS A HACK!!:
+    // this will be detected in the AstTranslator and an appropriate re-insertion rule will be generated
+    positiveGenerationClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(2));
 
     // add constraint to the rule saying that all body atoms must have positive count
     positiveGenerationClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
@@ -419,8 +423,8 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
     for (auto relation : program->getRelations()) {
         relation->addAttribute(
                 std::make_unique<AstAttribute>(std::string("@iteration"), AstTypeIdentifier("number")));
-        relation->addAttribute(
-                std::make_unique<AstAttribute>(std::string("@prev_count"), AstTypeIdentifier("number")));
+        // relation->addAttribute(
+        //         std::make_unique<AstAttribute>(std::string("@prev_count"), AstTypeIdentifier("number")));
         relation->addAttribute(
                 std::make_unique<AstAttribute>(std::string("@current_count"), AstTypeIdentifier("number")));
     }
@@ -437,7 +441,7 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
             // if fact, level number is 0
             if (clause->isFact()) {
                 clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
-                clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
+                // clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(0));
                 clause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
             } else {
                 for (auto clause : makeNegativeUpdateClause(*clause, translationUnit)) {

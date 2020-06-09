@@ -429,7 +429,7 @@ SearchSignature RamIndexAnalysis::getSearchSignature(
     auto numberOfHeights = provExistCheck->getRelation().getNumberOfHeights();
     // values.size() - numberOfHeights because we discard the height annotations
     // for (size_t i = 0; i < values.size() - numberOfHeights; i++) {
-    for (size_t i = 0; i < values.size() - 3; i++) {
+    for (size_t i = 0; i < values.size() - 2; i++) {
         if (!isRamUndefValue(values[i])) {
             res |= (1 << i);
         }
@@ -440,22 +440,22 @@ SearchSignature RamIndexAnalysis::getSearchSignature(
 SearchSignature RamIndexAnalysis::getSearchSignature(
         const RamPositiveMerge* posiMerge) const {
     SearchSignature res = 0;
-    // - 3 because we don't want the iteration number
+    // - 2 because we don't want the iteration number
     /*
     for (size_t i = 0; i < posiMerge->getSourceRelation().getArity() - 3; i++) {
         res |= (1 << i);
     }
     */
 
-    res |= (1 << (posiMerge->getSourceRelation().getArity() - 3));
+    res |= (1 << (posiMerge->getSourceRelation().getArity() - 2));
     return res;
 }
 
 SearchSignature RamIndexAnalysis::getSearchSignature(
         const RamUpdateMerge* updateMerge) const {
     SearchSignature res = 0;
-    // - 3 because we don't want the iteration number
-    for (size_t i = 0; i < updateMerge->getTargetRelation().getArity() - 3; i++) {
+    // - 2 because we don't want the iteration number
+    for (size_t i = 0; i < updateMerge->getTargetRelation().getArity() - 2; i++) {
         res |= (1 << i);
     }
 
@@ -465,8 +465,8 @@ SearchSignature RamIndexAnalysis::getSearchSignature(
 SearchSignature RamIndexAnalysis::getSearchSignature(
         const RamExistingMerge* existMerge) const {
     SearchSignature res = 0;
-    // - 3 because we don't want the iteration number
-    for (size_t i = 0; i < existMerge->getExistingRelation().getArity() - 3; i++) {
+    // - 2 because we don't want the iteration number
+    for (size_t i = 0; i < existMerge->getExistingRelation().getArity() - 2; i++) {
         res |= (1 << i);
     }
     return res;
@@ -476,8 +476,8 @@ SearchSignature RamIndexAnalysis::getSearchSignature(
 SearchSignature RamIndexAnalysis::getSearchSignature(
         const RamSemiMerge* semiMerge) const {
     SearchSignature res = 0;
-    // - 3 because we don't want the iteration number
-    for (size_t i = 0; i < semiMerge->getSourceRelation().getArity() - 3; i++) {
+    // - 2 because we don't want the iteration number
+    for (size_t i = 0; i < semiMerge->getSourceRelation().getArity() - 2; i++) {
         res |= (1 << i);
     }
     return res;
@@ -486,7 +486,7 @@ SearchSignature RamIndexAnalysis::getSearchSignature(
 SearchSignature RamIndexAnalysis::getSearchSignature(const RamPositiveExistenceCheck* existCheck) const {
     const auto values = existCheck->getValues();
     SearchSignature res = 0;
-    for (int i = 0; i < (int)values.size() - 3; i++) {
+    for (int i = 0; i < (int)values.size() - 2; i++) {
         if (!isRamUndefValue(values[i])) {
             res |= (1 << i);
         }
