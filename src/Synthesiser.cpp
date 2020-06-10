@@ -304,6 +304,8 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 for (auto const& cur : conditions) {
                     bool needContext = false;
                     visitDepthFirst(*cur, [&](const RamExistenceCheck& exists) { needContext = true; });
+                    visitDepthFirst(*cur, [&](const RamSubsumptionExistenceCheck& exists) { needContext = true; });
+                    visitDepthFirst(*cur, [&](const RamPositiveExistenceCheck& exists) { needContext = true; });
                     if (needContext) {
                         requireCtx.push_back(std::unique_ptr<RamCondition>(cur->clone()));
                     } else {
@@ -1688,9 +1690,11 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << " == 0) {\n";
 
                 // if count is positive and iteration is lower than current, then we find the tuple
-                out << "if (tup[" << arity - 1 << "] > 0 && (";
+                out << "if (tup[" << arity - 1 << "] > 0) {\n"; // && (";
+                /*
                 visit(*iteration, out);
                 out << " == -1 || iter == 0 || tup[" << arity - 2 << "] <= (iter-1))) {\n"; //  && tup[" << arity - 3 << "] == (iter-1)";
+                */
                 /*
                 out << "if (tup[" << arity - 1 << "] > 0 && tup[" << arity - 3 << "] == ";
                 visit(*iteration, out);

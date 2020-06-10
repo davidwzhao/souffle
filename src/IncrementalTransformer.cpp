@@ -187,12 +187,14 @@ std::vector<AstClause*> IncrementalTransformer::makeNegativeUpdateClause(const A
                 std::make_unique<AstNumberConstant>(0)));
                 */
 
+    /*
     if (bodyLevels.size() > 0) {
         // add constraint to the rule saying that at least one body atom must have generated in the previous iteration
         negativeUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
                     std::unique_ptr<AstArgument>(applyFunctorToVars(bodyLevels, FunctorOp::MAX)),
                     std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
     }
+    */
 
     /*
     // add constraint to the rule saying that at least one body atom must have negative count
@@ -295,12 +297,14 @@ std::vector<AstClause*> IncrementalTransformer::makePositiveUpdateClause(const A
                 std::unique_ptr<AstArgument>(applyFunctorToVars(bodyCounts, FunctorOp::MIN)),
                 std::make_unique<AstNumberConstant>(0)));
 
+    /*
     if (bodyLevels.size() > 0) {
         // add constraint to the rule saying that at least one body atom must have generated in the previous iteration
         positiveUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
                     std::unique_ptr<AstArgument>(applyFunctorToVars(bodyLevels, FunctorOp::MAX)),
                     std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
     }
+    */
 
     /*
     // all tuples must have existed in prior iterations, i.e., tuples that are already deleted should not be deleted again
@@ -399,12 +403,14 @@ std::unique_ptr<AstClause> IncrementalTransformer::makePositiveGenerationClause(
                 std::make_unique<AstNumberConstant>(0)));
                 */
 
+    /*
     if (bodyLevels.size() > 0) {
         // add constraint to the rule saying that at least one body atom must have generated in the previous iteration
         positiveGenerationClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
                     std::unique_ptr<AstArgument>(applyFunctorToVars(bodyLevels, FunctorOp::MAX)),
                     std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
     }
+    */
 
     return std::unique_ptr<AstClause>(positiveGenerationClause);
 }

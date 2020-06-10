@@ -1164,7 +1164,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                             auto curAtom = atoms[j]->clone();
                             // curAtom->setName(translateDiffPlusCountRelation(getAtomRelation(atoms[j], program))->get()->getName());
                             curAtom->setName(translateDiffPlusRelation(getAtomRelation(atoms[j], program))->get()->getName());
-                            curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                            curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstNumberConstant>(0));
                             // curAtom->setArgument(curAtom->getArity() - 2, std::make_unique<AstNumberConstant>(0));
 
                             // also ensure tuple existed previously
@@ -1174,8 +1174,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                             // noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstNumberConstant>(0));
                             // noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());
 
-                            // cl->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
-                            cl->addToBody(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious)));
+                            cl->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
+                            // cl->addToBody(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious)));
                         }
 
                         for (size_t j = i + 1; j < atoms.size(); j++) {
@@ -1701,7 +1701,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                             auto curAtom = atoms[j]->clone();
                             // curAtom->setName(translateDiffPlusCountRelation(getAtomRelation(atoms[j], program))->get()->getName());
                             curAtom->setName(translateDiffPlusRelation(getAtomRelation(atoms[j], program))->get()->getName());
-                            curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                            curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstNumberConstant>(0));
                             // curAtom->setArgument(curAtom->getArity() - 2, std::make_unique<AstNumberConstant>(0));
 
                             // also ensure tuple existed previously
@@ -1711,8 +1711,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                             // noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstNumberConstant>(0));
                             // noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());
 
-                            // cl->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
-                            cl->addToBody(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious)));
+                            cl->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
+                            // cl->addToBody(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious)));
                         }
 
                         for (size_t j = i + 1; j < atoms.size(); j++) {
@@ -1840,7 +1840,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                             auto curAtom = atoms[j]->clone();
                             // curAtom->setName(translateDiffPlusCountRelation(getAtomRelation(atoms[j], program))->get()->getName());
                             curAtom->setName(translateDiffPlusRelation(getAtomRelation(atoms[j], program))->get()->getName());
-                            curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                            curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstNumberConstant>(0));
                             // curAtom->setArgument(curAtom->getArity() - 2, std::make_unique<AstNumberConstant>(0));
 
                             // also ensure tuple existed previously
@@ -1850,8 +1850,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                             // noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstNumberConstant>(0));
                             // noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());
 
-                            // cl->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
-                            cl->addToBody(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious)));
+                            cl->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
+                            // cl->addToBody(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious)));
                         }
 
 
@@ -2056,7 +2056,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                             // curAtom->setName(translateDiffPlusCountRelation(getAtomRelation(curAtom, program))->get()->getName());
                             curAtom->setName(translateDiffPlusRelation(getAtomRelation(curAtom, program))->get()->getName());
 
-                            curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                            curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstNumberConstant>(0));
                             // curAtom->setArgument(curAtom->getArity() - 2, std::make_unique<AstNumberConstant>(0));
 
                             // also ensure tuple existed previously
@@ -2066,8 +2066,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                             // noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstNumberConstant>(0));
                             // noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());
 
-                            // cl->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
-                            cl->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)));
+                            cl->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
+                            // cl->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)));
                         }
 
                         // process negations
@@ -2646,7 +2646,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                 auto curAtom = atoms[j]->clone();
                                 // curAtom->setName(translateDiffPlusCountRelation(getAtomRelation(atoms[j], program))->get()->getName());
                                 curAtom->setName(translateDiffPlusRelation(getAtomRelation(atoms[j], program))->get()->getName());
-                                curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                                curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstNumberConstant>(0));
                                 // curAtom->setArgument(curAtom->getArity() - 2, std::make_unique<AstNumberConstant>(0));
 
                                 // also ensure tuple existed previously
@@ -2656,8 +2656,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                 // noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstNumberConstant>(0));
                                 // noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());
 
-                                // rdiff->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
-                                rdiff->addToBody(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious)));
+                                rdiff->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
+                                // rdiff->addToBody(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious)));
                             }
 
                             for (size_t j = i + 1; j < atoms.size(); j++) {
@@ -2702,6 +2702,16 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                 r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
                                             std::unique_ptr<AstArgument>(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 2)->clone()),
                                             std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+
+                                // any atoms before atom j should be in earlier itereations, check this by a constraint on the iteration number
+                                for (size_t k = 0; k < j; k++) {
+                                    if (isInSameSCC(getAtomRelation(atoms[k], program))) {
+                                        r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,
+                                                    // std::unique_ptr<AstArgument>(r1->getAtoms()[k]->getArgument(r1->getAtoms()[k]->getArity() - 3)->clone()),
+                                                    std::unique_ptr<AstArgument>(r1->getAtoms()[k]->getArgument(r1->getAtoms()[k]->getArity() - 2)->clone()),
+                                                    std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+                                    }
+                                }
 
                                 // any atoms after atom j should not be in delta, check this by a constraint on the iteration number
                                 for (size_t k = j + 1; k < atoms.size(); k++) {
@@ -3647,6 +3657,17 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     std::unique_ptr<AstArgument>(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 2)->clone()),
                                     std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
 
+                        // any atoms before atom j should be in earlier itereations, check this by a constraint on the iteration number
+                        for (size_t k = 0; k < j; k++) {
+                            if (isInSameSCC(getAtomRelation(atoms[k], program))) {
+                                r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,
+                                            // std::unique_ptr<AstArgument>(r1->getAtoms()[k]->getArgument(r1->getAtoms()[k]->getArity() - 3)->clone()),
+                                            std::unique_ptr<AstArgument>(r1->getAtoms()[k]->getArgument(r1->getAtoms()[k]->getArity() - 2)->clone()),
+                                            std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+                            }
+                        }
+
+
                         // any atoms after atom j should not be in delta, check this by a constraint on the iteration number
                         for (size_t k = j + 1; k < atoms.size(); k++) {
                             if (isInSameSCC(getAtomRelation(atoms[k], program))) {
@@ -3748,7 +3769,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 auto curAtom = atoms[j]->clone();
                                 // curAtom->setName(translateDiffPlusCountRelation(getAtomRelation(atoms[j], program))->get()->getName());
                                 curAtom->setName(translateDiffPlusRelation(getAtomRelation(atoms[j], program))->get()->getName());
-                                curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                                curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstNumberConstant>(0));
                                 // curAtom->setArgument(curAtom->getArity() - 2, std::make_unique<AstNumberConstant>(0));
 
                                 // also ensure tuple existed previously
@@ -3758,8 +3779,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 // noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstNumberConstant>(0));
                                 // noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());
 
-                                // rdiff->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
-                                rdiff->addToBody(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious)));
+                                rdiff->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
+                                // rdiff->addToBody(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious)));
                             }
 
                             for (size_t j = i + 1; j < atoms.size(); j++) {
@@ -3804,6 +3825,16 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                             // std::unique_ptr<AstArgument>(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 3)->clone()),
                                             std::unique_ptr<AstArgument>(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 2)->clone()),
                                             std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+
+                                // any atoms before atom j should be in earlier itereations, check this by a constraint on the iteration number
+                                for (size_t k = 0; k < j; k++) {
+                                    if (isInSameSCC(getAtomRelation(atoms[k], program))) {
+                                        r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,
+                                                    // std::unique_ptr<AstArgument>(r1->getAtoms()[k]->getArgument(r1->getAtoms()[k]->getArity() - 3)->clone()),
+                                                    std::unique_ptr<AstArgument>(r1->getAtoms()[k]->getArgument(r1->getAtoms()[k]->getArity() - 2)->clone()),
+                                                    std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+                                    }
+                                }
 
                                 // any atoms after atom j should not be in delta, check this by a constraint on the iteration number
                                 for (size_t k = j + 1; k < atoms.size(); k++) {
@@ -3929,7 +3960,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 auto curAtom = atoms[j]->clone();
                                 // curAtom->setName(translateDiffPlusCountRelation(getAtomRelation(atoms[j], program))->get()->getName());
                                 curAtom->setName(translateDiffPlusRelation(getAtomRelation(atoms[j], program))->get()->getName());
-                                curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                                curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstNumberConstant>(0));
                                 // curAtom->setArgument(curAtom->getArity() - 2, std::make_unique<AstNumberConstant>(0));
 
                                 // also ensure tuple existed previously
@@ -3939,8 +3970,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 // noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstNumberConstant>(0));
                                 // noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());
 
-                                // rdiff->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
-                                rdiff->addToBody(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious)));
+                                rdiff->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
+                                // rdiff->addToBody(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious)));
                             }
 
                             rdiff->clearNegations();
@@ -3972,6 +4003,16 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
                                             std::unique_ptr<AstArgument>(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 2)->clone()),
                                             std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+
+                                // any atoms before atom j should be in earlier itereations, check this by a constraint on the iteration number
+                                for (size_t k = 0; k < j; k++) {
+                                    if (isInSameSCC(getAtomRelation(atoms[k], program))) {
+                                        r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,
+                                                    // std::unique_ptr<AstArgument>(r1->getAtoms()[k]->getArgument(r1->getAtoms()[k]->getArity() - 3)->clone()),
+                                                    std::unique_ptr<AstArgument>(r1->getAtoms()[k]->getArgument(r1->getAtoms()[k]->getArity() - 2)->clone()),
+                                                    std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+                                    }
+                                }
 
                                 // any atoms after atom j should not be in delta, check this by a constraint on the iteration number
                                 for (size_t k = j + 1; k < atoms.size(); k++) {
@@ -4136,6 +4177,16 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                             std::unique_ptr<AstArgument>(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 2)->clone()),
                                             std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
 
+                                // any atoms before atom j should be in earlier itereations, check this by a constraint on the iteration number
+                                for (size_t k = 0; k < j; k++) {
+                                    if (isInSameSCC(getAtomRelation(atoms[k], program))) {
+                                        r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,
+                                                    // std::unique_ptr<AstArgument>(r1->getAtoms()[k]->getArgument(r1->getAtoms()[k]->getArity() - 3)->clone()),
+                                                    std::unique_ptr<AstArgument>(r1->getAtoms()[k]->getArgument(r1->getAtoms()[k]->getArity() - 2)->clone()),
+                                                    std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+                                    }
+                                }
+
                                 // any atoms after atom j should not be in delta, check this by a constraint on the iteration number
                                 for (size_t k = j + 1; k < atoms.size(); k++) {
                                     if (isInSameSCC(getAtomRelation(atoms[k], program))) {
@@ -4230,7 +4281,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 // curAtom->setName(translateDiffPlusCountRelation(getAtomRelation(curAtom, program))->get()->getName());
                                 curAtom->setName(translateDiffPlusRelation(getAtomRelation(curAtom, program))->get()->getName());
 
-                                curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                                curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstNumberConstant>(0));
                                 // curAtom->setArgument(curAtom->getArity() - 2, std::make_unique<AstNumberConstant>(0));
 
                                 // also ensure tuple existed previously
@@ -4240,8 +4291,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 // noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstNumberConstant>(0));
                                 // noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());
 
-                                // rdiff->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
-                                rdiff->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)));
+                                rdiff->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
+                                // rdiff->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)));
                             }
 
                             // process negations
@@ -4308,6 +4359,16 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                             // std::unique_ptr<AstArgument>(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 3)->clone()),
                                             std::unique_ptr<AstArgument>(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 2)->clone()),
                                             std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+
+                                // any atoms before atom j should be in earlier itereations, check this by a constraint on the iteration number
+                                for (size_t k = 0; k < j; k++) {
+                                    if (isInSameSCC(getAtomRelation(atoms[k], program))) {
+                                        r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,
+                                                    // std::unique_ptr<AstArgument>(r1->getAtoms()[k]->getArgument(r1->getAtoms()[k]->getArity() - 3)->clone()),
+                                                    std::unique_ptr<AstArgument>(r1->getAtoms()[k]->getArgument(r1->getAtoms()[k]->getArity() - 2)->clone()),
+                                                    std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+                                    }
+                                }
 
                                 // any atoms after atom j should not be in delta, check this by a constraint on the iteration number
                                 for (size_t k = j + 1; k < atoms.size(); k++) {

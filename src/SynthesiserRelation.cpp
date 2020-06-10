@@ -210,8 +210,12 @@ std::string SynthesiserDirectRelation::getTypeName() {
     }
     */
     
-    if (relation.getName().find("diff_") != std::string::npos) {
+    if (relation.getName().find("diff_") != std::string::npos && relation.getName().find("@") != std::string::npos) {
         res << "_diff";
+    }
+
+    if (relation.getName().find("applied@") != std::string::npos) {
+        res << "_applied";
     }
 
     /*
