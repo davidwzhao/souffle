@@ -292,10 +292,12 @@ std::vector<AstClause*> IncrementalTransformer::makePositiveUpdateClause(const A
     // third is the current epoch's count, which we set to 1, triggering an increment in the count
     positiveUpdateClause->getHead()->addArgument(std::make_unique<AstNumberConstant>(1));
 
+    /*
     // all tuples must have existed in prior iterations, i.e., tuples that are already deleted should not be deleted again
     positiveUpdateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
                 std::unique_ptr<AstArgument>(applyFunctorToVars(bodyCounts, FunctorOp::MIN)),
                 std::make_unique<AstNumberConstant>(0)));
+                */
 
     /*
     if (bodyLevels.size() > 0) {
