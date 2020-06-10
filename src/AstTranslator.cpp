@@ -1160,10 +1160,10 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                                     std::make_unique<AstNumberConstant>(0)));
 
                         // atoms before the i-th position should not fulfill the conditions for incremental insertion, otherwise we will have double insertions
+                        /*
                         for (size_t j = 0; j < i; j++) {
                             cl->getAtoms()[j]->setName(translateDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
 
-                            /*
                             // ensure tuple is not actually inserted
                             auto curAtom = atoms[j]->clone();
                             // curAtom->setName(translateDiffPlusCountRelation(getAtomRelation(atoms[j], program))->get()->getName());
@@ -1180,11 +1180,12 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
 
                             cl->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
                             // cl->addToBody(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious)));
-                            */
                         }
+                        */
 
                         for (size_t j = i + 1; j < atoms.size(); j++) {
-                            cl->getAtoms()[j]->setName(translateDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                            // cl->getAtoms()[j]->setName(translateDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                            cl->getAtoms()[j]->setName(translateDiffPlusRelation(getAtomRelation(atoms[j], program))->get()->getName());
                         }
 
                         // process negations
@@ -1192,7 +1193,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                             // each negation needs to have either not existed, or be deleted
                             // for the non-existence case, we use a positive negation instead
                             auto negatedAtom = negations[j]->getAtom()->clone();
-                            negatedAtom->setName(translateDiffAppliedRelation(getAtomRelation(negatedAtom, program))->get()->getName());
+                            // negatedAtom->setName(translateDiffAppliedRelation(getAtomRelation(negatedAtom, program))->get()->getName());
+                            negatedAtom->setName(translateDiffPlusRelation(getAtomRelation(negatedAtom, program))->get()->getName());
                             cl->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(negatedAtom)));
                         }
 
@@ -2307,16 +2309,19 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
         } else {
             appendStmt(updateRelTable,
                     std::make_unique<RamSequence>(
+                        /*
                             // populate the diff minus relations
                             // merge new_diff_minus into diff_minus to update with new tuples from current iteration
                             std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateNewDiffMinusRelation(rel)->clone())),
+                                    */
 
                             // update the diff plus relations
                             // merge new_diff_plus into diff_plus to update with new tuples from current iteration
                             std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateNewDiffPlusRelation(rel)->clone())),
 
+                            /*
                             // update the diff applied relations
                             // assume diff_applied contains all correct tuples from previous epoch
                             // merge new_diff_minus and new_diff_plus into diff_plus_applied to update with new tuples from current iteration
@@ -2325,9 +2330,10 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             std::make_unique<RamMerge>(
                                     std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateNewDiffMinusRelation(rel)->clone())),
-                            std::make_unique<RamUpdateMerge>(
+                            std::make_unique<RamMerge>(
                                     std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateNewDiffPlusRelation(rel)->clone())),
+                                    */
 
                             std::make_unique<RamClear>(
                                     std::unique_ptr<RamRelationReference>(translateNewDiffMinusRelation(rel)->clone())),
@@ -2368,12 +2374,14 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
             // merge new_diff_minus and new_diff_plus into diff_plus_applied to update with new tuples from current iteration
             // order is important - minus should be applied before plus,
             // as plus may be able to update tuples that are deleted in the current epoch
+            /*
             appendStmt(preamble,
                     std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
                             std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(rel)->clone())));
             appendStmt(preamble,
                     std::make_unique<RamUpdateMerge>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
                             std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(rel)->clone())));
+                            */
 
         } else {
 
@@ -2658,10 +2666,10 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                         std::make_unique<AstNumberConstant>(0)));
 
                             // atoms before the i-th position should not fulfill the conditions for incremental insertion, otherwise we will have double insertions
+                            /*
                             for (size_t j = 0; j < i; j++) {
                                 rdiff->getAtoms()[j]->setName(translateDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
 
-                                /*
                                 // ensure tuple is not actually inserted
                                 auto curAtom = atoms[j]->clone();
                                 // curAtom->setName(translateDiffPlusCountRelation(getAtomRelation(atoms[j], program))->get()->getName());
@@ -2678,11 +2686,12 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                                 rdiff->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
                                 // rdiff->addToBody(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious)));
-                                */
                             }
+                            */
 
                             for (size_t j = i + 1; j < atoms.size(); j++) {
-                                rdiff->getAtoms()[j]->setName(translateDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                                // rdiff->getAtoms()[j]->setName(translateDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                                rdiff->getAtoms()[j]->setName(translateDiffPlusRelation(getAtomRelation(atoms[j], program))->get()->getName());
                             }
 
 
@@ -2691,7 +2700,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                 // each negation needs to have either not existed, or be deleted
                                 // for the non-existence case, we use a positive negation instead
                                 auto negatedAtom = negations[j]->getAtom()->clone();
-                                negatedAtom->setName(translateDiffAppliedRelation(getAtomRelation(negatedAtom, program))->get()->getName());
+                                negatedAtom->setName(translateDiffPlusRelation(getAtomRelation(negatedAtom, program))->get()->getName());
                                 rdiff->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(negatedAtom)));
                             }
 
@@ -2699,7 +2708,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
 
                             // create a subsumption negation so we don't re-insert previously discovered tuples
                             auto diffAppliedHeadAtom = cl->getHead()->clone();
-                            diffAppliedHeadAtom->setName(translateDiffAppliedRelation(getAtomRelation(diffAppliedHeadAtom, program))->get()->getName());
+                            diffAppliedHeadAtom->setName(translateDiffPlusRelation(getAtomRelation(diffAppliedHeadAtom, program))->get()->getName());
 
                             // write into new_diff_plus
                             rdiff->getHead()->setName(translateNewDiffPlusRelation(rel)->get()->getName());
@@ -4639,6 +4648,11 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalCleanupSubroutine(co
         appendStmt(cleanupSequence, std::make_unique<RamQuery>(std::move(cleanupScan)));
         */
 
+        appendStmt(cleanupSequence, std::make_unique<RamMerge>(
+                    std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)->clone()),
+                    std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(relation))));
+
+
         appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(relation)->clone())));
         appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(relation)->clone())));
         // appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffMinusAppliedRelation(relation)->clone())));
@@ -5244,6 +5258,7 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                                : translateRecursiveRelation(allInterns, recursiveClauses, indexOfScc);
         appendStmt(current, std::move(bodyStatement));
 
+        /*
         if (Global::config().has("incremental")) {
             // make merges for non-recursive relations
             if (!isRecursive) {
@@ -5260,6 +5275,7 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
 
             }
         }
+        */
 
         {
             // if a communication engine is enabled...
