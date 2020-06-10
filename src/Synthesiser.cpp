@@ -2937,11 +2937,11 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         size_t subroutineNum = 0;
         for (auto& sub : prog.getSubroutines()) {
             os << "if (name == \"" << sub.first << "\") {\n"
-               << "auto start = std::chrono::high_resolution_clock::now();\n"
+               // << "auto start = std::chrono::high_resolution_clock::now();\n"
                << "subproof_" << subroutineNum
                << "(args, ret, err);\n"  // subproof_i to deal with special characters in relation names
-               << "auto end = std::chrono::high_resolution_clock::now();\n"
-               << "std::cout << \"" << sub.first << " running time: \" << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << std::endl;\n"
+               // << "auto end = std::chrono::high_resolution_clock::now();\n"
+               // << "std::cout << \"" << sub.first << " running time: \" << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << std::endl;\n"
                << "}\n";
             subroutineNum++;
         }
