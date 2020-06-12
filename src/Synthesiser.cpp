@@ -1673,12 +1673,14 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 visit(*iteration, out);
                 out << " == -1 || (";
                 visit(*iteration, out);
-                out << " == (iter-1) && tup[" << arity - 2 << "] <= (iter - 1))";
+                out << " <= (iter-1) && tup[" << arity - 2 << "] <= (iter - 1))";
 
+                /*
                 // if tuple is in I_no, then it shouldn't be in Delta_o
                 out << "|| (";
                 visit(*iteration, out);
                 out << " < (iter-1) && tup[" << arity - 2 << "] <= (iter - 1))";
+                */
 
                 out << ") return true;\n";
                 out << "}\n";
@@ -2937,11 +2939,11 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         size_t subroutineNum = 0;
         for (auto& sub : prog.getSubroutines()) {
             os << "if (name == \"" << sub.first << "\") {\n"
-               // << "auto start = std::chrono::high_resolution_clock::now();\n"
+               << "auto start = std::chrono::high_resolution_clock::now();\n"
                << "subproof_" << subroutineNum
                << "(args, ret, err);\n"  // subproof_i to deal with special characters in relation names
-               // << "auto end = std::chrono::high_resolution_clock::now();\n"
-               // << "std::cout << \"" << sub.first << " running time: \" << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << std::endl;\n"
+               << "auto end = std::chrono::high_resolution_clock::now();\n"
+               << "std::cout << \"" << sub.first << " running time: \" << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << std::endl;\n"
                << "}\n";
             subroutineNum++;
         }
