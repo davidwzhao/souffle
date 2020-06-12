@@ -232,6 +232,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
         void visitLoad(const RamLoad& load, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
             out << "if (performIO) {\n";
+            out << "auto ioStart = std::chrono::high_resolution_clock::now();\n";
             std::vector<bool> symbolMask;
             for (auto& cur : load.getRelation().getAttributeTypeQualifiers()) {
                 symbolMask.push_back(cur[0] == 's');
@@ -256,6 +257,8 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "} catch (std::exception& e) {std::cerr << \"Error loading data: \" << e.what() << "
                        "'\\n';}\n";
             }
+            out << "auto ioEnd = std::chrono::high_resolution_clock::now();\n";
+            out << "ioTime += std::chrono::duration_cast<std::chrono::microseconds>(ioEnd - ioStart);\n";
             out << "}\n";
             PRINT_END_COMMENT(out);
         }
@@ -267,6 +270,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             for (auto& cur : store.getRelation().getAttributeTypeQualifiers()) {
                 symbolMask.push_back(cur[0] == 's');
             }
+            out << "auto ioStart = std::chrono::high_resolution_clock::now();\n";
             for (IODirectives ioDirectives : store.getIODirectives()) {
                 out << "try {";
                 out << "std::map<std::string, std::string> directiveMap(" << ioDirectives << ");\n";
@@ -283,6 +287,8 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << ")->writeAll(*" << synthesiser.getRelationName(store.getRelation()) << ");\n";
                 out << "} catch (std::exception& e) {std::cerr << e.what();exit(1);}\n";
             }
+            out << "auto ioEnd = std::chrono::high_resolution_clock::now();\n";
+            out << "ioTime += std::chrono::duration_cast<std::chrono::microseconds>(ioEnd - ioStart);\n";
             out << "}\n";
             PRINT_END_COMMENT(out);
         }
@@ -2623,6 +2629,9 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     os << "std::atomic<RamDomain> ctr{};\n\n";
     os << "std::atomic<size_t> iter{};\n";
 
+    // store a duration measuring I/O time - we subtract this from full runtime
+    os << "std::chrono::microseconds ioTime;\n";
+
     // -- run function --
     os << "private:\nvoid runFunction(std::string inputDirectory = \".\", "
           "std::string outputDirectory = \".\", size_t stratumIndex = (size_t) -1, bool performIO = false) "
@@ -2631,6 +2640,12 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     os << "this->inputDirectory = inputDirectory;\n";
     os << "this->outputDirectory = outputDirectory;\n";
     os << "this->performIO = performIO;\n";
+
+    // reset I/O timer
+    os << "ioTime = std::chrono::microseconds::zero();\n";
+
+    // start evaluation timer
+    os << "auto evalStart = std::chrono::high_resolution_clock::now();\n";
 
     os << "SignalHandler::instance()->set();\n";
     if (Global::config().has("verbose")) {
@@ -2768,6 +2783,13 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     if (Global::config().has("incremental") && Global::config().has("profile")) {
         os << "ProfileEventSingleton::instance().dump();\n";
     }
+
+    os << "auto evalEnd = std::chrono::high_resolution_clock::now();\n";
+    os << "auto evalTime = std::chrono::duration_cast<std::chrono::microseconds>(evalEnd - evalStart) - ioTime;\n";
+    os << "if (isRuntimePrintingEnabled()) std::cout << \"eval-time:\" << evalTime.count() << std::endl;\n";
+
+    // reset I/O timer
+    os << "ioTime = std::chrono::microseconds::zero();\n";
 
     os << "}\n";  // end of runFunction() method
 
@@ -2938,13 +2960,29 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         // subroutine number
         size_t subroutineNum = 0;
         for (auto& sub : prog.getSubroutines()) {
-            os << "if (name == \"" << sub.first << "\") {\n"
-               << "auto start = std::chrono::high_resolution_clock::now();\n"
-               << "subproof_" << subroutineNum
-               << "(args, ret, err);\n"  // subproof_i to deal with special characters in relation names
-               << "auto end = std::chrono::high_resolution_clock::now();\n"
-               << "std::cout << \"" << sub.first << " running time: \" << std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() << std::endl;\n"
-               << "}\n";
+            os << "if (name == \"" << sub.first << "\") {\n";
+
+            // only generate timers for update subroutine
+            if (sub.first == "update") {
+                // reset I/O timer
+                os << "ioTime = std::chrono::microseconds::zero();\n";
+                os << "auto updateStart = std::chrono::high_resolution_clock::now();\n";
+            }
+
+            os << "subproof_" << subroutineNum
+               << "(args, ret, err);\n";  // subproof_i to deal with special characters in relation names
+
+            // only generate timers for update subroutine
+            if (sub.first == "update") {
+                os << "auto updateEnd = std::chrono::high_resolution_clock::now();\n";
+                os << "auto updateTime = std::chrono::duration_cast<std::chrono::microseconds>(updateEnd - updateStart) - ioTime;\n";
+                os << "if (isRuntimePrintingEnabled()) std::cout << \"update-time:\" << updateTime.count() << std::endl;\n";
+
+                // reset I/O timer
+                os << "ioTime = std::chrono::microseconds::zero();\n";
+            }
+
+            os << "}\n";
             subroutineNum++;
         }
         os << "}\n";  // end of executeSubroutine
