@@ -826,9 +826,11 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
         void visitDebugInfo(const RamDebugInfo& dbg, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
+            /*
             out << "SignalHandler::instance()->setMsg(R\"_(";
             out << dbg.getMessage();
             out << ")_\");\n";
+            */
 
             // insert statements of the rule
             visit(dbg.getStatement(), out);
@@ -2441,9 +2443,9 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     size_t numRead = 0;
     if (Global::config().has("profile")) {
         os << "private:\n";
-        visitDepthFirst(*(prog.getMain()), [&](const RamStatement& node) { numFreq++; });
+        visitDepthFirst(prog, [&](const RamStatement& node) { numFreq++; });
         os << "  size_t freqs[" << numFreq << "]{};\n";
-        visitDepthFirst(*(prog.getMain()), [&](const RamCreate& node) {
+        visitDepthFirst(prog, [&](const RamCreate& node) {
             if (!node.getRelation().isTemp()) numRead++;
         });
         os << "  size_t reads[" << numRead << "]{};\n";
