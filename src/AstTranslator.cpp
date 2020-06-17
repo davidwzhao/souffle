@@ -1888,12 +1888,12 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                         // set an execution plan so the diff_plus version of the relation is evaluated first
                         auto plan = std::make_unique<AstExecutionPlan>();
                         auto order = std::make_unique<AstExecutionOrder>();
-                        order->appendAtomIndex(atoms.size() + i + 1);
+                        order->appendAtomIndex(atoms.size() + 1);
                         for (unsigned int j = 0; j < cl->getAtoms().size(); j++) {
-                            if (j != atoms.size() + i) order->appendAtomIndex(j + 1);
+                            if (j != atoms.size()) order->appendAtomIndex(j + 1);
                         }
 
-                        plan->setOrderFor(0, atoms.size() + i + 1, std::move(order));
+                        plan->setOrderFor(0, atoms.size() + 1, std::move(order));
                         cl->setExecutionPlan(std::move(plan));
 
                         std::cout << "non-recursive: " << *cl << std::endl;
@@ -2137,12 +2137,12 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                         // set an execution plan so the diff_minus version of the relation is evaluated first
                         auto plan = std::make_unique<AstExecutionPlan>();
                         auto order = std::make_unique<AstExecutionOrder>();
-                        order->appendAtomIndex(atoms.size() + i + 1);
+                        order->appendAtomIndex(atoms.size() + 1);
                         for (unsigned int j = 0; j < cl->getAtoms().size(); j++) {
-                            if (j != atoms.size() + i) order->appendAtomIndex(j + 1);
+                            if (j != atoms.size()) order->appendAtomIndex(j + 1);
                         }
 
-                        plan->setOrderFor(0, atoms.size() + i + 1, std::move(order));
+                        plan->setOrderFor(0, atoms.size() + 1, std::move(order));
                         cl->setExecutionPlan(std::move(plan));
 
                         std::cout << "non-recursive: " << *cl << std::endl;

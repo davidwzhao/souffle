@@ -146,11 +146,13 @@ void SynthesiserDirectRelation::computeIndices() {
                     ind.erase(std::find(ind.begin(), ind.end(), getArity() - relation.getNumberOfHeights()));
                 }
 
+                /*
                 if (curIndexElems.find(getArity() - relation.getNumberOfHeights() - 1) !=
                         curIndexElems.end()) {
                     ind.erase(std::find(
                             ind.begin(), ind.end(), getArity() - relation.getNumberOfHeights() - 1));
                 }
+                */
 
                 // add provenance annotations to the index, but in reverse order
                 // TODO (taipan-snake): for incremental, these should be in correct order
@@ -559,6 +561,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
 
     // printHintStatistics method
     out << "void printHintStatistics(std::ostream& o, const std::string prefix) const {\n";
+    /*
     for (size_t i = 0; i < numIndexes; i++) {
         out << "const auto& stats_" << i << " = ind_" << i << ".getHintStatistics();\n";
         out << "o << prefix << \"arity " << getArity() << " direct b-tree index " << inds[i]
@@ -576,6 +579,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
             << ".upper_bound.getMisses() << \"/\" << stats_" << i
             << ".upper_bound.getAccesses() << \"\\n\";\n";
     }
+    */
     out << "}\n";
 
     // end struct

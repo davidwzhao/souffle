@@ -2772,9 +2772,11 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     os << "std::cout << \" -- Operation Hint Statistics --\\n\";\n";
     visitDepthFirst(*(prog.getMain()), [&](const RamCreate& create) {
         auto name = getRelationName(create.getRelation());
+        /*
         os << "std::cout << \"Relation " << name << ":\\n\";\n";
         os << name << "->printHintStatistics(std::cout,\"  \");\n";
         os << "std::cout << \"\\n\";\n";
+        */
     });
     os << "}\n";
 
