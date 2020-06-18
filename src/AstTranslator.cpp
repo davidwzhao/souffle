@@ -3935,6 +3935,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     for (int k = existingOrder.size(); k < r1->getAtoms().size(); k++) {
                                         if (k + 1 != diffVersion) order->appendAtomIndex(k + 1);
                                     }
+                                } else if (plan->hasOrderFor(version, diffVersion)) {
                                 } else {
                                     order->appendAtomIndex(diffVersion);
                                     for (int k = 0; k < r1->getAtoms().size(); k++) {
@@ -4138,6 +4139,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     for (int k = existingOrder.size(); k < cl->getAtoms().size(); k++) {
                                         if (k + 1 != diffVersion) order->appendAtomIndex(k + 1);
                                     }
+                                } else if (plan->hasOrderFor(version, diffVersion)) {
                                 } else {
                                     order->appendAtomIndex(diffVersion);
                                     for (int k = 0; k < r1->getAtoms().size(); k++) {
@@ -4333,6 +4335,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     for (int k = existingOrder.size(); k < cl->getAtoms().size(); k++) {
                                         if (k + 1 != diffVersion) order->appendAtomIndex(k + 1);
                                     }
+                                } else if (plan->hasOrderFor(version, diffVersion)) {
                                 } else {
                                     order->appendAtomIndex(diffVersion);
                                     for (int k = 0; k < r1->getAtoms().size(); k++) {
@@ -4537,6 +4540,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     for (int k = existingOrder.size(); k < cl->getAtoms().size(); k++) {
                                         if (k + 1 != diffVersion) order->appendAtomIndex(k + 1);
                                     }
+                                } else if (plan->hasOrderFor(version, diffVersion)) {
                                 } else {
                                     order->appendAtomIndex(diffVersion);
                                     for (int k = 0; k < r1->getAtoms().size(); k++) {
