@@ -1212,7 +1212,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                         std::cout << "non-recursive: " << *cl << std::endl;
 
                         // translate cl
-                        std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause, 0, i + 1);
+                        std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause, 0, 0);
 
                         // add logging
                         if (Global::config().has("profile")) {
@@ -2648,7 +2648,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                     // std::unique_ptr<AstClause> rdiff(cl->clone());
 
                     if (isInsertionRule) {
-                        diffVersion = 1;
+                        diffVersion = 0;
                         // for (size_t i = 0; i < atoms.size(); i++) {
                         size_t i = 0;
                         // an insertion rule should look as follows:
@@ -3935,7 +3935,6 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     for (int k = existingOrder.size(); k < r1->getAtoms().size(); k++) {
                                         if (k + 1 != diffVersion) order->appendAtomIndex(k + 1);
                                     }
-                                } else if (plan->hasOrderFor(version, diffVersion)) {
                                 } else {
                                     order->appendAtomIndex(diffVersion);
                                     for (int k = 0; k < r1->getAtoms().size(); k++) {
@@ -3943,7 +3942,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     }
                                 }
 
-                                plan->setOrderFor(version, diffVersion, std::unique_ptr<AstExecutionOrder>(order));
+                                if (!plan->hasOrderFor(version, diffVersion)) {
+                                    plan->setOrderFor(version, diffVersion, std::unique_ptr<AstExecutionOrder>(order));
+                                }
                                 r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
 
                                 std::cout << "recursive: " << *r1 << std::endl;
@@ -4139,7 +4140,6 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     for (int k = existingOrder.size(); k < cl->getAtoms().size(); k++) {
                                         if (k + 1 != diffVersion) order->appendAtomIndex(k + 1);
                                     }
-                                } else if (plan->hasOrderFor(version, diffVersion)) {
                                 } else {
                                     order->appendAtomIndex(diffVersion);
                                     for (int k = 0; k < r1->getAtoms().size(); k++) {
@@ -4147,7 +4147,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     }
                                 }
 
-                                plan->setOrderFor(version, diffVersion, std::unique_ptr<AstExecutionOrder>(order));
+                                if (!plan->hasOrderFor(version, diffVersion)) {
+                                    plan->setOrderFor(version, diffVersion, std::unique_ptr<AstExecutionOrder>(order));
+                                }
                                 r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
 
                                 std::cout << "recursive: " << *r1 << std::endl;
@@ -4335,7 +4337,6 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     for (int k = existingOrder.size(); k < cl->getAtoms().size(); k++) {
                                         if (k + 1 != diffVersion) order->appendAtomIndex(k + 1);
                                     }
-                                } else if (plan->hasOrderFor(version, diffVersion)) {
                                 } else {
                                     order->appendAtomIndex(diffVersion);
                                     for (int k = 0; k < r1->getAtoms().size(); k++) {
@@ -4343,7 +4344,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     }
                                 }
 
-                                plan->setOrderFor(version, diffVersion, std::unique_ptr<AstExecutionOrder>(order));
+                                if (!plan->hasOrderFor(version, diffVersion)) {
+                                    plan->setOrderFor(version, diffVersion, std::unique_ptr<AstExecutionOrder>(order));
+                                }
                                 r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
 
                                 std::cout << "recursive: " << *r1 << std::endl;
@@ -4540,7 +4543,6 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     for (int k = existingOrder.size(); k < cl->getAtoms().size(); k++) {
                                         if (k + 1 != diffVersion) order->appendAtomIndex(k + 1);
                                     }
-                                } else if (plan->hasOrderFor(version, diffVersion)) {
                                 } else {
                                     order->appendAtomIndex(diffVersion);
                                     for (int k = 0; k < r1->getAtoms().size(); k++) {
@@ -4548,7 +4550,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     }
                                 }
 
-                                plan->setOrderFor(version, diffVersion, std::unique_ptr<AstExecutionOrder>(order));
+                                if (!plan->hasOrderFor(version, diffVersion)) {
+                                    plan->setOrderFor(version, diffVersion, std::unique_ptr<AstExecutionOrder>(order));
+                                }
                                 r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
 
                                 std::cout << "recursive: " << *r1 << std::endl;
