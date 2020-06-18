@@ -1224,7 +1224,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                             const std::string logSizeStatement =
                                     LogStatement::nNonrecursiveRule(relationName, srcLocation, clText);
                             rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
-                                    logTimerStatement, std::unique_ptr<RamRelationReference>(rrel->clone())));
+                                    logTimerStatement, std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(&rel)->clone())));
                         }
 
                         // add debug info
@@ -1780,7 +1780,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                             const std::string logSizeStatement =
                                     LogStatement::nNonrecursiveRule(relationName, srcLocation, clText);
                             rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
-                                    logTimerStatement, std::unique_ptr<RamRelationReference>(rrel->clone())));
+                                    logTimerStatement, std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(&rel)->clone())));
                         }
 
                         // add debug info
@@ -1911,7 +1911,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                             const std::string logSizeStatement =
                                     LogStatement::nNonrecursiveRule(relationName, srcLocation, clText);
                             rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
-                                    logTimerStatement, std::unique_ptr<RamRelationReference>(rrel->clone())));
+                                    logTimerStatement, std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(&rel)->clone())));
                         }
 
                         // add debug info
@@ -2032,7 +2032,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                             const std::string logSizeStatement =
                                     LogStatement::nNonrecursiveRule(relationName, srcLocation, clText);
                             rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
-                                    logTimerStatement, std::unique_ptr<RamRelationReference>(rrel->clone())));
+                                    logTimerStatement, std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(&rel)->clone())));
                         }
 
                         // add debug info
@@ -2160,7 +2160,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                             const std::string logSizeStatement =
                                     LogStatement::nNonrecursiveRule(relationName, srcLocation, clText);
                             rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
-                                    logTimerStatement, std::unique_ptr<RamRelationReference>(rrel->clone())));
+                                    logTimerStatement, std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(&rel)->clone())));
                         }
 
                         // add debug info
@@ -2793,7 +2793,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                     const std::string logSizeStatement =
                                             LogStatement::nRecursiveRule(relationName, version, srcLocation, clText);
                                     rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
-                                            logTimerStatement, std::unique_ptr<RamRelationReference>(relNew[rel]->clone())));
+                                            logTimerStatement, std::unique_ptr<RamRelationReference>(translateNewDiffAppliedRelation(rel)->clone())));
                                 }
 
                                 // add debug info
@@ -3767,7 +3767,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             const std::string logSizeStatement =
                                     LogStatement::nRecursiveRule(relationName, version, srcLocation, clText);
                             rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
-                                    logTimerStatement, std::unique_ptr<RamRelationReference>(relNew[rel]->clone())));
+                                    logTimerStatement, std::unique_ptr<RamRelationReference>(translateNewDiffPlusRelation(rel)->clone())));
                         }
 
                         // add debug info
@@ -3961,7 +3961,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     const std::string logSizeStatement =
                                             LogStatement::nRecursiveRule(relationName, version, srcLocation, clText);
                                     rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
-                                            logTimerStatement, std::unique_ptr<RamRelationReference>(relNew[rel]->clone())));
+                                            logTimerStatement, std::unique_ptr<RamRelationReference>(translateNewDiffPlusRelation(rel)->clone())));
                                 }
 
                                 // add debug info
@@ -4164,7 +4164,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     const std::string logSizeStatement =
                                             LogStatement::nRecursiveRule(relationName, version, srcLocation, clText);
                                     rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
-                                            logTimerStatement, std::unique_ptr<RamRelationReference>(relNew[rel]->clone())));
+                                            logTimerStatement, std::unique_ptr<RamRelationReference>(translateNewDiffPlusRelation(rel)->clone())));
                                 }
 
                                 // add debug info
@@ -4359,7 +4359,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     const std::string logSizeStatement =
                                             LogStatement::nRecursiveRule(relationName, version, srcLocation, clText);
                                     rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
-                                            logTimerStatement, std::unique_ptr<RamRelationReference>(relNew[rel]->clone())));
+                                            logTimerStatement, std::unique_ptr<RamRelationReference>(translateNewDiffMinusRelation(rel)->clone())));
                                 }
 
                                 // add debug info
@@ -4563,7 +4563,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     const std::string logSizeStatement =
                                             LogStatement::nRecursiveRule(relationName, version, srcLocation, clText);
                                     rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
-                                            logTimerStatement, std::unique_ptr<RamRelationReference>(relNew[rel]->clone())));
+                                            logTimerStatement, std::unique_ptr<RamRelationReference>(translateNewDiffMinusRelation(rel)->clone())));
                                 }
 
                                 // add debug info
