@@ -3750,9 +3750,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
 
                         std::cout << "recursive: " << *r1 << std::endl;
 
-                        // diffVersion = 0 here because the reinsertion rule doesn't really look like any other standard rule,
-                        // and diffVersion shouldn't apply to this anyway
-                        diffVersion = 0;
+                        // diffVersion = atoms.size() + negations.size() + 1 so it doesn't conflict with any other rules (in particular rules with negation)
+                        diffVersion = atoms.size() + negations.size() + 1;
 
                         // translate rdiff
                         std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *cl, version, diffVersion);
