@@ -35,7 +35,6 @@ public:
     CmdOptions& opt;
 
     Incremental(SouffleProgram& prog, CmdOptions& opt) : prog(prog), opt(opt), currentEpoch(0) {}
-    ~Incremental() = default;
 
     /* Process a command, a return value of true indicates to continue, returning false indicates to break (if
      * the command is q/exit) */
@@ -140,7 +139,7 @@ private:
 
     void commit() {
         if (opt.isProfiling()) {
-            std::cout << "profile filename: " << opt.getProfileName() << std::endl;
+            // std::cout << "profile filename: " << opt.getProfileName() << std::endl;
             ProfileEventSingleton::instance().setOutputFile(opt.getProfileName() + std::to_string(currentEpoch));
             ProfileEventSingleton::instance().clear();
         }
