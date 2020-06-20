@@ -1835,7 +1835,6 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "[&]() -> bool {\n";
 
             if (!isRamUndefValue(count)) {
-
                 // we want to check whether the same tuple in the same iteration exists
                 out << "auto existenceCheck = " << relName << "->"
                     << "equalRange";
@@ -1886,27 +1885,15 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 // else, don't update
                 out << "return true;\n";
 
+                out << "}\n";
+
+                /*
                 // if addition, we check the previous count:
                 // (1) return false (i.e., update) if either existenceCheck is empty, or the only tuples found in existenceCheck have a 0 current count
                 out << "} else {\n";
 
                 // if tuple doesn't exist, then we insert it
                 out << "if (existenceCheck.empty()) return false;\n";
-
-                /*
-                // otherwise, only insert if all tuples have zero count
-                // iterate through all tuples matching the payload
-                out << "for (auto& tup : existenceCheck) {\n";
-
-                // this is for a special case where:
-                // (1) a tuple exists in iteration i,
-                // (2) is inserted in iteration j < i in a subsequent epoch
-                // (3) the inserted tuple in iteration j should trigger an update in count in iteration i
-                out << "if (tup[" << arity - 3 << "] == ";
-                visit(*iteration, out);
-                out << ") return false;\n";
-                out << "}\n";
-                */
 
                 // otherwise, only insert if all tuples have zero count
                 // iterate through all tuples matching the payload
@@ -1920,15 +1907,6 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 // if these hold, then we don't update
                 out << "return true;\n";
                 out << "}\n";
-
-                /*
-                // check if this is an update of a previously generated tuple
-                out << "if (";
-                visit(*prevCount, out);
-                out << " == ";
-                visit(*count, out);
-                out << ") {\n";
-                */
 
                 // the 2 indicates a re-insertion
                 out << "if (";
@@ -1944,12 +1922,13 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "}\n";
                 out << "return false;\n";
                 out << "}\n";
+                */
                     
                 // if it's an actual update, then process it
                 out << "return false;\n";
 
                 // end of if statement
-                out << "}\n";
+                // out << "}\n";
             }
 
 
