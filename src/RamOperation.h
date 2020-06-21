@@ -1107,6 +1107,10 @@ public:
         return toPtrVector(expressions);
     }
 
+    bool isImmediateReturn() const {
+        return immediateReturn;
+    }
+
     std::vector<const RamNode*> getChildNodes() const override {
         std::vector<const RamNode*> res;
         for (const auto& cur : expressions) {

@@ -362,6 +362,13 @@ public:
     SearchSignature getSearchSignature(const RamPositiveExistenceCheck* existCheck) const;
 
     /**
+     * @Brief Get the index signature for an existence check
+     * @param Existence check
+     * @result index signature of existence check
+     */
+    SearchSignature getSearchSignature(const RamPreviousExistenceCheck* existCheck) const;
+
+    /**
      * @Brief Get the index signature for a provenance existence check
      * @param Subsumption-existence check
      * @result index signature of provenance-existence check

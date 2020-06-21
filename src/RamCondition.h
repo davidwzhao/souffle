@@ -522,6 +522,47 @@ public:
 };
 
 /**
+ * @class RamPreviousExistenceCheck
+ * @brief Existence check for an existing tuple(-pattern) in a relation (with positive count in incremental)
+ *
+ * Returns true if the tuple is in the relation
+ *
+ * The following condition is evaluated to true if the
+ * tuple element t0.1 is in the relation A with a positive count:
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * t0.1 IN A
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ */
+class RamPreviousExistenceCheck : public RamAbstractExistenceCheck {
+public:
+    RamPreviousExistenceCheck(
+            std::unique_ptr<RamRelationReference> relRef, std::vector<std::unique_ptr<RamExpression>> vals)
+            : RamAbstractExistenceCheck(std::move(relRef), std::move(vals)) {}
+
+    void print(std::ostream& os) const override {
+        os << "("
+           << join(values, ",",
+                      [](std::ostream& out, const std::unique_ptr<RamExpression>& value) {
+                          if (!value) {
+                              out << "_";
+                          } else {
+                              out << *value;
+                          }
+                      })
+           << ") prev∈ " << getRelation().getName();
+    }
+
+    RamPreviousExistenceCheck* clone() const override {
+        std::vector<std::unique_ptr<RamExpression>> newValues;
+        for (auto& cur : values) {
+            newValues.emplace_back(cur->clone());
+        }
+        return new RamPreviousExistenceCheck(
+                std::unique_ptr<RamRelationReference>(relationRef->clone()), std::move(newValues));
+    }
+};
+
+/**
  * @class RamSubsumptionExistenceCheck
  * @brief Subsumption Existence check for a relation
  */

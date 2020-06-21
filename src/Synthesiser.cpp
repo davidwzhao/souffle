@@ -516,7 +516,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             out << "{\n";
             out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getExistingRelation()) << "," << synthesiser.getRelationName(merge.getExistingRelation()) << "->createContext());\n";
-            out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getTargetRelation()) << "," << synthesiser.getRelationName(merge.getTargetRelation()) << "->createContext());\n";
+            if (existingCtxName != targetCtxName) {
+                out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getTargetRelation()) << "," << synthesiser.getRelationName(merge.getTargetRelation()) << "->createContext());\n";
+            }
 
             // this is a bit of a mess, should integrate into search signatures
             int searchSignature = isa->getSearchSignature(&merge);
@@ -528,21 +530,32 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // out << synthesiser.toIndex(ne.getSearchSignature());
             out << "_" << searchSignature;
             out << "(Tuple<RamDomain," << arity << ">{{";
-            for (size_t i = 0; i < arity - 3; i++) {
+            for (size_t i = 0; i < arity - 2; i++) {
                 out << "tup[" << i << "]";
                 out << ",";
             }
 
             // extra 0s for incremental annotations
-            out << "0,0,0";
+            out << "0,0";
 
             out << "}}, " << existingCtxName << ");\n";
 
-            out << "if (!existenceCheck.empty() && (*existenceCheck.begin())[" << arity - 3 << "] != iter) {\n";
-            out << "continue;\n";
+            out << "bool ins = true;\n";
+
+            out << "for (auto& t : existenceCheck) {\n";
+            out << "if (t[" << arity - 2 << "] < tup[" << arity - 2 << "] && t[" << arity - 1 << "] > 0) {\n";
+            out << "ins = false;\n";
+            out << "break;\n";
+            out << "}\n";
             out << "}\n";
 
-            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup, " << targetCtxName << ");\n";
+            /*
+            out << "if (!existenceCheck.empty() && (*existenceCheck.begin())[" << arity - 2 << "] < iter) {\n";
+            out << "continue;\n";
+            out << "}\n";
+            */
+
+            out << "if (ins) " << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup, " << targetCtxName << ");\n";
 
 
             
@@ -826,11 +839,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
         void visitDebugInfo(const RamDebugInfo& dbg, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
-            /*
             out << "SignalHandler::instance()->setMsg(R\"_(";
             out << dbg.getMessage();
             out << ")_\");\n";
-            */
 
             // insert statements of the rule
             visit(dbg.getStatement(), out);
@@ -1798,6 +1809,73 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             PRINT_END_COMMENT(out);
         }
 
+        void visitPreviousExistenceCheck(const RamPreviousExistenceCheck& exists, std::ostream& out) override {
+            PRINT_BEGIN_COMMENT(out);
+            // get some details
+            const auto& rel = exists.getRelation();
+            auto relName = synthesiser.getRelationName(rel);
+            auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(rel) + ")";
+            auto arity = rel.getArity();
+            assert(arity > 0 && "AstTranslator failed");
+            std::string before, after;
+            if (Global::config().has("profile") && !exists.getRelation().isTemp()) {
+                out << R"_((reads[)_" << synthesiser.lookupReadIdx(rel.getName()) << R"_(]++,)_";
+                after = ")";
+            }
+
+            RamExpression* currentCount = exists.getValues()[exists.getValues().size() - 1];
+            // RamExpression* previousCount = exists.getValues()[exists.getValues().size() - 2];
+            RamExpression* iteration = exists.getValues()[exists.getValues().size() - 2];
+
+            out << "[&]() -> bool {\n";
+
+            out << "auto existenceCheck = " << relName << "->"
+                << "equalRange";
+            out << "_" << isa->getSearchSignature(&exists);
+            out << "(Tuple<RamDomain," << arity << ">{{";
+
+            for (size_t i = 0; i < exists.getValues().size() - 2; i++) {
+                RamExpression* val = exists.getValues()[i];
+                if (!isRamUndefValue(val)) {
+                    visit(*val, out);
+                } else {
+                    out << "0";
+                }
+                out << ",";
+            }
+            out << "0,0";
+            out << "}}," << ctxName << ");\n";
+
+            out << "for (const auto& tup : existenceCheck) {\n";
+
+            if (!isRamUndefValue(currentCount)) {
+                /*
+                // count of 0 indicates that we want to check existence in earlier iterations
+                out << "else if (";
+                visit(*currentCount, out);
+                out << " == 0) {\n";
+                */
+
+                // if count is positive and iteration is lower than current, then we find the tuple
+                out << "if (tup[" << arity - 1 << "] > 0 && tup[" << arity - 2 << "] < (iter-1)) {\n"; //  && tup[" << arity - 3 << "] == (iter-1)";
+                /*
+                out << "if (tup[" << arity - 1 << "] > 0 && tup[" << arity - 3 << "] == ";
+                visit(*iteration, out);
+                out << ") {\n"; //  && tup[" << arity - 3 << "] == (iter-1)";
+                */
+                out << "return true;\n";
+                out << "}\n";
+                
+                // out << "}\n";
+            }
+
+            out << "}\n";
+            out << "return false;\n";
+
+            out << "}()\n" << after;
+            PRINT_END_COMMENT(out);
+        }
+
         void visitSubsumptionExistenceCheck(
                 const RamSubsumptionExistenceCheck& subsumptionExists, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
@@ -2265,6 +2343,10 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                     out << ");\n";
                     out << "err.push_back(false);\n";
                 }
+            }
+
+            if (ret.isImmediateReturn()) {
+                out << "return;\n";
             }
         }
 
