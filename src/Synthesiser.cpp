@@ -1829,6 +1829,8 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             out << "[&]() -> bool {\n";
 
+            out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(exists.getRelation()) << "," << synthesiser.getRelationName(exists.getRelation()) << "->createContext());\n";
+
             out << "auto existenceCheck = " << relName << "->"
                 << "equalRange";
             out << "_" << isa->getSearchSignature(&exists);

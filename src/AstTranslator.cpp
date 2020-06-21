@@ -2344,21 +2344,21 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                     std::unique_ptr<RamRelationReference>(translateNewDiffMinusRelation(rel)->clone())),
                                     */
 
-                            std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone())),
+                            // std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone())),
 
                             // update the diff plus relations
                             // merge new_diff_plus into diff_plus to update with new tuples from current iteration
                             std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateNewDiffAppliedRelation(rel)->clone())),
 
-                            /*
                             std::make_unique<RamSwap>(std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateNewDiffAppliedRelation(rel)->clone())),
-                                    */
 
+                            /*
                             std::make_unique<RamExistingMerge>(std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateNewDiffAppliedRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone())),
+                                    */
 
                             /*
                             // update the diff applied relations
@@ -3657,6 +3657,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                 bool isDeletionRule = (*curCountNum == AstNumberConstant(-1));
 
                 if (isReinsertionRule) {
+                    /*
                     std::unique_ptr<AstClause> rdiff(cl->clone());
 
                     rdiff->getHead()->setName(translateNewDiffPlusRelation(rel)->get()->getName());
@@ -3812,6 +3813,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
 
                         version++;
                     }
+                    */
                 } else {
                     // AstAtom* atom = atoms[j];
                     // const AstRelation* atomRelation = getAtomRelation(atom, program);
@@ -3925,8 +3927,12 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                             std::unique_ptr<AstArgument>(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 2)->clone()),
                                             std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
 
+                                /*
                                 // add a constraint saying that the delta tuple can't have existed previously
-                                r1->addToBody(std::make_unique<AstPreviousNegation>(std::unique_ptr<AstAtom>(r1->getAtoms()[j]->clone())));
+                                auto noPrior = atoms[j]->clone();
+                                noPrior->setName(translateDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                                r1->addToBody(std::make_unique<AstPreviousNegation>(std::unique_ptr<AstAtom>(noPrior)));
+                                */
 
                                 // any atoms before atom j should be in earlier itereations, check this by a constraint on the iteration number
                                 for (size_t k = 0; k < j; k++) {
@@ -4329,6 +4335,12 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                             // std::unique_ptr<AstArgument>(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 3)->clone()),
                                             std::unique_ptr<AstArgument>(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 2)->clone()),
                                             std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+
+                                /*
+                                // add a constraint saying that the delta tuple can't have existed previously
+                                auto noPrior = atoms[j]->clone();
+                                r1->addToBody(std::make_unique<AstPreviousNegation>(std::unique_ptr<AstAtom>(noPrior)));
+                                */
 
                                 // any atoms before atom j should be in earlier itereations, check this by a constraint on the iteration number
                                 for (size_t k = 0; k < j; k++) {
