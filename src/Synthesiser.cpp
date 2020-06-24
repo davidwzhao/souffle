@@ -1687,12 +1687,18 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 // if count is positive, then we find the tuple
                 out << "if (tup[" << arity - 1 << "] > 0) {\n"; //  && tup[" << arity - 3 << "] == (iter-1)";
 
+                /*
                 // if tuple is in Delta_n, then it shouldn't be in I_o
                 out << "if (";
                 visit(*iteration, out);
                 out << " == -1 || (";
                 visit(*iteration, out);
                 out << " <= (iter-1) && tup[" << arity - 2 << "] <= (iter - 1))";
+                */
+
+                out << "if (";
+                visit(*iteration, out);
+                out << " == tup[" << arity - 2 << "]";
 
                 /*
                 // if tuple is in I_no, then it shouldn't be in Delta_o
@@ -1859,7 +1865,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 */
 
                 // if count is positive and iteration is lower than current, then we find the tuple
-                out << "if (tup[" << arity - 1 << "] > 0 && tup[" << arity - 2 << "] < (iter-1)) {\n"; //  && tup[" << arity - 3 << "] == (iter-1)";
+                out << "if (tup[" << arity - 1 << "] > 0 && tup[" << arity - 2 << "] <";
+                visit(*iteration, out);
+                out << ") {\n"; //  && tup[" << arity - 3 << "] == (iter-1)";
                 /*
                 out << "if (tup[" << arity - 1 << "] > 0 && tup[" << arity - 3 << "] == ";
                 visit(*iteration, out);
@@ -1965,12 +1973,12 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 // else, don't update
                 out << "return true;\n";
 
-                out << "}\n";
-
-                /*
                 // if addition, we check the previous count:
                 // (1) return false (i.e., update) if either existenceCheck is empty, or the only tuples found in existenceCheck have a 0 current count
-                out << "} else {\n";
+                // out << "} else {\n";
+                out << "} else if (";
+                visit(*count, out);
+                out << " == 2) {\n";
 
                 // if tuple doesn't exist, then we insert it
                 out << "if (existenceCheck.empty()) return false;\n";
@@ -1988,6 +1996,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "return true;\n";
                 out << "}\n";
 
+                /*
                 // the 2 indicates a re-insertion
                 out << "if (";
                 visit(*count, out);
@@ -2005,10 +2014,10 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 */
                     
                 // if it's an actual update, then process it
-                out << "return false;\n";
+                // out << "return false;\n";
 
                 // end of if statement
-                // out << "}\n";
+                out << "}\n";
             }
 
 

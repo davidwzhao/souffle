@@ -2454,6 +2454,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
     if (Global::config().has("incremental")) {
         appendStmt(preamble, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(maxIterRelationRef->clone())));
 
+        /*
         // we make the final project first
         std::vector<std::unique_ptr<RamExpression>> maxIterNumbers;
         int ident = 0;
@@ -2476,6 +2477,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
         }
 
         appendStmt(preamble, std::make_unique<RamQuery>(std::move(outerMaxIterAggregate)));
+        */
     }
 
     // --- build main loop ---
@@ -2741,6 +2743,15 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                 rdiff->getAtoms()[j]->setName(translateDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
                             }
 
+                            // add a constraint so that we only insert one version of each derivation
+                            for (size_t j = 0; j < atoms.size(); j++) {
+                                if (isInSameSCC(getAtomRelation(atoms[j], program))) {
+                                    // add a constraint saying that the delta tuple can't have existed previously
+                                    auto noPrior = atoms[j]->clone();
+                                    noPrior->setName(translateDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                                    rdiff->addToBody(std::make_unique<AstPreviousNegation>(std::unique_ptr<AstAtom>(noPrior)));
+                                }
+                            }
 
                             // process negations
                             for (size_t j = 0; j < negations.size(); j++) {
@@ -3555,8 +3566,13 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
             appendStmt(preamble,
                     std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
                             std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(rel)->clone())));
+            /*
             appendStmt(preamble,
                     std::make_unique<RamUpdateMerge>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
+                            std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(rel)->clone())));
+                            */
+            appendStmt(preamble,
+                    std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
                             std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(rel)->clone())));
         } else {
             /* Generate merge operation for temp tables */
@@ -3583,6 +3599,9 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
     if (Global::config().has("incremental")) {
         // appendStmt(preamble, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(maxIterRelationRef->clone())));
 
+        // clear the maxIterRelation
+        appendStmt(preamble, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(maxIterRelationRef->clone())));
+
         // we make the final project first
         std::vector<std::unique_ptr<RamExpression>> maxIterNumbers;
         int ident = 0;
@@ -3600,7 +3619,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
 
         ident = 0;
         for (const AstRelation* rel : scc) {
-            outerMaxIterAggregate = std::make_unique<RamAggregate>(std::move(outerMaxIterAggregate), AggregateFunction::MAX, std::unique_ptr<RamRelationReference>(rrel[rel]->clone()), std::make_unique<RamTupleElement>(ident, rrel[rel]->get()->getArity() - 2), std::make_unique<RamTrue>(), ident);
+            outerMaxIterAggregate = std::make_unique<RamAggregate>(std::move(outerMaxIterAggregate), AggregateFunction::MAX, std::unique_ptr<RamRelationReference>(rrel[rel]->clone()), std::make_unique<RamTupleElement>(ident, rrel[rel]->get()->getArity() - 2), std::make_unique<RamConstraint>(BinaryConstraintOp::GT, std::make_unique<RamTupleElement>(ident, rrel[rel]->get()->getArity() - 1), std::make_unique<RamNumber>(0)), ident);
             ident++;
         }
 
@@ -3657,7 +3676,6 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                 bool isDeletionRule = (*curCountNum == AstNumberConstant(-1));
 
                 if (isReinsertionRule) {
-                    /*
                     std::unique_ptr<AstClause> rdiff(cl->clone());
 
                     rdiff->getHead()->setName(translateNewDiffPlusRelation(rel)->get()->getName());
@@ -3686,10 +3704,20 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                         curAtom->setName(translateRelation(getAtomRelation(atoms[i], program))->get()->getName());
 
                         // curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstNumberConstant>(1));
-                        curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstNumberConstant>(0));
+                        curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstNumberConstant>(1));
                         // curAtom->setArgument(curAtom->getArity() - 2, std::make_unique<AstUnnamedVariable>());
 
                         rdiff->addToBody(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(curAtom)));
+                    }
+
+                    // add a constraint so that we only insert one version of each derivation
+                    for (size_t j = 0; j < atoms.size(); j++) {
+                        if (isInSameSCC(getAtomRelation(atoms[j], program))) {
+                            // add a constraint saying that the delta tuple can't have existed previously
+                            auto noPrior = atoms[j]->clone();
+                            noPrior->setName(translateDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                            rdiff->addToBody(std::make_unique<AstPreviousNegation>(std::unique_ptr<AstAtom>(noPrior)));
+                        }
                     }
 
                     // if we have incremental evaluation, we use iteration counts to simulate delta relations
@@ -3697,6 +3725,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                     rdiff->addToBody(std::make_unique<AstSubsumptionNegation>(
                             std::unique_ptr<AstAtom>(diffAppliedHeadAtom), 1));
 
+                    /*
                     // a tuple should only be reinserted if that tuple is deleted
                     auto deletedTuple = cl->getHead()->clone();
                     // deletedTuple->setName(translateDiffMinusCountRelation(rel)->get()->getName());
@@ -3706,6 +3735,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                     // deletedTuple->setArgument(deletedTuple->getArity() - 3, std::make_unique<AstUnnamedVariable>());
                     rdiff->addToBody(std::unique_ptr<AstAtom>(deletedTuple));
                     rdiff->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE, std::make_unique<AstVariable>("@deleted_count"), std::make_unique<AstNumberConstant>(0)));
+                    */
 
                     std::vector<std::unique_ptr<AstLiteral>> notDeletedChecks;
 
@@ -3772,6 +3802,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             }
                         }
 
+                        /*
                         // reorder cl so that the deletedTuple atom is evaluated first
                         std::vector<unsigned int> reordering;
                         reordering.push_back(atoms.size());
@@ -3779,15 +3810,31 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             reordering.push_back(k);
                         }
                         r1->reorderAtoms(reordering);
+                        */
 
-
-                        std::cout << "recursive: " << *r1 << std::endl;
+                        std::cout << "recursive re-discovery: " << *r1 << std::endl;
 
                         // diffVersion = atoms.size() + negations.size() + 1 so it doesn't conflict with any other rules (in particular rules with negation)
                         diffVersion = atoms.size() + negations.size() + 1;
 
                         // translate rdiff
                         std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *cl, version, diffVersion);
+
+            // outerMaxIterAggregate = std::make_unique<RamAggregate>(std::move(outerMaxIterAggregate), AggregateFunction::MAX, std::unique_ptr<RamRelationReference>(rrel[rel]->clone()), std::make_unique<RamTupleElement>(ident, rrel[rel]->get()->getArity() - 2), std::make_unique<RamTrue>(), ident);
+
+                        /*
+                        // only evaluate this rule if it's in the last iteration
+                        assert(dynamic_cast<RamQuery*>(rule.get()) != nullptr && "a clause should be a RamQuery");
+                        auto ruleOperation = dynamic_cast<RamQuery*>(rule.get())->getOperation().clone();
+
+                        // create a filter
+                        auto lastIterationFilter = std::make_unique<RamFilter>(std::make_unique<RamConstraint>(BinaryConstraintOp::GT, std::make_unique<RamIterationNumber>(), std::make_unique<RamTupleElement>(100, 0)), std::unique_ptr<RamOperation>(ruleOperation));
+
+                        // make the aggregate
+                        auto lastIterationAggregate = std::make_unique<RamAggregate>(std::move(lastIterationFilter), AggregateFunction::MAX, std::unique_ptr<RamRelationReference>(maxIterRelationRef->clone()), std::make_unique<RamTupleElement>(100, 0), std::make_unique<RamTrue>(), 100);
+
+                        rule = std::make_unique<RamQuery>(std::move(lastIterationAggregate));
+                        */
 
                         // add logging
                         if (Global::config().has("profile")) {
@@ -3808,12 +3855,13 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                         ds << r1->getSrcLoc();
                         rule = std::make_unique<RamDebugInfo>(std::move(rule), ds.str());
 
+
+
                         // add rule to result
                         appendStmt(loopRelSeq, std::move(rule));
 
                         version++;
                     }
-                    */
                 } else {
                     // AstAtom* atom = atoms[j];
                     // const AstRelation* atomRelation = getAtomRelation(atom, program);
@@ -3886,6 +3934,14 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 rdiff->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
                                             std::unique_ptr<AstArgument>(atoms[j]->getArgument(atoms[j]->getArity() - 1)->clone()),
                                             std::make_unique<AstNumberConstant>(0)));
+
+                                // add a constraint so that we only insert one version of each derivation
+                                if (isInSameSCC(getAtomRelation(atoms[j], program))) {
+                                    // add a constraint saying that the delta tuple can't have existed previously
+                                    auto noPrior = atoms[j]->clone();
+                                    noPrior->setName(translateDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                                    rdiff->addToBody(std::make_unique<AstPreviousNegation>(std::unique_ptr<AstAtom>(noPrior)));
+                                }
                             }
 
                             // process negations
@@ -4108,6 +4164,14 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 rdiff->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
                                             std::unique_ptr<AstArgument>(atoms[j]->getArgument(atoms[j]->getArity() - 1)->clone()),
                                             std::make_unique<AstNumberConstant>(0)));
+
+                                // add a constraint so that we only insert one version of each derivation
+                                if (isInSameSCC(getAtomRelation(atoms[j], program))) {
+                                    // add a constraint saying that the delta tuple can't have existed previously
+                                    auto noPrior = atoms[j]->clone();
+                                    noPrior->setName(translateDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                                    rdiff->addToBody(std::make_unique<AstPreviousNegation>(std::unique_ptr<AstAtom>(noPrior)));
+                                }
                             }
 
                             rdiff->clearNegations();
@@ -4293,6 +4357,14 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     rdiff->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
                                                 std::unique_ptr<AstArgument>(atoms[j]->getArgument(atoms[j]->getArity() - 1)->clone()),
                                                 std::make_unique<AstNumberConstant>(0)));
+                                }
+
+                                // add a constraint so that we only insert one version of each derivation
+                                if (isInSameSCC(getAtomRelation(atoms[j], program))) {
+                                    // add a constraint saying that the delta tuple can't have existed previously
+                                    auto noPrior = atoms[j]->clone();
+                                    // noPrior->setName(translateDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                                    rdiff->addToBody(std::make_unique<AstPreviousNegation>(std::unique_ptr<AstAtom>(noPrior)));
                                 }
                             }
 
@@ -4515,6 +4587,14 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 rdiff->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
                                             std::unique_ptr<AstArgument>(atoms[j]->getArgument(atoms[j]->getArity() - 1)->clone()),
                                             std::make_unique<AstNumberConstant>(0)));
+
+                                // add a constraint so that we only insert one version of each derivation
+                                if (isInSameSCC(getAtomRelation(atoms[j], program))) {
+                                    // add a constraint saying that the delta tuple can't have existed previously
+                                    auto noPrior = atoms[j]->clone();
+                                    // noPrior->setName(translateDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                                    rdiff->addToBody(std::make_unique<AstPreviousNegation>(std::unique_ptr<AstAtom>(noPrior)));
+                                }
                             }
 
                             rdiff->clearNegations();
@@ -4751,7 +4831,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
     }
 
     if (Global::config().has("incremental")) {
-        ramProg->addSubroutine("scc_" + std::to_string(indexOfScc) + "_update_exit", makeIncrementalUpdateExitCondSubroutine(scc));
+        ramProg->addSubroutine("scc_" + std::to_string(indexOfScc) + "_update_exit", makeIncrementalUpdateExitCondSubroutine(scc, *maxIterRelationRef));
         std::vector<std::unique_ptr<RamExpression>> exitCondArgs;
         exitCondArgs.push_back(std::make_unique<RamIterationNumber>());
         addCondition(exitCond, std::make_unique<RamSubroutineCondition>("scc_" + std::to_string(indexOfScc) + "_update_exit", std::move(exitCondArgs)));
@@ -4917,7 +4997,7 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalUpdateCleanupSubrout
                 std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateRelation(relation)->clone()),
                         std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(relation)->clone())));
         appendStmt(cleanupSequence,
-                std::make_unique<RamUpdateMerge>(std::unique_ptr<RamRelationReference>(translateRelation(relation)->clone()),
+                std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateRelation(relation)->clone()),
                         std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(relation)->clone())));
 
         /*
@@ -5062,7 +5142,7 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalExitCondSubroutine(c
     return exitCondSequence;
 }
 
-std::unique_ptr<RamStatement> AstTranslator::makeIncrementalUpdateExitCondSubroutine(const std::set<const AstRelation*>& scc) {
+std::unique_ptr<RamStatement> AstTranslator::makeIncrementalUpdateExitCondSubroutine(const std::set<const AstRelation*>& scc, const RamRelationReference& maxIterRelationRef) {
     // we want a subroutine that looks like:
     // FOR t0 in diff_applied_R1:
     //   IF t0 in R1 with positive count:
@@ -5085,6 +5165,22 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalUpdateExitCondSubrou
     };
 
     std::unique_ptr<RamStatement> exitCondSequence;
+
+    // make a RamCondition checking whether the maxIterRel tuple is > current iteration
+    std::vector<std::unique_ptr<RamExpression>> numbers;
+    numbers.push_back(std::make_unique<RamSubroutineArgument>(0));
+    numbers.push_back(std::make_unique<RamNumber>(1));
+    auto iterationConstraint = std::make_unique<RamConstraint>(BinaryConstraintOp::GE, std::make_unique<RamTupleElement>(0, 0), std::make_unique<RamIntrinsicOperator>(FunctorOp::SUB, std::move(numbers)));
+
+    // auto iterationConstraint = std::make_unique<RamConstraint>(BinaryConstraintOp::GE, std::make_unique<RamTupleElement>(0, 0), std::make_unique<RamIntrinsicOperator>(FunctorOp::SUB, std::make_unique<RamSubroutineArgument>(0), std::make_unique<RamNumber>(1)));
+
+    // make RamFilter that returns false if the iteration number is greater
+    auto iterationFilter = std::make_unique<RamFilter>(std::move(iterationConstraint), makeBoolReturn(false));
+
+    // create the RamScan
+    auto exitCondScan = std::make_unique<RamScan>(std::unique_ptr<RamRelationReference>(maxIterRelationRef.clone()), 0, std::move(iterationFilter));
+    // exitCondSequence->add(std::make_unique<RamQuery>(std::move(exitCondScan)));
+    appendStmt(exitCondSequence, std::make_unique<RamQuery>(std::move(exitCondScan)));
 
     // for each relation create a loop filter
     for (const auto* rel : scc) {
@@ -5112,16 +5208,6 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalUpdateExitCondSubrou
     }
 
     /*
-    // make a RamCondition checking whether the maxIterRel tuple is > current iteration
-    auto iterationConstraint = std::make_unique<RamConstraint>(BinaryConstraintOp::GE, std::make_unique<RamTupleElement>(0, 0), std::make_unique<RamSubroutineArgument>(0));
-
-    // make RamFilter that returns false if the iteration number is greater
-    auto iterationFilter = std::make_unique<RamFilter>(std::move(iterationConstraint), std::move(returnFalse));
-
-    // create the RamScan
-    auto exitCondScan = std::make_unique<RamScan>(std::unique_ptr<RamRelationReference>(maxIterRelationRef.clone()), 0, std::move(iterationFilter));
-    exitCondSequence->add(std::make_unique<RamQuery>(std::move(exitCondScan)));
-
     // default case
     std::vector<std::unique_ptr<RamExpression>> returnTrueVal;
     returnTrueVal.push_back(std::make_unique<RamNumber>(1));
@@ -5797,7 +5883,13 @@ void AstTranslator::translateUpdateProgram(const AstTranslationUnit& translation
                     appendStmt(current, std::make_unique<RamMerge>(
                                 std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)),
                                 std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(relation))));
+                    /*
                     appendStmt(current, std::make_unique<RamUpdateMerge>(
+                                std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)),
+                                std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(relation))
+                                ));
+                                */
+                    appendStmt(current, std::make_unique<RamMerge>(
                                 std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)),
                                 std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(relation))
                                 ));

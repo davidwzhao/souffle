@@ -414,7 +414,7 @@ private:
     std::unique_ptr<RamStatement> makeIncrementalExitCondSubroutine(const std::set<const AstRelation*>& scc);
 
     /** make an exit condition for iteration numbers for incremental */
-    std::unique_ptr<RamStatement> makeIncrementalUpdateExitCondSubroutine(const std::set<const AstRelation*>& scc);
+    std::unique_ptr<RamStatement> makeIncrementalUpdateExitCondSubroutine(const std::set<const AstRelation*>& scc, const RamRelationReference& maxIterRelationRef);
 
     /** translate RAM code for subroutine to get subproofs */
     std::unique_ptr<RamStatement> makeSubproofSubroutine(const AstClause& clause);
