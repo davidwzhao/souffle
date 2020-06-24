@@ -3664,6 +3664,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                     rdiff->addToBody(std::make_unique<AstSubsumptionNegation>(
                             std::unique_ptr<AstAtom>(diffAppliedHeadAtom), 1));
 
+                    /*
                     // a tuple should only be reinserted if that tuple is deleted
                     auto deletedTuple = cl->getHead()->clone();
                     // deletedTuple->setName(translateDiffMinusCountRelation(rel)->get()->getName());
@@ -3673,6 +3674,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                     // deletedTuple->setArgument(deletedTuple->getArity() - 3, std::make_unique<AstUnnamedVariable>());
                     rdiff->addToBody(std::unique_ptr<AstAtom>(deletedTuple));
                     rdiff->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE, std::make_unique<AstVariable>("@deleted_count"), std::make_unique<AstNumberConstant>(0)));
+                    */
 
                     std::vector<std::unique_ptr<AstLiteral>> notDeletedChecks;
 
@@ -3739,6 +3741,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             }
                         }
 
+                        /*
                         // reorder cl so that the deletedTuple atom is evaluated first
                         std::vector<unsigned int> reordering;
                         reordering.push_back(atoms.size());
@@ -3746,9 +3749,10 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             reordering.push_back(k);
                         }
                         r1->reorderAtoms(reordering);
+                        */
 
 
-                        std::cout << "recursive: " << *r1 << std::endl;
+                        std::cout << "reinsertion recursive: " << *r1 << std::endl;
 
                         // diffVersion = atoms.size() + negations.size() + 1 so it doesn't conflict with any other rules (in particular rules with negation)
                         diffVersion = atoms.size() + negations.size() + 1;
