@@ -2377,7 +2377,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         const RamRelation& rel = create.getRelation();
         const std::string& raw_name = rel.getName();
 
-        bool isProvInfo = raw_name.find("@info") != std::string::npos || raw_name.find("@max_iter") != std::string::npos || raw_name.find("@indexed") != std::string::npos;
+        bool isProvInfo = raw_name.find("@info") != std::string::npos || raw_name.find("@max_iter") != std::string::npos || raw_name.find("@indexed") != std::string::npos || raw_name.find("@restricted") != std::string::npos;
         auto relationType = SynthesiserRelation::getSynthesiserRelation(
                 rel, idxAnalysis->getIndexes(rel), (Global::config().has("provenance") || Global::config().has("incremental")) && !isProvInfo);
 
@@ -2502,7 +2502,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
 
             // we consider diff_applied to be normal also
             bool isNormalRelation = raw_name.find("diff_minus@") == std::string::npos && raw_name.find("diff_plus@") == std::string::npos && raw_name.find("applied@") == std::string::npos; // && raw_name.find("@delta") != std::string::npos;
-            bool isSpecial = raw_name.find("@max_iter") != std::string::npos || raw_name.find("@indexed") != std::string::npos;
+            bool isSpecial = raw_name.find("@max_iter") != std::string::npos || raw_name.find("@indexed") != std::string::npos || raw_name.find("@restricted") != std::string::npos;
 
             auto relationType = SynthesiserRelation::getSynthesiserRelation(
                     rel, idxAnalysis->getIndexes(rel), true && !isSpecial);
@@ -2931,7 +2931,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
                 const std::string& name = getRelationName(rel);
                 const std::string& raw_name = rel.getName();
 
-                bool isProvInfo = raw_name.find("@info") != std::string::npos || raw_name.find("@max_iter") != std::string::npos || raw_name.find("@indexed") != std::string::npos;
+                bool isProvInfo = raw_name.find("@info") != std::string::npos || raw_name.find("@max_iter") != std::string::npos || raw_name.find("@indexed") != std::string::npos || raw_name.find("@restricted") != std::string::npos;
                 auto relationType = SynthesiserRelation::getSynthesiserRelation(
                         rel, idxAnalysis->getIndexes(rel), Global::config().has("provenance") && !isProvInfo);
 

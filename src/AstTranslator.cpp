@@ -3588,6 +3588,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
     for (const AstRelation* rel : scc) {
         std::unique_ptr<RamStatement> loopRelSeq;
 
+        std::set<const AstAtom*> processedRestrictionAtoms;
+
         /* Find clauses for relation rel */
         for (size_t i = 0; i < rel->clauseSize(); i++) {
             AstClause* cl = rel->getClause(i);
@@ -3708,6 +3710,33 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                         if (!isInSameSCC(getAtomRelation(atoms[j], program))) {
                             continue;
                         }
+
+                        auto restrictionAtoms = createIncrementalRediscoverFilters(*cl, i, version, diffVersion, *program, recursiveClauses);
+
+                        // create a 'rule' in preamble that populates this restriction filter
+                        for (AstAtom* restrictionAtom : restrictionAtoms.second) {
+                            bool insert = true;
+                            for (auto processedAtom : processedRestrictionAtoms) {
+                                if (*restrictionAtom == *processedAtom) {
+                                    insert = false;
+                                    break;
+                                }
+                            }
+
+                            if (insert) {
+                                // create an AstClause
+                                auto restrictionClause = std::make_unique<AstClause>();
+
+                                restrictionClause->setHead(std::unique_ptr<AstAtom>(restrictionAtom->clone()));
+
+                                auto relationHead = cl->getHead()->clone();
+                                relationHead->setName(translateDiffMinusRelation(rel)->get()->getName());
+                                restrictionClause->addToBody(std::unique_ptr<AstAtom>(relationHead));
+
+                                appendStmt(preamble, ClauseTranslator(*this).translateClause(*restrictionClause, *restrictionClause));
+                            }
+                        }
+
 
                         // create clone
                         std::unique_ptr<AstClause> r1(rdiff->clone());
@@ -5228,6 +5257,114 @@ std::unique_ptr<RamStatement> AstTranslator::makeNegationSubproofSubroutine(cons
     return std::move(searchSequence);
 }
 
+std::pair<std::vector<AstRelation*>, std::vector<AstAtom*>> AstTranslator::createIncrementalRediscoverFilters(const AstClause& origClause, int clauseNum, int version, int version2, const AstProgram& program, const RecursiveClauses* recursiveClauses) {
+    // create a set of relations that restrict each predicate for the re-discovery rule
+    // if we have a rule like R(x, y) :- R1(x, z), R2(z, y)., then we wish to restrict this as:
+    // R(x, y) :- R_R1(x), R1(x, z), R_R2(y), R2(z, y).
+
+    std::vector<AstRelation*> coveringRelations;
+    std::vector<AstAtom*> covering;
+
+    auto clause = ClauseTranslator(*this).getReorderedClause(origClause, version, version2);
+
+    if (clause == nullptr) {
+        clause = std::unique_ptr<AstClause>(origClause.clone());
+    }
+
+    auto curCount = clause->getHead()->getArgument(clause->getHead()->getArity() - 1);
+    auto curCountNum = dynamic_cast<AstNumberConstant*>(curCount);
+    bool isReinsertionRule = *curCountNum == AstNumberConstant(2);
+
+    // skip non-recursive rules and only process re-insertion rules
+    if (!recursiveClauses->recursive(&origClause) || !isReinsertionRule) {
+        return std::make_pair(coveringRelations, covering);
+    }
+
+    // store only the variables in the head of the rule
+    size_t numHeadVariables = 0;
+    for (auto arg : clause->getHead()->getArguments()) {
+        if (auto var = dynamic_cast<AstVariable*>(arg)) {
+            // headVariables.push_back(var);
+            numHeadVariables++;
+        }
+    }
+
+    // store the set of variables that are covered so far
+    std::set<const AstVariable*> coveredVariables;
+
+    // go through each atom in the body of the rule
+    for (size_t i = 0; i < clause->getAtoms().size(); i++) {
+        auto atom = clause->getAtoms()[i];
+
+        // exit if we have covered everything
+        if (coveredVariables.size() == numHeadVariables) {
+            break;
+        }
+
+        std::vector<AstVariable*> coversAtom;
+
+        std::vector<int> variableNums;
+        // find all variables in the head of the rule that match
+        for (int j = 0; j < clause->getHead()->getArguments().size(); j++) {
+            if (auto var = dynamic_cast<AstVariable*>(clause->getHead()->getArguments()[j])) {
+                bool covers = false;
+                for (auto atomArg : atom->getArguments()) {
+                    if (*var == *atomArg) {
+                        covers = true;
+                        break;
+                    }
+                }
+
+                if (covers) {
+                    for (auto coveredVar : coveredVariables) {
+                        if (*var == *coveredVar) {
+                            covers = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (covers) {
+                    // we need to cover this variable with a relation
+                    coversAtom.push_back(var);
+
+                    // add to the set of covered variables
+                    coveredVariables.insert(var);
+                }
+            }
+        }
+
+        /*
+        std::cout << *atom << " is covered by: " << std::endl;
+        for (auto var : coversAtom) {
+            std::cout << *var << std::endl;
+        }
+        */
+
+        // create a restricting AstAtom
+        auto restrictionName = toString(join(clause->getHead()->getName().getNames(), ".")) + "_@restricted_" + std::to_string(clauseNum) + "_" + std::to_string(i);
+
+        auto atomRelation = getAtomRelation(atom, &program);
+        auto restrictionRelation = new AstRelation();
+        restrictionRelation->setName(restrictionName);
+
+        for (auto var : coversAtom) {
+            restrictionRelation->addAttribute(std::unique_ptr<AstAttribute>(atomRelation->getAttribute(i)->clone()));
+        }
+
+        coveringRelations.push_back(restrictionRelation);
+
+        auto restriction = new AstAtom(AstRelationIdentifier(restrictionName));
+        for (auto var : coversAtom) {
+            restriction->addArgument(std::unique_ptr<AstArgument>(var->clone()));
+        }
+
+        covering.push_back(restriction);
+    }
+
+    return std::make_pair(coveringRelations, covering);
+}
+
 /** translates the given datalog program into an equivalent RAM program  */
 void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) {
     // obtain type environment from analysis
@@ -5323,6 +5460,12 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
         // make a variable for all relations that are expired at the current SCC
         const auto& internExps = expirySchedule.at(indexOfScc).expired();
 
+        // create a utility to check SCC membership
+        auto isInSameSCC = [&](const AstRelation* rel) {
+            return std::find(allInterns.begin(), allInterns.end(), rel) != allInterns.end();
+        };
+
+
         // create all internal relations of the current scc
         for (const auto& relation : allInterns) {
             if (Global::config().has("incremental")) {
@@ -5353,6 +5496,36 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                                                 translateNewDiffPlusRelation(relation))));
                     appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
                                                 translateNewDiffMinusRelation(relation))));
+
+                    std::set<AstRelation*> processedRestrictionRelations;
+                    for (size_t i = 0; i < relation->getClauses().size(); i++) {
+                        auto clause = relation->getClauses()[i];
+                        for (size_t j = 0; j < clause->getAtoms().size(); j++) {
+                            if (!isInSameSCC(getAtomRelation(clause->getAtoms()[j], program))) {
+                                continue;
+                            }
+
+                            auto restrictionAtoms = createIncrementalRediscoverFilters(*clause, i, j, clause->getAtoms().size() + clause->getNegations().size() + 1, *program, recursiveClauses);
+
+                            for (AstRelation* restrictionRel : restrictionAtoms.first) {
+                                bool insert = true;
+                                for (auto processedRel : processedRestrictionRelations) {
+                                    if (*restrictionRel == *processedRel) {
+                                        insert = false;
+                                        break;
+                                    }
+
+                                }
+
+                                if (insert) {
+                                    // if not already processed
+                                    appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
+                                                                translateRelation(restrictionRel))));
+                                    processedRestrictionRelations.insert(restrictionRel);
+                                }
+                            }
+                        }
+                    }
                 }
 
                 appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(

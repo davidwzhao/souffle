@@ -341,8 +341,6 @@ private:
         // the order of processed operations
         std::vector<const AstNode*> op_nesting;
 
-        std::unique_ptr<AstClause> getReorderedClause(const AstClause& clause, const int version, const int version2 = 0) const;
-
         arg_list* getArgList(
                 const AstNode* curNode, std::map<const AstNode*, std::unique_ptr<arg_list>>& nodeArgs) const;
 
@@ -366,6 +364,8 @@ private:
 
     public:
         ClauseTranslator(AstTranslator& translator) : translator(translator) {}
+
+        std::unique_ptr<AstClause> getReorderedClause(const AstClause& clause, const int version, const int version2 = 0) const;
 
         std::unique_ptr<RamStatement> translateClause(
                 const AstClause& clause, const AstClause& originalClause, const int version = 0, const int version2 = 0);
@@ -421,6 +421,9 @@ private:
 
     /** translate RAM code for subroutine to get subproofs for non-existence of a tuple */
     std::unique_ptr<RamStatement> makeNegationSubproofSubroutine(const AstClause& clause);
+
+    /** translate RAM code for subroutine to get subproofs for non-existence of a tuple */
+    std::pair<std::vector<AstRelation*>, std::vector<AstAtom*>> createIncrementalRediscoverFilters(const AstClause& clause, int clauseNum, int version, int version2, const AstProgram& program, const RecursiveClauses* recursiveClauses);
 
     /** translate AST to RAM Program */
     void translateProgram(const AstTranslationUnit& translationUnit);
