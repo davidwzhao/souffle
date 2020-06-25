@@ -254,6 +254,14 @@ private:
      */
     std::unique_ptr<AstClause> makePositiveGenerationClause(const AstClause& clause, const AstTranslationUnit& translationUnit);
 
+    /**
+     * Generate a version of a clause that regenerates hidden tuples
+     *
+     * @param clause the clause to be transformed
+     * @return an instrumented version of clause that process tuple generations
+     */
+    std::unique_ptr<AstClause> makeNegativeGenerationClause(const AstClause& clause, const AstTranslationUnit& translationUnit);
+
     bool transform(AstTranslationUnit& translationUnit) override;
 };
 
