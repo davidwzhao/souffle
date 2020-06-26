@@ -3732,7 +3732,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                     // add constraints saying that each body tuple must have existed in the previous epoch
                     std::vector<AstConstraint*> existsReinsertion;
 
-                    diffVersion = 1;
+                    // diffVersion = atoms.size() + negations.size() + 1 so it doesn't conflict with any other rules (in particular rules with negation)
+                    diffVersion = atoms.size() + negations.size() + 1;
                     for (size_t i = 0; i < atoms.size(); i++) {
                         // ensure tuple actually existed
                         auto curAtom = atoms[i]->clone();
@@ -3935,24 +3936,27 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
 
                             // we know this filter atom covers the body atom, so we insert it into the order
                             if (covers) {
-                                order->appendAtomIndex(atoms.size() + filterAtomIndex + 1);
-                                order->appendAtomIndex(atomIndex);
+                                // only the first filter should come before the atom, the subsequent ones should go after to prevent cross products
+                                if (filterAtomIndex == 0) {
+                                    order->appendAtomIndex(atoms.size() + filterAtomIndex + 1);
+                                    order->appendAtomIndex(atomIndex);
+                                } else {
+                                    order->appendAtomIndex(atomIndex);
+                                    order->appendAtomIndex(atoms.size() + filterAtomIndex + 1);
+                                }
                                 filterAtomIndex++;
                             } else {
                                 order->appendAtomIndex(atomIndex);
                             }
                         }
 
-                        if (!plan->hasOrderFor(version, diffVersion)) {
-                            plan->setOrderFor(version, diffVersion, std::unique_ptr<AstExecutionOrder>(order));
-                        }
+                        // if (!plan->hasOrderFor(version, diffVersion)) {
+                        plan->setOrderFor(version, diffVersion, std::unique_ptr<AstExecutionOrder>(order));
+                        // }
                         r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
 
 
                         std::cout << "reinsertion recursive: " << *r1 << std::endl;
-
-                        // diffVersion = atoms.size() + negations.size() + 1 so it doesn't conflict with any other rules (in particular rules with negation)
-                        diffVersion = atoms.size() + negations.size() + 1;
 
                         // translate rdiff
                         std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *cl, version, diffVersion);
