@@ -3673,6 +3673,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
         std::unique_ptr<RamStatement> loopRelSeq;
 
         std::set<AstRelationIdentifier> processedRestrictionAtoms;
+        std::set<AstRelationIdentifier> processedRestrictionDeletions;
 
         /* Find clauses for relation rel */
         for (size_t i = 0; i < rel->clauseSize(); i++) {
@@ -3885,6 +3886,17 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             r1->addToBody(std::unique_ptr<AstAtom>(restrictionAtom->clone()));
                         }
 
+                        for (AstRelation* restrictionRel : restrictionAtoms.first) {
+                            if (!contains(processedRestrictionDeletions, restrictionRel->getName())) {
+                                // drop the filter relation at the end of the loop
+                                appendStmt(postamble, 
+                                          std::make_unique<RamDrop>(
+                                                  std::unique_ptr<RamRelationReference>(translateRelation(restrictionRel)->clone())));
+
+                                processedRestrictionDeletions.insert(restrictionRel->getName());
+                            }
+                        }
+
 
                         // set an execution plan so the diff_plus version of the relation is evaluated first
                         // get existing execution plan
@@ -3941,8 +3953,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     order->appendAtomIndex(atoms.size() + filterAtomIndex + 1);
                                     order->appendAtomIndex(atomIndex);
                                 } else {
-                                    order->appendAtomIndex(atomIndex);
                                     order->appendAtomIndex(atoms.size() + filterAtomIndex + 1);
+                                    order->appendAtomIndex(atomIndex);
                                 }
                                 filterAtomIndex++;
                             } else {
