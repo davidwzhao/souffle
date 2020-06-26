@@ -826,11 +826,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
         void visitDebugInfo(const RamDebugInfo& dbg, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
-            /*
             out << "SignalHandler::instance()->setMsg(R\"_(";
             out << dbg.getMessage();
             out << ")_\");\n";
-            */
 
             // insert statements of the rule
             visit(dbg.getStatement(), out);
