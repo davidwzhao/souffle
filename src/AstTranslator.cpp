@@ -3953,8 +3953,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     order->appendAtomIndex(atoms.size() + filterAtomIndex + 1);
                                     order->appendAtomIndex(atomIndex);
                                 } else {
-                                    order->appendAtomIndex(atoms.size() + filterAtomIndex + 1);
                                     order->appendAtomIndex(atomIndex);
+                                    order->appendAtomIndex(atoms.size() + filterAtomIndex + 1);
                                 }
                                 filterAtomIndex++;
                             } else {
@@ -5574,8 +5574,8 @@ std::pair<std::vector<AstRelation*>, std::vector<AstAtom*>> AstTranslator::creat
             auto restrictionRelation = new AstRelation();
             restrictionRelation->setName(restrictionName);
 
-            for (auto var : coversAtom) {
-                restrictionRelation->addAttribute(std::unique_ptr<AstAttribute>(atomRelation->getAttribute(i)->clone()));
+            for (int j = 0; j < coversAtom.size(); j++) {
+                restrictionRelation->addAttribute(std::unique_ptr<AstAttribute>(atomRelation->getAttribute(j)->clone()));
             }
 
             coveringRelations.push_back(restrictionRelation);
