@@ -381,7 +381,7 @@ std::unique_ptr<AstClause> ResolveAliasesTransformer::removeComplexTermsInAtoms(
             std::vector<std::pair<std::unique_ptr<AstArgument>, std::unique_ptr<AstVariable>>>;
     substitution_map termToVar;
 
-    int varCounter = 0;
+    static int varCounter = 0;
     for (const AstArgument* arg : terms) {
         // create a new mapping for this term
         auto term = std::unique_ptr<AstArgument>(arg->clone());
