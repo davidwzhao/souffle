@@ -1859,8 +1859,10 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                         // each negation needs to have either not existed, or be deleted
                         // for the non-existence case, we use a positive negation instead
                         auto negatedAtomNamed = negations[i]->getAtom()->clone();
+                        /*
                         UnnamedVariableRenamer renamer;
                         negatedAtomNamed->apply(renamer);
+                        */
 
                         auto negatedAtom = negatedAtomNamed->clone();
                         // negatedAtom->setName(translateDiffMinusCountRelation(getAtomRelation(negatedAtom, program))->get()->getName());
@@ -2122,8 +2124,10 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                         // each negation needs to have either not existed, or be deleted
                         // for the non-existence case, we use a positive negation instead
                         auto negatedAtomNamed = negations[i]->getAtom()->clone();
+                        /*
                         UnnamedVariableRenamer renamer;
                         negatedAtomNamed->apply(renamer);
+                        */
 
                         auto negatedAtom = negatedAtomNamed->clone();
                         // negatedAtom->setName(translateDiffPlusCountRelation(getAtomRelation(negatedAtom, program))->get()->getName());
@@ -3870,6 +3874,14 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 auto relationHead = cl->getHead()->clone();
                                 relationHead->setName(translateDiffMinusRelation(rel)->get()->getName());
                                 relationHead->setArgument(rel->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+
+                                // remove all irrelevant arguments
+                                for (size_t k = 0; k < relationHead->argSize(); k++) {
+                                    if (dynamic_cast<AstVariable*>(relationHead->getArgument(k)) == nullptr) {
+                                        relationHead->setArgument(k, std::make_unique<AstUnnamedVariable>());
+                                    }
+                                }
+
                                 restrictionClause->addToBody(std::unique_ptr<AstAtom>(relationHead));
 
                                 appendStmt(preamble, ClauseTranslator(*this).translateClause(*restrictionClause, *restrictionClause));
@@ -3882,6 +3894,14 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 auto relationUpdateHead = cl->getHead()->clone();
                                 relationUpdateHead->setName(translateNewDiffMinusRelation(rel)->get()->getName());
                                 relationUpdateHead->setArgument(rel->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+
+                                // remove all irrelevant arguments
+                                for (size_t k = 0; k < relationUpdateHead->argSize(); k++) {
+                                    if (dynamic_cast<AstVariable*>(relationUpdateHead->getArgument(k)) == nullptr) {
+                                        relationUpdateHead->setArgument(k, std::make_unique<AstUnnamedVariable>());
+                                    }
+                                }
+
                                 restrictionUpdateClause->addToBody(std::unique_ptr<AstAtom>(relationUpdateHead));
 
                                 updateTable->add(ClauseTranslator(*this).translateClause(*restrictionUpdateClause, *restrictionUpdateClause));
@@ -4219,8 +4239,10 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             // each negation needs to have either not existed, or be deleted
                             // for the non-existence case, we use a positive negation instead
                             auto negatedAtomNamed = negations[i]->getAtom()->clone();
+                            /*
                             UnnamedVariableRenamer renamer;
                             negatedAtomNamed->apply(renamer);
+                            */
 
                             auto negatedAtom = negatedAtomNamed->clone();
 
@@ -4633,8 +4655,10 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             // each negation needs to have either not existed, or be deleted
                             // for the non-existence case, we use a positive negation instead
                             auto negatedAtomNamed = negations[i]->getAtom()->clone();
+                            /*
                             UnnamedVariableRenamer renamer;
                             negatedAtomNamed->apply(renamer);
+                            */
 
                             auto negatedAtom = negatedAtomNamed->clone();
 
