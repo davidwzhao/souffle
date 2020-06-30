@@ -15,6 +15,7 @@
  ***********************************************************************/
 
 #include "AstTranslator.h"
+#include "AstTransforms.h"
 #include "AstArgument.h"
 #include "AstAttribute.h"
 #include "AstClause.h"
@@ -767,17 +768,17 @@ std::unique_ptr<RamCondition> AstTranslator::ProvenanceClauseTranslator::createC
 
 /** generate RAM code for a clause */
 std::unique_ptr<RamStatement> AstTranslator::ClauseTranslator::translateClause(
-        const AstClause& clause, const AstClause& originalClause, const int version, const int version2) {
-    if (auto reorderedClause = getReorderedClause(clause, version, version2)) {
+        const AstClause& oldClause, const AstClause& originalClause, const int version, const int version2) {
+    if (auto reorderedClause = getReorderedClause(oldClause, version, version2)) {
         // translate reordered clause
         return translateClause(*reorderedClause, originalClause, version, version2);
     }
 
     // get extract some details
-    const AstAtom* head = clause.getHead();
+    const AstAtom* head = oldClause.getHead();
 
     // handle facts
-    if (clause.isFact()) {
+    if (oldClause.isFact()) {
         // translate arguments
         std::vector<std::unique_ptr<RamExpression>> values;
         for (auto& arg : head->getArguments()) {
@@ -789,7 +790,12 @@ std::unique_ptr<RamStatement> AstTranslator::ClauseTranslator::translateClause(
     }
 
     // the rest should be rules
-    assert(clause.isRule());
+    assert(oldClause.isRule());
+
+    // re-run ResolveAliasesTransformer, as some modifications to rules have occurred in the AstTranslator,
+    // meaning that functors could exist without being properly grounded
+    auto clausePtr = ResolveAliasesTransformer::removeComplexTermsInAtoms(oldClause);
+    const AstClause& clause = *clausePtr;
 
     createValueIndex(clause);
 
