@@ -17,6 +17,7 @@
 #pragma once
 
 #include "AstArgument.h"
+#include "AstClause.h"
 #include "AstRelationIdentifier.h"
 #include "RamRelation.h"
 #include "RelationRepresentation.h"
@@ -421,6 +422,9 @@ private:
 
     /** translate RAM code for subroutine to get subproofs for non-existence of a tuple */
     std::unique_ptr<RamStatement> makeNegationSubproofSubroutine(const AstClause& clause);
+
+    /** create an ordering of a clause that moves a particular atom to the front */
+    std::unique_ptr<AstExecutionOrder> createReordering(const AstExecutionOrder& originalOrder, size_t atomAtFront);
 
     /** translate RAM code for subroutine to get subproofs for non-existence of a tuple */
     std::pair<std::vector<AstRelation*>, std::vector<AstAtom*>> createIncrementalRediscoverFilters(const AstClause& clause, int clauseNum, int version, int version2, const AstProgram& program, const RecursiveClauses* recursiveClauses);
