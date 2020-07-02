@@ -75,7 +75,7 @@ unsigned int numBoundArguments(const AstAtom* atom, const std::set<std::string>&
  * E.g. the 'max-bound' SIPS function will return the atom in the clause with
  * the maximum number of bound arguments.
  */
-sips_t getSipsFunction(const std::string& sipsChosen) {
+sips_t ReorderLiteralsTransformer::getSipsFunction(const std::string& sipsChosen) {
     // --- Create the appropriate SIPS function ---
 
     // Each SIPS function has a priority metric (e.g. max-bound atoms).
@@ -279,6 +279,60 @@ sips_t getSipsFunction(const std::string& sipsChosen) {
 
             return currLeastIdx;
         };
+    } else if (sipsChosen == "incremental-reordering") {
+        getNextAtomSips = [&](std::vector<AstAtom*> atoms, const std::set<std::string>& boundVariables) {
+            int costs[atoms.size()] = {0};
+            bool isFirst = true;
+
+            // if none are nullptrs - i.e., this is the first atom to be processed, we always return 0
+            for (size_t i = 0; i < atoms.size(); i++) {
+                if (atoms[i] == nullptr) {
+                    isFirst = false;
+                    break;
+                }
+            }
+
+            if (isFirst) {
+                return 0;
+            }
+
+            // else, we generate
+            bool isNext = true;
+            for (unsigned int i = 0; i < atoms.size(); i++) {
+                const AstAtom* currAtom = atoms[i];
+
+                if (atoms[i] == nullptr) {
+                    // we should never choose this
+                    costs[i] = -1;
+
+                    // already processed - move on
+                    continue;
+                }
+
+                // increase the weight of the atom that was originally supposed to be next
+                if (isNext) {
+                    costs[i] += 5;
+                    isNext = false;
+                }
+
+                int numBound = numBoundArguments(currAtom, boundVariables);
+
+                // arbitrarily choose 10
+                costs[i] += numBound * 10;
+            }
+
+            // find the atom with highest weight
+            int maxWeight = -1;
+            int maxWeightIdx = 0;
+            for (int i = 0; i < atoms.size(); i++) {
+                if (costs[i] > maxWeight) {
+                    maxWeight = costs[i];
+                    maxWeightIdx = i;
+                }
+            }
+
+            return maxWeightIdx;
+        };
     } else {
         // chosen SIPS is not implemented, so keep the same order
         // Goal: leftmost atom first
@@ -303,7 +357,7 @@ sips_t getSipsFunction(const std::string& sipsChosen) {
 /**
  * Finds the new ordering of a vector of atoms after the given SIPS is applied.
  */
-std::vector<unsigned int> applySips(sips_t sipsFunction, std::vector<AstAtom*> atoms) {
+std::vector<unsigned int> ReorderLiteralsTransformer::applySips(sips_t sipsFunction, std::vector<AstAtom*> atoms) {
     std::set<std::string> boundVariables;
     std::vector<unsigned int> newOrder(atoms.size());
 
@@ -329,7 +383,7 @@ std::vector<unsigned int> applySips(sips_t sipsFunction, std::vector<AstAtom*> a
     return newOrder;
 }
 
-bool reorderClauseWithSips(sips_t sipsFunction, AstClause* clause) {
+bool ReorderLiteralsTransformer::reorderClauseWithSips(sips_t sipsFunction, AstClause* clause) {
     // ignore clauses with fixed execution plans
     if (clause->getExecutionPlan() != nullptr) {
         return false;

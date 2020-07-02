@@ -336,9 +336,17 @@ private:
  */
 class ReorderLiteralsTransformer : public AstTransformer {
 public:
+    using sips_t = std::function<unsigned int(std::vector<AstAtom*>, const std::set<std::string>&)>;
+
     std::string getName() const override {
         return "ReorderLiteralsTransformer";
     }
+
+    static sips_t getSipsFunction(const std::string& sipsChosen);
+
+    static std::vector<unsigned int> applySips(sips_t sipsFunction, std::vector<AstAtom*> atoms);
+
+    static bool reorderClauseWithSips(sips_t sipsFunction, AstClause* clause);
 
 private:
     bool transform(AstTranslationUnit& translationUnit) override;
