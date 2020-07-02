@@ -1099,14 +1099,20 @@ std::unique_ptr<AstExecutionOrder> AstTranslator::createReordering(const AstExec
     // push front atom
     newOrder->appendAtomIndex(atomAtFront);
     
+    /*
+    // push atoms after the front atom position
+    for (size_t curPos = position + 1; curPos < originalOrder.size(); curPos++) {
+        newOrder->appendAtomIndex(originalOrder[curPos]);
+    }
+
     // push atoms before the front atom position
     for (size_t curPos = position - 1; curPos >= 0 && curPos < position; curPos--) {
         newOrder->appendAtomIndex(originalOrder[curPos]);
     }
+    */
 
-    // push atoms after the front atom position
-    for (size_t curPos = position + 1; curPos < originalOrder.size(); curPos++) {
-        newOrder->appendAtomIndex(originalOrder[curPos]);
+    for (size_t curPos = 0; curPos < originalOrder.size(); curPos++) {
+        if (curPos != position) newOrder->appendAtomIndex(originalOrder[curPos]);
     }
 
     return std::move(newOrder);
@@ -4194,8 +4200,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     plan = new AstExecutionPlan();
                                 }
 
-                                if (plan->hasOrderFor(version, 0)) {
-                                    auto existingOrder = plan->getOrderFor(version, 0);
+                                if (plan->hasOrderFor(version, diffVersion)) {
+                                    auto existingOrder = plan->getOrderFor(version, diffVersion);
 
                                     // extend in the case of extra atoms
                                     for (int k = existingOrder.size(); k < r1->getAtoms().size(); k++) {
@@ -4407,8 +4413,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     plan = new AstExecutionPlan();
                                 }
                                 
-                                if (plan->hasOrderFor(version, 0)) {
-                                    auto existingOrder = plan->getOrderFor(version, 0);
+                                if (plan->hasOrderFor(version, diffVersion)) {
+                                    auto existingOrder = plan->getOrderFor(version, diffVersion);
 
                                     // extend in the case of extra atoms
                                     for (int k = existingOrder.size(); k < r1->getAtoms().size(); k++) {
@@ -4597,8 +4603,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     plan = new AstExecutionPlan();
                                 }
 
-                                if (plan->hasOrderFor(version, 0)) {
-                                    auto existingOrder = plan->getOrderFor(version, 0);
+                                if (plan->hasOrderFor(version, diffVersion)) {
+                                    auto existingOrder = plan->getOrderFor(version, diffVersion);
 
                                     // extend in the case of extra atoms
                                     for (int k = existingOrder.size(); k < r1->getAtoms().size(); k++) {
@@ -4810,8 +4816,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     plan = new AstExecutionPlan();
                                 }
 
-                                if (plan->hasOrderFor(version, 0)) {
-                                    auto existingOrder = plan->getOrderFor(version, 0);
+                                if (plan->hasOrderFor(version, diffVersion)) {
+                                    auto existingOrder = plan->getOrderFor(version, diffVersion);
 
                                     // extend in the case of extra atoms
                                     for (int k = existingOrder.size(); k < r1->getAtoms().size(); k++) {
