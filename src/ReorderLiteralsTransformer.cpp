@@ -321,6 +321,59 @@ sips_t ReorderLiteralsTransformer::getSipsFunction(const std::string& sipsChosen
                 costs[i] += numBound * 10;
             }
 
+            std::cout << "costs: ";
+            for (auto i : costs) {
+                std::cout << i << ", ";
+            }
+            std::cout << std::endl;
+
+            // find the atom with highest weight
+            int maxWeight = -1;
+            int maxWeightIdx = 0;
+            for (int i = 0; i < atoms.size(); i++) {
+                if (costs[i] > maxWeight) {
+                    maxWeight = costs[i];
+                    maxWeightIdx = i;
+                }
+            }
+
+            return maxWeightIdx;
+        };
+    } else if (sipsChosen == "incremental-reordering-rediscovery") {
+        getNextAtomSips = [&](std::vector<AstAtom*> atoms, const std::set<std::string>& boundVariables) {
+            int costs[atoms.size()] = {0};
+
+            // else, we generate
+            bool isNext = true;
+            for (unsigned int i = 0; i < atoms.size(); i++) {
+                const AstAtom* currAtom = atoms[i];
+
+                if (atoms[i] == nullptr) {
+                    // we should never choose this
+                    costs[i] = -1;
+
+                    // already processed - move on
+                    continue;
+                }
+
+                // increase the weight of the atom that was originally supposed to be next
+                if (isNext) {
+                    costs[i] += 5;
+                    isNext = false;
+                }
+
+                int numBound = numBoundArguments(currAtom, boundVariables);
+
+                // arbitrarily choose 10
+                costs[i] += numBound * 10;
+            }
+
+            std::cout << "costs: ";
+            for (auto i : costs) {
+                std::cout << i << ", ";
+            }
+            std::cout << std::endl;
+
             // find the atom with highest weight
             int maxWeight = -1;
             int maxWeightIdx = 0;
@@ -357,12 +410,14 @@ sips_t ReorderLiteralsTransformer::getSipsFunction(const std::string& sipsChosen
 /**
  * Finds the new ordering of a vector of atoms after the given SIPS is applied.
  */
-std::vector<unsigned int> ReorderLiteralsTransformer::applySips(sips_t sipsFunction, std::vector<AstAtom*> atoms) {
-    std::set<std::string> boundVariables;
+std::vector<unsigned int> ReorderLiteralsTransformer::applySips(sips_t sipsFunction, std::vector<AstAtom*> atoms, std::set<std::string> boundVariables) {
+    // std::set<std::string> boundVariables;
     std::vector<unsigned int> newOrder(atoms.size());
 
     unsigned int numAdded = 0;
     while (numAdded < atoms.size()) {
+        std::cout << "bound variables: " << boundVariables << std::endl;
+
         // grab the next atom, based on the SIPS function
         unsigned int nextIdx = sipsFunction(atoms, boundVariables);
         AstAtom* nextAtom = atoms[nextIdx];

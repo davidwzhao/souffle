@@ -344,7 +344,7 @@ public:
 
     static sips_t getSipsFunction(const std::string& sipsChosen);
 
-    static std::vector<unsigned int> applySips(sips_t sipsFunction, std::vector<AstAtom*> atoms);
+    static std::vector<unsigned int> applySips(sips_t sipsFunction, std::vector<AstAtom*> atoms, std::set<std::string> boundVariables = std::set<std::string>());
 
     static bool reorderClauseWithSips(sips_t sipsFunction, AstClause* clause);
 

@@ -2370,7 +2370,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     os << "namespace souffle {\n";
     os << "using namespace ram;\n";
 
-    visitDepthFirst(*(prog.getMain()), [&](const RamCreate& create) {
+    visitDepthFirst((prog), [&](const RamCreate& create) {
         // get some table details
         const RamRelation& rel = create.getRelation();
         const std::string& raw_name = rel.getName();
@@ -2458,11 +2458,11 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     std::string diffMinusAppliedType;
     std::set<std::string> storeRelations;
     std::set<std::string> loadRelations;
-    visitDepthFirst(*(prog.getMain()),
+    visitDepthFirst((prog),
             [&](const RamStore& store) { storeRelations.insert(store.getRelation().getName()); });
-    visitDepthFirst(*(prog.getMain()),
+    visitDepthFirst((prog),
             [&](const RamLoad& load) { loadRelations.insert(load.getRelation().getName()); });
-    visitDepthFirst(*(prog.getMain()), [&](const RamCreate& create) {
+    visitDepthFirst((prog), [&](const RamCreate& create) {
             /*
         // get some table details
         const auto& rel = create.getRelation();
@@ -2677,7 +2677,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
            << R"_(Logger logger("@runtime;", 0);)_" << '\n';
         // Store count of relations
         size_t relationCount = 0;
-        visitDepthFirst(*(prog.getMain()), [&](const RamCreate& create) {
+        visitDepthFirst((prog), [&](const RamCreate& create) {
             if (create.getRelation().getName()[0] != '@') ++relationCount;
         });
         // Store configuration
@@ -2687,7 +2687,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         os << "[](){\n";
 
         // Record relations created in each stratum
-        visitDepthFirst(*(prog.getMain()), [&](const RamStratum& stratum) {
+        visitDepthFirst((prog), [&](const RamStratum& stratum) {
             std::map<std::string, size_t> relNames;
             visitDepthFirst(stratum, [&](const RamCreate& create) {
                 relNames[create.getRelation().getName()] = create.getRelation().getArity();
@@ -2770,7 +2770,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
     os << "\n// -- relation hint statistics --\n";
     os << "if(isHintsProfilingEnabled()) {\n";
     os << "std::cout << \" -- Operation Hint Statistics --\\n\";\n";
-    visitDepthFirst(*(prog.getMain()), [&](const RamCreate& create) {
+    visitDepthFirst((prog), [&](const RamCreate& create) {
         auto name = getRelationName(create.getRelation());
         /*
         os << "std::cout << \"Relation " << name << ":\\n\";\n";

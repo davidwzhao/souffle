@@ -427,7 +427,7 @@ private:
     std::unique_ptr<AstExecutionOrder> createReordering(const AstClause& originalClause, size_t version, size_t diffVersion);
 
     /** translate RAM code for subroutine to get subproofs for non-existence of a tuple */
-    std::pair<std::vector<AstRelation*>, std::vector<AstAtom*>> createIncrementalRediscoverFilters(const AstClause& clause, int clauseNum, int version, int version2, const AstProgram& program, const RecursiveClauses* recursiveClauses);
+    std::pair<std::vector<AstRelation*>, std::vector<AstAtom*>> createIncrementalRediscoverFilters(const AstClause& clause, int clauseNum, const std::vector<unsigned int>& order, const AstProgram& program, const RecursiveClauses* recursiveClauses);
 
     /** translate AST to RAM Program */
     void translateProgram(const AstTranslationUnit& translationUnit);
