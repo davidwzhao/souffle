@@ -4030,7 +4030,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                         // for each atom in the order, check which filter atom should go before it
                         int filterAtomIndex = 0;
                         
-                        for (int atomIndex : *existingOrder) {
+                        for (size_t k = 0; k < existingOrder->size(); k++) {
+                            int atomIndex = (*existingOrder)[k];
                             bool covers = true;
 
                             if (filterAtomIndex >= restrictionAtoms.second.size()) {
@@ -4058,7 +4059,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             // we know this filter atom covers the body atom, so we insert it into the order
                             if (covers) {
                                 // only the first filter should come before the atom, the subsequent ones should go after to prevent cross products
-                                if (filterAtomIndex == 0) {
+                                if (k == 0) {
                                     order->appendAtomIndex(atoms.size() + filterAtomIndex + 1);
                                     order->appendAtomIndex(atomIndex);
                                 } else {
