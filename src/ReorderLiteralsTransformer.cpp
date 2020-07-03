@@ -321,12 +321,6 @@ sips_t ReorderLiteralsTransformer::getSipsFunction(const std::string& sipsChosen
                 costs[i] += numBound * 10;
             }
 
-            std::cout << "costs: ";
-            for (auto i : costs) {
-                std::cout << i << ", ";
-            }
-            std::cout << std::endl;
-
             // find the atom with highest weight
             int maxWeight = -1;
             int maxWeightIdx = 0;
@@ -367,12 +361,6 @@ sips_t ReorderLiteralsTransformer::getSipsFunction(const std::string& sipsChosen
                 // arbitrarily choose 10
                 costs[i] += numBound * 10;
             }
-
-            std::cout << "costs: ";
-            for (auto i : costs) {
-                std::cout << i << ", ";
-            }
-            std::cout << std::endl;
 
             // find the atom with highest weight
             int maxWeight = -1;
@@ -416,8 +404,6 @@ std::vector<unsigned int> ReorderLiteralsTransformer::applySips(sips_t sipsFunct
 
     unsigned int numAdded = 0;
     while (numAdded < atoms.size()) {
-        std::cout << "bound variables: " << boundVariables << std::endl;
-
         // grab the next atom, based on the SIPS function
         unsigned int nextIdx = sipsFunction(atoms, boundVariables);
         AstAtom* nextAtom = atoms[nextIdx];

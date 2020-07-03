@@ -3935,7 +3935,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                         }
 
                         // and also by the iteration number for the delta relation
-                        boundVariables.insert(toString(*(r1->getAtoms()[j]->getArgument(rel->getArity() - 2))));
+                        boundVariables.insert(toString(*(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 2))));
 
                         // get existing execution plan
                         AstExecutionPlan* plan;
@@ -3980,8 +3980,6 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                         plan->setOrderFor(version, diffVersion, std::unique_ptr<AstExecutionOrder>(executionReordering->clone()));
                         filterClause->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan->clone()));
                         */
-
-                        std::cout << "reordering before creating filters: " << *executionReordering << std::endl;
 
                         auto restrictionAtoms = createIncrementalRediscoverFilters(*cl, i, executionReordering->getOrder(), *program, recursiveClauses);
 
