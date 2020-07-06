@@ -3930,7 +3930,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                         for (size_t k = 0; k < rel->getArity(); k++) {
                             auto arg = r1->getHead()->getArgument(k);
                             if (auto var = dynamic_cast<AstVariable*>(arg)) {
-                                boundVariables.insert(toString(*var));
+                                boundVariables.insert("+" + toString(*var));
                             }
                         }
 

@@ -337,6 +337,14 @@ sips_t ReorderLiteralsTransformer::getSipsFunction(const std::string& sipsChosen
         getNextAtomSips = [&](std::vector<AstAtom*> atoms, const std::set<std::string>& boundVariables) {
             int costs[atoms.size()] = {0};
 
+            // generate a list of a-priori bound variables, marked by starting with "+"
+            std::set<std::string> boundRestrictionVariables;
+            for (auto s : boundVariables) {
+                if (s.rfind("+", 0) == 0) {
+                    boundRestrictionVariables.insert(s.substr(1));
+                }
+            }
+
             // else, we generate
             bool isNext = true;
             for (unsigned int i = 0; i < atoms.size(); i++) {
@@ -356,10 +364,13 @@ sips_t ReorderLiteralsTransformer::getSipsFunction(const std::string& sipsChosen
                     isNext = false;
                 }
 
-                int numBound = numBoundArguments(currAtom, boundVariables);
-
                 // arbitrarily choose 10
+                int numBound = numBoundArguments(currAtom, boundVariables);
                 costs[i] += numBound * 10;
+
+                // arbitrarily choose 30
+                int numRestrictionBound = numBoundArguments(currAtom, boundRestrictionVariables);
+                costs[i] += numRestrictionBound * 30;
             }
 
             // find the atom with highest weight
