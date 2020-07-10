@@ -1094,7 +1094,9 @@ std::unique_ptr<AstExecutionOrder> AstTranslator::createReordering(const AstClau
         auto plan = originalClause.getExecutionPlan()->clone();
 
         if (plan->hasOrderFor(version, diffVersion)) {
-            originalOrder = plan->getOrderFor(version, diffVersion);
+            return std::unique_ptr<AstExecutionOrder>(plan->getOrderFor(version, diffVersion).clone());
+        } else if (plan->hasOrderFor(version, 0)) {
+            originalOrder = plan->getOrderFor(version, 0);
 
             // extend in the case of extra atoms
             for (int k = originalOrder.size(); k < originalClause.getAtoms().size(); k++) {
@@ -1163,7 +1165,7 @@ std::unique_ptr<AstExecutionOrder> AstTranslator::createReordering(const AstClau
     }
 
     std::cout << "after sips: " << *executionReordering << std::endl;
-    return std::move(executionReordering);
+    return executionReordering;
 }
 
 /** generate RAM code for a non-recursive relation */
@@ -3945,33 +3947,39 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             plan = new AstExecutionPlan();
                         }
 
-                        AstExecutionOrder* existingOrder;
+                        std::unique_ptr<AstExecutionOrder> executionReordering;
                         if (plan->hasOrderFor(version, diffVersion)) {
-                            existingOrder = plan->getOrderFor(version, diffVersion).clone();
+                            executionReordering = std::unique_ptr<AstExecutionOrder>(plan->getOrderFor(version, diffVersion).clone());
                         } else {
+                            AstExecutionOrder* existingOrder;
+
+                            if (plan->hasOrderFor(version, 0)) {
+                                existingOrder = plan->getOrderFor(version, 0).clone();
+                            }
+
                             existingOrder = new AstExecutionOrder();
                             for (size_t k = 1; k <= atoms.size(); k++) {
                                 existingOrder->appendAtomIndex(k);
                             }
-                        }
 
-                        // create a clone of cl for reordering purposes
-                        auto reorderedClause = std::unique_ptr<AstClause>(cl->clone());
+                            // create a clone of cl for reordering purposes
+                            auto reorderedClause = std::unique_ptr<AstClause>(cl->clone());
 
-                        std::vector<unsigned int> newOrderVector(existingOrder->size());
-                        std::transform(existingOrder->begin(), existingOrder->end(), newOrderVector.begin(),
-                                [](unsigned int i) -> unsigned int { return i - 1; });
+                            std::vector<unsigned int> newOrderVector(existingOrder->size());
+                            std::transform(existingOrder->begin(), existingOrder->end(), newOrderVector.begin(),
+                                    [](unsigned int i) -> unsigned int { return i - 1; });
 
-                        reorderedClause->reorderAtoms(newOrderVector);
+                            reorderedClause->reorderAtoms(newOrderVector);
 
-                        // create a sips function and do reordering
-                        auto sipsFunc = ReorderLiteralsTransformer::getSipsFunction("incremental-reordering-rediscovery");
-                        auto reordering = ReorderLiteralsTransformer::applySips(sipsFunc, reorderedClause->getAtoms(), boundVariables);
+                            // create a sips function and do reordering
+                            auto sipsFunc = ReorderLiteralsTransformer::getSipsFunction("incremental-reordering-rediscovery");
+                            auto reordering = ReorderLiteralsTransformer::applySips(sipsFunc, reorderedClause->getAtoms(), boundVariables);
 
-                        // put this into an AstExecutionOrder
-                        auto executionReordering = std::make_unique<AstExecutionOrder>();
-                        for (auto i : reordering) {
-                            executionReordering->appendAtomIndex((*existingOrder)[i]);
+                            // put this into an AstExecutionOrder
+                            executionReordering = std::make_unique<AstExecutionOrder>();
+                            for (auto i : reordering) {
+                                executionReordering->appendAtomIndex((*existingOrder)[i]);
+                            }
                         }
 
                         /*

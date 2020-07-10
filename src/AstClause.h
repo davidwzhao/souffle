@@ -150,11 +150,14 @@ public:
     }
 
     bool hasOrderFor(int version1, int version2) const {
+        /*
         if (plans.find(std::make_pair(version1,version2)) != plans.end()){
             return true;
         } else {
             return plans.find(std::make_pair(version1,0)) != plans.end();
         }
+        */
+        return plans.find(std::make_pair(version1,version2)) != plans.end();
     }
 
     /** get maximal version number */
@@ -171,9 +174,11 @@ public:
     const AstExecutionOrder& getOrderFor(int version1, int version2) const {
         assert(hasOrderFor(version1, version2));
         auto res = plans.find(std::make_pair(version1,version2));
+        /*
         if (res == plans.end()) {
             res = plans.find(std::make_pair(version1,0));
         }
+        */
         return *res->second;
     }
 
