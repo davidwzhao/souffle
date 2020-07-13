@@ -94,7 +94,7 @@ void SynthesiserDirectRelation::computeIndices() {
         // and also add provenance annotations to the indices
         if (isProvenance) {
             // expand index to be full
-            for (size_t i = 0; i < getArity() - 1 - relation.getNumberOfHeights(); i++) {
+            for (size_t i = 0; i < getArity() - relation.getNumberOfHeights(); i++) {
                 if (curIndexElems.find(i) == curIndexElems.end()) {
                     ind.push_back(i);
                 }
@@ -156,7 +156,7 @@ void SynthesiserDirectRelation::computeIndices() {
 
                 // add provenance annotations to the index, but in reverse order
                 // TODO (taipan-snake): for incremental, these should be in correct order
-                ind.push_back(getArity() - relation.getNumberOfHeights() - 1);
+                // ind.push_back(getArity() - relation.getNumberOfHeights() - 1);
                 ind.push_back(getArity() - relation.getNumberOfHeights());
                 masterIndex = 0;
             }
