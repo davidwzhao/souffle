@@ -3955,11 +3955,11 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
 
                             if (plan->hasOrderFor(version, 0)) {
                                 existingOrder = plan->getOrderFor(version, 0).clone();
-                            }
-
-                            existingOrder = new AstExecutionOrder();
-                            for (size_t k = 1; k <= atoms.size(); k++) {
-                                existingOrder->appendAtomIndex(k);
+                            } else {
+                                existingOrder = new AstExecutionOrder();
+                                for (size_t k = 1; k <= atoms.size(); k++) {
+                                    existingOrder->appendAtomIndex(k);
+                                }
                             }
 
                             // create a clone of cl for reordering purposes
@@ -3973,6 +3973,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
 
                             // create a sips function and do reordering
                             auto sipsFunc = ReorderLiteralsTransformer::getSipsFunction("incremental-reordering-rediscovery");
+                            // auto sipsFunc = ReorderLiteralsTransformer::getSipsFunction("none");
                             auto reordering = ReorderLiteralsTransformer::applySips(sipsFunc, reorderedClause->getAtoms(), boundVariables);
 
                             // put this into an AstExecutionOrder
