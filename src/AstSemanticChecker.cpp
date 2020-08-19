@@ -634,6 +634,7 @@ void AstSemanticChecker::checkClause(ErrorReport& report, const AstProgram& prog
         }
     }
 
+    /*
     // check execution plan
     if (clause.getExecutionPlan()) {
         auto numAtoms = clause.getAtoms().size();
@@ -643,6 +644,7 @@ void AstSemanticChecker::checkClause(ErrorReport& report, const AstProgram& prog
             }
         }
     }
+    */
     // check auto-increment
     if (recursiveClauses.recursive(&clause)) {
         visitDepthFirst(clause, [&](const AstCounter& ctr) {

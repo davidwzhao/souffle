@@ -4086,6 +4086,11 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 covers = false;
                             }
 
+                            // if atomIndex refers to a filter atom, it doesn't cover anything
+                            if (atomIndex > cl->getAtoms().size()) {
+                                covers = false;
+                            }
+
                             if (covers) {
                                 // check if the current filterAtom covers this
                                 for (AstArgument* filterArg : restrictionAtoms.second[filterAtomIndex]->getArguments()) {
@@ -4106,8 +4111,11 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
 
                             // we know this filter atom covers the body atom, so we insert it into the order
                             if (covers) {
-                                // only the first filter should come before the atom, the subsequent ones should go after to prevent cross products
-                                if (k == 0) {
+                                if (contains(currentOrder->getOrder(), atoms.size() + filterAtomIndex + 1)) {
+                                    // check if the corresponding filter atom is already in the order
+                                    order->appendAtomIndex(atomIndex);
+                                } else if (k == 0) {
+                                    // only the first filter should come before the atom, the subsequent ones should go after to prevent cross products
                                     order->appendAtomIndex(atoms.size() + filterAtomIndex + 1);
                                     order->appendAtomIndex(atomIndex);
                                 } else {
@@ -5650,7 +5658,7 @@ std::pair<std::vector<AstRelation*>, std::vector<AstAtom*>> AstTranslator::creat
     }
     */
 
-    assert(order.size() == clause.getAtoms().size() && "ordering doesn't match size of clause for creating filters");
+    assert(order.size() >= clause.getAtoms().size() && "ordering doesn't match size of clause for creating filters");
 
     // store only the variables in the head of the rule
     size_t numHeadVariables = 0;
@@ -5667,6 +5675,10 @@ std::pair<std::vector<AstRelation*>, std::vector<AstAtom*>> AstTranslator::creat
     // go through each atom in the body of the rule
     // for (size_t i = 0; i < clause->getAtoms().size(); i++) {
     for (auto i : order) {
+        if (i > clause.getAtoms().size()) {
+            continue;
+        }
+
         auto atom = clause.getAtoms()[i - 1];
 
         // exit if we have covered everything
