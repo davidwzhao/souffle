@@ -104,6 +104,11 @@ private:
 
     void addTuple(const std::string& relName, const std::vector<std::string>& tup) {
         auto rel = prog.getRelation(relName);
+        if (rel == nullptr) {
+            printError("Relation not found!\n");
+            return;
+        }
+
         if (tup.size() != rel->getArity()) {
             printError("Tuple not of the right arity!\n");
             return;
@@ -198,7 +203,7 @@ private:
 
     /* Print an error, such as a wrong command */
     void printError(const std::string& error) {
-        std::cout << error;
+        std::cerr << error;
     }
 
     /**
