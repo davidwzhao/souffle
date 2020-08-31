@@ -429,7 +429,7 @@ SearchSignature RamIndexAnalysis::getSearchSignature(
     auto numberOfHeights = provExistCheck->getRelation().getNumberOfHeights();
     // values.size() - numberOfHeights because we discard the height annotations
     // for (size_t i = 0; i < values.size() - numberOfHeights; i++) {
-    for (size_t i = 0; i < values.size() - 2; i++) {
+    for (size_t i = 0; i < values.size() - 1; i++) {
         if (!isRamUndefValue(values[i])) {
             res |= (1 << i);
         }

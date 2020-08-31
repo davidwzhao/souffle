@@ -1665,8 +1665,16 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "for (const auto& tup : existenceCheck) {\n";
 
             if (!isRamUndefValue(currentCount)) {
-                // count of 1 indicates that we want to check previous iterations
                 out << "if (";
+                visit(*currentCount, out);
+                out << " == 2) {\n";
+
+                out << "if (tup[" << arity - 1 << "] > 0 && tup[" << arity - 2 << "] < ";
+                visit(*exists.getValues()[arity - 2], out);
+                out << ") return true;\n";
+
+                // count of 1 indicates that we want to check previous iterations
+                out << "} else if (";
                 visit(*currentCount, out);
                 out << " == 1) {\n";
 
@@ -1842,7 +1850,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "_" << isa->getSearchSignature(&subsumptionExists);
                 out << "(Tuple<RamDomain," << arity << ">{{";
 
-                for (size_t i = 0; i < subsumptionExists.getValues().size() - 2; i++) {
+                for (size_t i = 0; i < subsumptionExists.getValues().size() - 1; i++) {
                     RamExpression* val = subsumptionExists.getValues()[i];
                     if (!isRamUndefValue(val)) {
                         visit(*val, out);
@@ -1851,7 +1859,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                     }
                     out << ",";
                 }
-                out << "0,0";
+                out << "0";
                 out << "}}, " << ctxName << ");\n";
 
                 // check whether tuple is deletion
@@ -1911,12 +1919,14 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "for (auto& tup : existenceCheck) {\n";
                 // and that the count is positive
                 // out << " && tup[" << arity - 1 << "] > 0) ";
+                /*
                 out << "if (tup[" << arity - 2 << "] < ";
                 visit(*iteration, out);
                 out << " && tup[" << arity - 1 << "] > 0) ";
+                */
 
                 // if these hold, then we don't update
-                out << "return true;\n";
+                // out << "return true;\n";
                 out << "}\n";
 
                 /*
