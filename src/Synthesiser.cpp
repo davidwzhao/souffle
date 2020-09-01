@@ -1687,9 +1687,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 visit(*iteration, out);
                 out << " == -1 || (";
                 visit(*iteration, out);
-                out << " <= (iter-1) && tup[" << arity - 2 << "] == "; // (iter - 1))";
-                visit(*iteration, out);
-                out << ")";
+                out << " <= (iter-1) && tup[" << arity - 2 << "] <= (iter - 1))";
+                // visit(*iteration, out);
+                // out << ")";
 
                 /*
                 // if tuple is in I_no, then it shouldn't be in Delta_o
@@ -1940,6 +1940,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << ") {\n";
                 */
 
+                /*
                 // the 2 indicates a re-insertion
                 out << "if (";
                 visit(*count, out);
@@ -1954,6 +1955,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "}\n";
                 out << "return false;\n";
                 out << "}\n";
+                */
                     
                 // if it's an actual update, then process it
                 out << "return false;\n";
