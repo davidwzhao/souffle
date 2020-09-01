@@ -4589,7 +4589,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                         */
 
 
-                        std::cout << "reinsertion recursive: " << *r1 << std::endl;
+                        std::cout << "redeletion recursive: " << *r1 << std::endl;
 
                         // translate rdiff
                         std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *cl, version, diffVersion);
