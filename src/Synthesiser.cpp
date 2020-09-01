@@ -1687,7 +1687,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 visit(*iteration, out);
                 out << " == -1 || (";
                 visit(*iteration, out);
-                out << " <= (iter-1) && tup[" << arity - 2 << "] <= (iter - 1))";
+                out << " <= (iter-1) && tup[" << arity - 2 << "] == "; // (iter - 1))";
+                visit(*iteration, out);
+                out << ")";
 
                 /*
                 // if tuple is in I_no, then it shouldn't be in Delta_o
