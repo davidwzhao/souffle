@@ -1080,7 +1080,7 @@ void AstTranslator::appendStmt(std::unique_ptr<RamStatement>& stmtList, std::uni
 }
 
 /* utility for creating a reordering that moves an atom to the front */
-std::unique_ptr<AstExecutionOrder> AstTranslator::createReordering(const AstClause& originalClause, size_t version, size_t diffVersion) {
+std::unique_ptr<AstExecutionOrder> AstTranslator::createReordering(const AstClause& originalClause, size_t frontAtom, size_t version, size_t diffVersion) {
     // the strategy is as follows:
     // given an order [a,b,c,d,e], where we intend c to be at the front,
     // we create an order [c,b,a,d,e], where atoms up to c are in reverse order, and elements after c are in forward order
@@ -1116,7 +1116,7 @@ std::unique_ptr<AstExecutionOrder> AstTranslator::createReordering(const AstClau
     // r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
 
     // find position in originalOrder of atomAtFront
-    auto positionItr = std::find(originalOrder.begin(), originalOrder.end(), diffVersion);
+    auto positionItr = std::find(originalOrder.begin(), originalOrder.end(), frontAtom);
 
     // ensure originalOrder contains the target atom
     assert(positionItr != originalOrder.end() && "cannot reorder if original order doesn't contain target first atom");
@@ -1127,7 +1127,7 @@ std::unique_ptr<AstExecutionOrder> AstTranslator::createReordering(const AstClau
     auto newOrder = std::make_unique<AstExecutionOrder>();
 
     // push front atom
-    newOrder->appendAtomIndex(diffVersion);
+    newOrder->appendAtomIndex(frontAtom);
     
     /*
     // push atoms after the front atom position
@@ -1918,7 +1918,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                             order->appendAtomIndex(j + 1);
                         }
 
-                        plan->setOrderFor(0, i + 1, std::move(createReordering(*cl, 0, i + 1)));
+                        plan->setOrderFor(0, i + 1, std::move(createReordering(*cl, i + 1, 0, i + 1)));
                         cl->setExecutionPlan(std::move(plan));
 
                         std::cout << "non-recursive: " << *cl << std::endl;
@@ -2067,7 +2067,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                             order->appendAtomIndex(j + 1);
                         }
 
-                        plan->setOrderFor(0, i + 1, std::move(createReordering(*cl, 0, i + 1)));
+                        plan->setOrderFor(0, atoms.size() + 1, std::move(createReordering(*cl, atoms.size() + 1, 0, atoms.size() + 1)));
                         cl->setExecutionPlan(std::move(plan));
 
                         std::cout << "non-recursive: " << *cl << std::endl;
@@ -2193,7 +2193,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                             order->appendAtomIndex(j + 1);
                         }
 
-                        plan->setOrderFor(0, i + 1, std::move(createReordering(*cl, 0, i + 1)));
+                        plan->setOrderFor(0, i + 1, std::move(createReordering(*cl, i + 1, 0, i + 1)));
                         cl->setExecutionPlan(std::move(plan));
 
                         std::cout << "non-recursive: " << *cl << std::endl;
@@ -2339,7 +2339,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                             order->appendAtomIndex(j + 1);
                         }
 
-                        plan->setOrderFor(0, i + 1, std::move(createReordering(*cl, 0, i + 1)));
+                        plan->setOrderFor(0, atoms.size() + 1, std::move(createReordering(*cl, atoms.size() + 1, 0, atoms.size() + 1)));
                         cl->setExecutionPlan(std::move(plan));
 
                         std::cout << "non-recursive: " << *cl << std::endl;
@@ -3993,21 +3993,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             }
                         }
 
-                        /*
-                        // do a sips-based reordering
-                        // generate a list of variables that are a-priori bound by the head atom
-                        std::set<std::string> boundVariables;
-                        for (size_t k = 0; k < rel->getArity(); k++) {
-                            auto arg = r1->getHead()->getArgument(k);
-                            if (auto var = dynamic_cast<AstVariable*>(arg)) {
-                                boundVariables.insert("+" + toString(*var));
-                            }
-                        }
+                        std::cout << "reinsertion recursive: " << *r1 << std::endl;
 
-                        // and also by the iteration number for the delta relation
-                        boundVariables.insert(toString(*(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 2))));
-
-                        // get existing execution plan
                         AstExecutionPlan* plan;
                         if (r1->getExecutionPlan() != nullptr) {
                             plan = r1->getExecutionPlan()->clone();
@@ -4015,197 +4002,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             plan = new AstExecutionPlan();
                         }
 
-                        std::unique_ptr<AstExecutionOrder> executionReordering;
-                        if (plan->hasOrderFor(version, diffVersion)) {
-                            executionReordering = std::unique_ptr<AstExecutionOrder>(plan->getOrderFor(version, diffVersion).clone());
-                        } else {
-                            AstExecutionOrder* existingOrder;
-
-                            if (plan->hasOrderFor(version, 0)) {
-                                existingOrder = plan->getOrderFor(version, 0).clone();
-                            } else {
-                                existingOrder = new AstExecutionOrder();
-                                for (size_t k = 1; k <= atoms.size(); k++) {
-                                    existingOrder->appendAtomIndex(k);
-                                }
-                            }
-
-                            // create a clone of cl for reordering purposes
-                            auto reorderedClause = std::unique_ptr<AstClause>(cl->clone());
-
-                            std::vector<unsigned int> newOrderVector(existingOrder->size());
-                            std::transform(existingOrder->begin(), existingOrder->end(), newOrderVector.begin(),
-                                    [](unsigned int i) -> unsigned int { return i - 1; });
-
-                            reorderedClause->reorderAtoms(newOrderVector);
-
-                            // create a sips function and do reordering
-                            auto sipsFunc = ReorderLiteralsTransformer::getSipsFunction("incremental-reordering-rediscovery");
-                            // auto sipsFunc = ReorderLiteralsTransformer::getSipsFunction("none");
-                            auto reordering = ReorderLiteralsTransformer::applySips(sipsFunc, reorderedClause->getAtoms(), boundVariables);
-
-                            // put this into an AstExecutionOrder
-                            executionReordering = std::make_unique<AstExecutionOrder>();
-                            for (auto i : reordering) {
-                                executionReordering->appendAtomIndex((*existingOrder)[i]);
-                            }
-                        }
-                        */
-
-                        /*
-                        // create another clone for filter creation purposes
-                        auto filterClause = std::unique_ptr<AstClause>(cl->clone());
-                        plan->setOrderFor(version, diffVersion, std::unique_ptr<AstExecutionOrder>(executionReordering->clone()));
-                        filterClause->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan->clone()));
-                        */
-
-                        /*
-                        auto restrictionAtoms = createIncrementalRediscoverFilters(*cl, i, executionReordering->getOrder(), *program, recursiveClauses);
-
-                        // add RamCreate statements for each restriction relation
-                        // this has to go before adding the rules populating them so that the relations exist at that point
-                        for (AstRelation* restrictionRel : restrictionAtoms.first) {
-                            if (!contains(processedRestrictionCreates, restrictionRel->getName())) {
-                                // if not already processed
-                                appendStmt(preamble, 
-                                        std::make_unique<RamCreate>(
-                                            std::unique_ptr<RamRelationReference>(translateRelation(restrictionRel)->clone())));
-
-                                processedRestrictionCreates.insert(restrictionRel->getName());
-                            }
-                        }
-
-                        // create a 'rule' in preamble that populates this restriction filter
-                        for (AstAtom* restrictionAtom : restrictionAtoms.second) {
-                            // restriction atoms are uniquely identified by the atom name
-                            if (!contains(processedRestrictionAtoms, restrictionAtom->getName())) {
-                                // create an AstClause for the preamble
-                                auto restrictionClause = std::make_unique<AstClause>();
-
-                                restrictionClause->setHead(std::unique_ptr<AstAtom>(restrictionAtom->clone()));
-
-                                auto relationHead = cl->getHead()->clone();
-                                relationHead->setName(translateDiffMinusRelation(rel)->get()->getName());
-                                relationHead->setArgument(rel->getArity() - 1, std::make_unique<AstUnnamedVariable>());
-
-                                // remove all irrelevant arguments
-                                for (size_t k = 0; k < relationHead->argSize(); k++) {
-                                    if (dynamic_cast<AstVariable*>(relationHead->getArgument(k)) == nullptr) {
-                                        relationHead->setArgument(k, std::make_unique<AstUnnamedVariable>());
-                                    }
-                                }
-
-                                restrictionClause->addToBody(std::unique_ptr<AstAtom>(relationHead));
-
-                                appendStmt(preamble, ClauseTranslator(*this).translateClause(*restrictionClause, *restrictionClause));
-
-                                // create an AstClause for updateTable
-                                auto restrictionUpdateClause = std::make_unique<AstClause>();
-
-                                restrictionUpdateClause->setHead(std::unique_ptr<AstAtom>(restrictionAtom->clone()));
-
-                                auto relationUpdateHead = cl->getHead()->clone();
-                                relationUpdateHead->setName(translateNewDiffMinusRelation(rel)->get()->getName());
-                                relationUpdateHead->setArgument(rel->getArity() - 1, std::make_unique<AstUnnamedVariable>());
-
-                                // remove all irrelevant arguments
-                                for (size_t k = 0; k < relationUpdateHead->argSize(); k++) {
-                                    if (dynamic_cast<AstVariable*>(relationUpdateHead->getArgument(k)) == nullptr) {
-                                        relationUpdateHead->setArgument(k, std::make_unique<AstUnnamedVariable>());
-                                    }
-                                }
-
-                                restrictionUpdateClause->addToBody(std::unique_ptr<AstAtom>(relationUpdateHead));
-
-                                updateTable->add(ClauseTranslator(*this).translateClause(*restrictionUpdateClause, *restrictionUpdateClause));
-
-                                processedRestrictionAtoms.insert(restrictionAtom->getName());
-                            }
-
-                            // also add the restriction atom to the body of the rule
-                            r1->addToBody(std::unique_ptr<AstAtom>(restrictionAtom->clone()));
-                        }
-
-                        // drop the restriction relations after the loop
-                        for (AstRelation* restrictionRel : restrictionAtoms.first) {
-                            if (!contains(processedRestrictionDeletions, restrictionRel->getName())) {
-                                // drop the filter relation at the end of the loop
-                                appendStmt(postamble, 
-                                        std::make_unique<RamDrop>(
-                                            std::unique_ptr<RamRelationReference>(translateRelation(restrictionRel)->clone())));
-
-                                processedRestrictionDeletions.insert(restrictionRel->getName());
-                            }
-                        }
-
-
-                        // set an execution plan so the diff_plus version of the relation is evaluated first
-                        // get existing execution plan - we are guaranteed to have a plan because of the sips reordering
-                        AstExecutionOrder* currentOrder = executionReordering->clone();
-
-                        AstExecutionOrder* order = new AstExecutionOrder();
-
-                        // for each atom in the order, check which filter atom should go before it
-                        int filterAtomIndex = 0;
-                        
-                        for (size_t k = 0; k < currentOrder->size(); k++) {
-                            int atomIndex = (*currentOrder)[k];
-                            bool covers = true;
-
-                            if (filterAtomIndex >= restrictionAtoms.second.size()) {
-                                covers = false;
-                            }
-
-                            // if atomIndex refers to a filter atom, it doesn't cover anything
-                            if (atomIndex > cl->getAtoms().size()) {
-                                covers = false;
-                            }
-
-                            if (covers) {
-                                // check if the current filterAtom covers this
-                                for (AstArgument* filterArg : restrictionAtoms.second[filterAtomIndex]->getArguments()) {
-                                    bool found = false;
-                                    for (AstArgument* bodyArg : r1->getAtoms()[atomIndex - 1]->getArguments()) {
-                                        if (*bodyArg == *filterArg) {
-                                            found = true;
-                                            break;
-                                        }
-                                    }
-                                    
-                                    if (!found) {
-                                        covers = false;
-                                        break;
-                                    }
-                                }
-                            }
-
-                            // we know this filter atom covers the body atom, so we insert it into the order
-                            if (covers) {
-                                if (contains(currentOrder->getOrder(), atoms.size() + filterAtomIndex + 1)) {
-                                    // check if the corresponding filter atom is already in the order
-                                    order->appendAtomIndex(atomIndex);
-                                } else if (k == 0) {
-                                    // only the first filter should come before the atom, the subsequent ones should go after to prevent cross products
-                                    order->appendAtomIndex(atoms.size() + filterAtomIndex + 1);
-                                    order->appendAtomIndex(atomIndex);
-                                } else {
-                                    order->appendAtomIndex(atomIndex);
-                                    order->appendAtomIndex(atoms.size() + filterAtomIndex + 1);
-                                }
-                                filterAtomIndex++;
-                            } else {
-                                order->appendAtomIndex(atomIndex);
-                            }
-                        }
-
-                        // if (!plan->hasOrderFor(version, diffVersion)) {
-                        plan->setOrderFor(version, diffVersion, std::unique_ptr<AstExecutionOrder>(order));
-                        // }
-                        r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan->clone()));
-                        */
-
-
-                        std::cout << "reinsertion recursive: " << *r1 << std::endl;
+                        plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, j, version, diffVersion)));
+                        r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
 
                         // translate rdiff
                         std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *cl, version, diffVersion);
@@ -4591,6 +4389,16 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
 
                         std::cout << "redeletion recursive: " << *r1 << std::endl;
 
+                        AstExecutionPlan* plan;
+                        if (r1->getExecutionPlan() != nullptr) {
+                            plan = r1->getExecutionPlan()->clone();
+                        } else {
+                            plan = new AstExecutionPlan();
+                        }
+
+                        plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, j, version, diffVersion)));
+                        r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
+
                         // translate rdiff
                         std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *cl, version, diffVersion);
 
@@ -4766,26 +4574,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     plan = new AstExecutionPlan();
                                 }
 
-                                /*
-                                if (plan->hasOrderFor(version, diffVersion)) {
-                                    auto existingOrder = plan->getOrderFor(version, diffVersion);
-
-                                    // extend in the case of extra atoms
-                                    for (int k = existingOrder.size(); k < r1->getAtoms().size(); k++) {
-                                        existingOrder.appendAtomIndex(k + 1);
-                                    }
-                                    plan->setOrderFor(version, diffVersion, std::move(createReordering(existingOrder, diffVersion)));
-                                } else {
-                                    AstExecutionOrder existingOrder;
-                                    for (size_t k = 0; k < r1->getAtoms().size(); k++) {
-                                        existingOrder.appendAtomIndex(k + 1);
-                                    }
-                                    plan->setOrderFor(version, diffVersion, std::move(createReordering(existingOrder, diffVersion)));
-                                }
-                                */
-
-                                plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, version, diffVersion)));
-
+                                plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, diffVersion, version, diffVersion)));
                                 r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
 
                                 std::cout << "recursive: " << *r1 << std::endl;
@@ -4989,25 +4778,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     plan = new AstExecutionPlan();
                                 }
 
-                                /*
-                                if (plan->hasOrderFor(version, diffVersion)) {
-                                    auto existingOrder = plan->getOrderFor(version, diffVersion);
-
-                                    // extend in the case of extra atoms
-                                    for (int k = existingOrder.size(); k < r1->getAtoms().size(); k++) {
-                                        existingOrder.appendAtomIndex(k + 1);
-                                    }
-                                    plan->setOrderFor(version, diffVersion, std::move(createReordering(existingOrder, diffVersion)));
-                                } else {
-                                    AstExecutionOrder existingOrder;
-                                    for (size_t k = 0; k < r1->getAtoms().size(); k++) {
-                                        existingOrder.appendAtomIndex(k + 1);
-                                    }
-                                    plan->setOrderFor(version, diffVersion, std::move(createReordering(existingOrder, diffVersion)));
-                                }
-                                */
-
-                                plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, version, diffVersion)));
+                                plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, atoms.size() + 1, version, diffVersion)));
                                 r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
 
                                 std::cout << "recursive: " << *r1 << std::endl;
@@ -5205,7 +4976,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 }
                                 */
 
-                                plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, version, diffVersion)));
+                                plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, diffVersion, version, diffVersion)));
                                 r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
 
                                 std::cout << "recursive: " << *r1 << std::endl;
@@ -5426,7 +5197,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 }
                                 */
 
-                                plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, version, diffVersion)));
+                                plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, atoms.size() + 1, version, diffVersion)));
                                 r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
 
                                 std::cout << "recursive: " << *r1 << std::endl;

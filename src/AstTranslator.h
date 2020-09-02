@@ -427,7 +427,7 @@ private:
     std::unique_ptr<RamStatement> makeNegationSubproofSubroutine(const AstClause& clause);
 
     /** create an ordering of a clause that moves a particular atom to the front */
-    std::unique_ptr<AstExecutionOrder> createReordering(const AstClause& originalClause, size_t version, size_t diffVersion);
+    std::unique_ptr<AstExecutionOrder> createReordering(const AstClause& originalClause, size_t frontAtom, size_t version, size_t diffVersion);
 
     /** translate RAM code for subroutine to get subproofs for non-existence of a tuple */
     std::pair<std::vector<AstRelation*>, std::vector<AstAtom*>> createIncrementalRediscoverFilters(const AstClause& clause, int clauseNum, const std::vector<unsigned int>& order, const AstProgram& program, const RecursiveClauses* recursiveClauses);
