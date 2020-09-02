@@ -1673,6 +1673,13 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 visit(*exists.getValues()[arity - 2], out);
                 out << ") return true;\n";
 
+                out << "} else if (";
+                visit(*currentCount, out);
+                out << " == -2) {\n";
+                out << "if (tup[" << arity - 1 << "] < 0 && tup[" << arity - 2 << "] < ";
+                visit(*exists.getValues()[arity - 2], out);
+                out << ") return true;\n";
+
                 // count of 1 indicates that we want to check previous iterations
                 out << "} else if (";
                 visit(*currentCount, out);
