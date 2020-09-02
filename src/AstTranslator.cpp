@@ -4002,7 +4002,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             plan = new AstExecutionPlan();
                         }
 
-                        plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, j, version, diffVersion)));
+                        plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, j + 1, version, diffVersion)));
                         r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
 
                         // translate rdiff
@@ -4396,7 +4396,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             plan = new AstExecutionPlan();
                         }
 
-                        plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, j, version, diffVersion)));
+                        plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, j + 1, version, diffVersion)));
                         r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
 
                         // translate rdiff
