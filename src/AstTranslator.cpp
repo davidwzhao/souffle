@@ -2526,12 +2526,22 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                     */
 
                             // update the diff plus relations
+                            std::make_unique<RamClear>(
+                                    std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone())),
+
+                            std::make_unique<RamExistingMerge>(std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone()),
+                                    std::unique_ptr<RamRelationReference>(translateNewDiffAppliedRelation(rel)->clone()),
+                                    std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone())),
+
                             // merge new_diff_plus into diff_plus to update with new tuples from current iteration
                             std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateNewDiffAppliedRelation(rel)->clone())),
 
+
+                            /*
                             std::make_unique<RamSwap>(std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateNewDiffAppliedRelation(rel)->clone())),
+                                    */
 
                             /*
                             // update the diff applied relations
@@ -2939,15 +2949,6 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                             rdiff->addToBody(std::make_unique<AstSubsumptionNegation>(
                                     std::unique_ptr<AstAtom>(diffAppliedHeadAtom), 1));
 
-                            // for differential, only use earliest derivation of tuple
-                            for (size_t j = 0; j < atoms.size(); j++) {
-                                // add a constraint saying that the delta tuple can't have existed previously
-                                auto noPrior = atoms[j]->clone();
-                                noPrior->setName(translateDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
-                                noPrior->setArgument(noPrior->getArity() - 1, std::make_unique<AstNumberConstant>(2));
-                                rdiff->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(noPrior)));
-                            }
-
                             version = 0;
                             // use delta versions of relations for semi-naive evaluation
                             for (size_t j = 0; j < atoms.size(); j++) {
@@ -2984,6 +2985,18 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                         r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LT,
                                                     std::unique_ptr<AstArgument>(r1->getAtoms()[k]->getArgument(r1->getAtoms()[k]->getArity() - 2)->clone()),
                                                     std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+                                    }
+                                }
+
+
+                                // for differential, only use earliest derivation of tuple
+                                for (size_t k = 0; k < atoms.size(); k++) {
+                                    if (k != j && isInSameSCC(getAtomRelation(atoms[k], program))) {
+                                        // add a constraint saying that the delta tuple can't have existed previously
+                                        auto noPrior = atoms[k]->clone();
+                                        noPrior->setName(translateDiffAppliedRelation(getAtomRelation(atoms[k], program))->get()->getName());
+                                        noPrior->setArgument(noPrior->getArity() - 1, std::make_unique<AstNumberConstant>(2));
+                                        r1->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(noPrior)));
                                     }
                                 }
 

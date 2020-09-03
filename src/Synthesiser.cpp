@@ -504,9 +504,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // ExistingMerge works as follows:
             // ExistingMerge(A, B, C):
             //   FOR tuple in B:
-            //     IF (tuple.iteration == iter - 1 || (iter == 0 && tuple.iteration == 0)):
-            //       INSERT tuple INTO A
-            //     ELSE IF (tuple in C) :
+            //     IF (tuple IN C WHERE tuple(C).iteration < tuple.iteration):
+            //       SKIP
+            //     ELSE:
             //       INSERT tuple INTO A
 
             PRINT_BEGIN_COMMENT(out);
@@ -516,7 +516,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             out << "{\n";
             out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getExistingRelation()) << "," << synthesiser.getRelationName(merge.getExistingRelation()) << "->createContext());\n";
-            out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getTargetRelation()) << "," << synthesiser.getRelationName(merge.getTargetRelation()) << "->createContext());\n";
+            if (synthesiser.getOpContextName(merge.getExistingRelation()) != synthesiser.getOpContextName(merge.getTargetRelation())) {
+                out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getTargetRelation()) << "," << synthesiser.getRelationName(merge.getTargetRelation()) << "->createContext());\n";
+            }
 
             // this is a bit of a mess, should integrate into search signatures
             int searchSignature = isa->getSearchSignature(&merge);
@@ -528,58 +530,18 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // out << synthesiser.toIndex(ne.getSearchSignature());
             out << "_" << searchSignature;
             out << "(Tuple<RamDomain," << arity << ">{{";
-            for (size_t i = 0; i < arity - 3; i++) {
+            for (size_t i = 0; i < arity - 2; i++) {
                 out << "tup[" << i << "]";
                 out << ",";
             }
 
             // extra 0s for incremental annotations
-            out << "0,0,0";
+            out << "0,0";
 
             out << "}}, " << existingCtxName << ");\n";
 
-            out << "if (!existenceCheck.empty() && (*existenceCheck.begin())[" << arity - 3 << "] != iter) {\n";
-            out << "continue;\n";
-            out << "}\n";
-
+            out << "if (!existenceCheck.empty()) continue;\n";
             out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup, " << targetCtxName << ");\n";
-
-
-            
-
-            /*
-            // out << "if ((iter == 0 && tup[" << arity - 3 << "] == 0) || tup[" << arity - 3 << "] == iter-1) {\n";
-            out << "if (tup[" << arity - 3 << "] == iter) {\n";
-            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
-            out << "}\n";
-
-            // else, check existence in ExistingRelation
-            out << "else {\n";
-
-            // this is a bit of a mess, should integrate into search signatures
-            int searchSignature = isa->getSearchSignature(&merge);
-
-            out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getExistingRelation()) << "->"
-                << "equalRange";
-            // out << synthesiser.toIndex(ne.getSearchSignature());
-            out << "_" << searchSignature;
-            out << "(Tuple<RamDomain," << arity << ">{{";
-            for (size_t i = 0; i < arity - 3; i++) {
-                out << "tup[" << i << "]";
-                out << ",";
-            }
-
-            // extra 0s for incremental annotations
-            out << "0,0,0";
-
-            out << "}});\n"; //  << ctxName << ");\n";
-
-            out << "if (!existenceCheck.empty()) {\n";
-            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup);\n";
-            out << "}\n";
-
-            out << "}\n";
-            */
 
             out << "}\n";
 
