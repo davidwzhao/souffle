@@ -459,38 +459,17 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
         void visitUpdateMerge(const RamUpdateMerge& merge, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
-            // UpdateMerge works as follows:
-            // UpdateMerge(A, B, C):
-            //   FOR tuple in B:
-            //     IF (tuple(B).iteration < current_iter AND tuple IN C WHERE tuple(C).iteration == tuple.iteration):
-            //       SKIP
-            //     ELSE:
-            //       INSERT tuple INTO A
-            //
-            // Usually assume that B is diff_plus/diff_minus
-
-            PRINT_BEGIN_COMMENT(out);
             size_t arity = merge.getTargetRelation().getArity();
-            auto existingCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getExistingRelation()) + ")";
-            auto targetCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getTargetRelation()) + ")";
+            auto ctxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getTargetRelation()) + ")";
 
-            out << "{\n";
-            out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getExistingRelation()) << "," << synthesiser.getRelationName(merge.getExistingRelation()) << "->createContext());\n";
-            if (synthesiser.getOpContextName(merge.getExistingRelation()) != synthesiser.getOpContextName(merge.getTargetRelation())) {
-                out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getTargetRelation()) << "," << synthesiser.getRelationName(merge.getTargetRelation()) << "->createContext());\n";
-            }
-
-            // this is a bit of a mess, should integrate into search signatures
             int searchSignature = isa->getSearchSignature(&merge);
 
-            out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
-            
-            out << "if (tup[" << arity - 2 << "] < (iter)) {\n";
+            out << "{\n";
 
-            out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getExistingRelation()) << "->"
-                << "equalRange";
-            // out << synthesiser.toIndex(ne.getSearchSignature());
-            out << "_" << searchSignature;
+            out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getTargetRelation()) << "," << synthesiser.getRelationName(merge.getTargetRelation()) << "->createContext());\n";
+
+            out << "for (const auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
+            out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getTargetRelation()) << "->equalRange_" << searchSignature;
             out << "(Tuple<RamDomain," << arity << ">{{";
             for (size_t i = 0; i < arity - 2; i++) {
                 out << "tup[" << i << "]";
@@ -499,27 +478,24 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             // extra 0s for incremental annotations
             out << "0,0";
+            out << "}}, " << ctxName << ");\n";
 
-            out << "}}, " << existingCtxName << ");\n";
+            out << "for (const auto& existingTup : existenceCheck) {\n";
+            out << "if (existingTup[" << arity - 2 << "] > tup[" << arity - 2 << "]) {\n";
+            out << "auto updateTuple = existingTup;\n";
+            out << "updateTuple[" << arity - 1 << "] = 0;\n";
+            // out << "updateTuple[" << arity - 2 << "] = 0;\n";
 
-            out << "int min_iter = MAX_RAM_DOMAIN;\n";
-            out << "for (auto& t : existenceCheck) {\n";
-            out << "if (t[" << arity - 1 << "] > 0 && t[" << arity - 2 << "] < min_iter) min_iter = t[" << arity - 2 << "];\n";
+            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(updateTuple," << ctxName << ");\n";
             out << "}\n";
 
-            out << "if (min_iter == (iter)) {\n";
-            out << "auto tuple = tup;\n";
-            out << "tuple[" << arity - 2 << "] = iter;\n";
-            out << "tuple[" << arity - 1 << "] = 1;\n";
-            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tuple, " << targetCtxName << ");\n";
-            out << "}\n";
+            out << "}\n"; // end of for existingTup
 
-            out << "}\n";
+            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup," << ctxName << ");\n";
 
-            out << "}\n";
+            out << "}\n"; // end of for tup
 
-            out << "}\n";
-
+            out << "}\n"; // end of inner context
 
             PRINT_END_COMMENT(out);
         }

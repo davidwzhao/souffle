@@ -462,13 +462,8 @@ protected:
  */
 class RamUpdateMerge : public RamBinRelationStatement {
 public:
-    RamUpdateMerge(std::unique_ptr<RamRelationReference> tRef, std::unique_ptr<RamRelationReference> sRef, std::unique_ptr<RamRelationReference> eRef)
-            : RamBinRelationStatement(std::move(sRef), std::move(tRef)), existingRelation(std::move(eRef)) {
-        assert(first->get()->getArity() == existingRelation->get()->getArity() && "mismatching relations");
-        for (size_t i = 0; i < first->get()->getArity(); i++) {
-            assert(first->get()->getArgTypeQualifier(i) == existingRelation->get()->getArgTypeQualifier(i) &&
-                    "mismatching type");
-        }
+    RamUpdateMerge(std::unique_ptr<RamRelationReference> tRef, std::unique_ptr<RamRelationReference> sRef)
+            : RamBinRelationStatement(std::move(sRef), std::move(tRef)) {
     }
 
     /** @brief Get source relation */
@@ -481,11 +476,6 @@ public:
         return getSecondRelation();
     }
 
-    /** @brief Get target relation */
-    const RamRelation& getExistingRelation() const {
-        return *existingRelation->get();
-    }
-
     void print(std::ostream& os, int tabpos) const override {
         os << times(" ", tabpos);
         os << "UPDATEMERGE " << getTargetRelation().getName() << " WITH " << getSourceRelation().getName();
@@ -494,18 +484,16 @@ public:
 
     RamUpdateMerge* clone() const override {
         auto* res = new RamUpdateMerge(std::unique_ptr<RamRelationReference>(second->clone()),
-                std::unique_ptr<RamRelationReference>(first->clone()), std::unique_ptr<RamRelationReference>(existingRelation->clone()));
+                std::unique_ptr<RamRelationReference>(first->clone()));
         return res;
     }
 
 protected:
-    std::unique_ptr<RamRelationReference> existingRelation;
-
     bool equal(const RamNode& node) const override {
         bool res = RamBinRelationStatement::equal(node);
         assert(nullptr != dynamic_cast<const RamUpdateMerge*>(&node));
         const auto& other = static_cast<const RamUpdateMerge&>(node);
-        return res && getExistingRelation() == other.getExistingRelation();
+        return res;
     }
 };
 
