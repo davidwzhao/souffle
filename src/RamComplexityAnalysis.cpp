@@ -41,17 +41,21 @@ int RamComplexityAnalysis::getComplexity(const RamNode* node) const {
 
         // existence check
         int visitExistenceCheck(const RamExistenceCheck& exists) override {
-            return 2;
+            return 3;
         }
 
         // provenance existence check
         int visitSubsumptionExistenceCheck(const RamSubsumptionExistenceCheck& provExists) override {
-            return 2;
+            return 3;
         }
 
         // provenance existence check
         int visitPositiveExistenceCheck(const RamPositiveExistenceCheck& posExists) override {
-            return 2;
+            auto relName = posExists.getRelation().getName();
+            if (relName.find("diff_plus@") != std::string::npos || relName.find("diff_minus@") != std::string::npos) {
+                return 2;
+            }
+            return 3;
         }
 
         // emptiness check

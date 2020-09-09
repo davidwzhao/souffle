@@ -318,7 +318,7 @@ sips_t ReorderLiteralsTransformer::getSipsFunction(const std::string& sipsChosen
                 int numBound = numBoundArguments(currAtom, boundVariables);
 
                 // arbitrarily choose 10
-                costs[i] += numBound * 10;
+                costs[i] += numBound * 20 / atoms.size();
             }
 
             // find the atom with highest weight

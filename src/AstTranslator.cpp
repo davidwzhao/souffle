@@ -4006,15 +4006,18 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                         // for the reinsertion rule, we only want to process tuples that are deleted from earlier iterations
                         auto deletedAtom = atoms[j]->clone();
                         deletedAtom->setName(translateDiffMinusRelation(getAtomRelation(atoms[j], program))->get()->getName());
-                        deletedAtom->setArgument(deletedAtom->getArity() - 1, std::make_unique<AstVariable>("@prev_count"));
-                        deletedAtom->setArgument(deletedAtom->getArity() - 2, std::make_unique<AstVariable>("@prev_iteration"));
-                        r1->addToBody(std::unique_ptr<AstAtom>(deletedAtom));
+                        deletedAtom->setArgument(deletedAtom->getArity() - 1, std::make_unique<AstNumberConstant>(-2));
+                        // deletedAtom->setArgument(deletedAtom->getArity() - 1, std::make_unique<AstVariable>("@prev_count"));
+                        // deletedAtom->setArgument(deletedAtom->getArity() - 2, std::make_unique<AstVariable>("@prev_iteration"));
+                        r1->addToBody(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(deletedAtom)));
 
+                        /*
                         auto noDeletionPrior = atoms[j]->clone();
                         noDeletionPrior->setName(translateDiffMinusRelation(getAtomRelation(atoms[j], program))->get()->getName());
                         noDeletionPrior->setArgument(noDeletionPrior->getArity() - 1, std::make_unique<AstNumberConstant>(-2));
                         noDeletionPrior->setArgument(noDeletionPrior->getArity() - 2, std::make_unique<AstVariable>("@prev_iteration"));
                         r1->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(noDeletionPrior)));
+                        */
 
 
                         for (size_t k = 0; k < atoms.size(); k++) {
@@ -4027,8 +4030,10 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             }
                         }
 
+                        /*
                         // add a constraint that the deleted atom was not in delta
                         r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LT, std::make_unique<AstVariable>("@prev_iteration"), std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+                        */
 
                         std::cout << "reinsertion recursive: " << *r1 << std::endl;
 
@@ -4039,7 +4044,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             plan = new AstExecutionPlan();
                         }
 
-                        plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, atoms.size() + 1, version, diffVersion)));
+                        plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, j + 1, version, diffVersion)));
                         r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
 
                         // translate rdiff
@@ -4209,15 +4214,18 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                         // for the reinsertion rule, we only want to process tuples that are inserted from earlier iterations
                         auto insertedAtom = atoms[j]->clone();
                         insertedAtom->setName(translateDiffPlusRelation(getAtomRelation(atoms[j], program))->get()->getName());
-                        insertedAtom->setArgument(insertedAtom->getArity() - 1, std::make_unique<AstVariable>("@prev_count"));
-                        insertedAtom->setArgument(insertedAtom->getArity() - 2, std::make_unique<AstVariable>("@prev_iteration"));
-                        r1->addToBody(std::unique_ptr<AstAtom>(insertedAtom));
+                        insertedAtom->setArgument(insertedAtom->getArity() - 1, std::make_unique<AstNumberConstant>(2));
+                        // insertedAtom->setArgument(insertedAtom->getArity() - 1, std::make_unique<AstVariable>("@prev_count"));
+                        // insertedAtom->setArgument(insertedAtom->getArity() - 2, std::make_unique<AstVariable>("@prev_iteration"));
+                        r1->addToBody(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(insertedAtom)));
 
+                        /*
                         auto noInsertionPrior = atoms[j]->clone();
                         noInsertionPrior->setName(translateDiffPlusRelation(getAtomRelation(atoms[j], program))->get()->getName());
                         noInsertionPrior->setArgument(noInsertionPrior->getArity() - 1, std::make_unique<AstNumberConstant>(2));
                         noInsertionPrior->setArgument(noInsertionPrior->getArity() - 2, std::make_unique<AstVariable>("@prev_iteration"));
                         r1->addToBody(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(noInsertionPrior)));
+                        */
 
                         for (size_t k = 0; k < atoms.size(); k++) {
                             if (k != j && isInSameSCC(getAtomRelation(atoms[k], program))) {
@@ -4230,8 +4238,10 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             }
                         }
 
+                        /*
                         // add a constraint that the inserted atom was not in delta
                         r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LT, std::make_unique<AstVariable>("@prev_iteration"), std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+                        */
 
                         /*
                         // do a sips-based reordering
@@ -4454,7 +4464,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             plan = new AstExecutionPlan();
                         }
 
-                        plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, atoms.size() + 1, version, diffVersion)));
+                        plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, j + 1, version, diffVersion)));
                         r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
 
                         // translate rdiff
