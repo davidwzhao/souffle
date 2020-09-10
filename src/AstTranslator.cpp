@@ -1113,6 +1113,8 @@ std::unique_ptr<AstExecutionOrder> AstTranslator::createReordering(const AstClau
                 originalOrder.appendAtomIndex(k + 1);
             }
 
+            // return std::unique_ptr<AstExecutionOrder>(originalOrder.clone());
+
             hasOriginalOrder = true;
         }
     }

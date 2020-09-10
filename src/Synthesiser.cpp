@@ -472,6 +472,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             PRINT_BEGIN_COMMENT(out);
             size_t arity = merge.getTargetRelation().getArity();
             auto existingCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getExistingRelation()) + ")";
+            auto sourceCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
             auto targetCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getTargetRelation()) + ")";
 
             out << "{\n";
@@ -479,10 +480,12 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             if (synthesiser.getOpContextName(merge.getExistingRelation()) != synthesiser.getOpContextName(merge.getTargetRelation())) {
                 out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getTargetRelation()) << "," << synthesiser.getRelationName(merge.getTargetRelation()) << "->createContext());\n";
             }
+            out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getSourceRelation()) << "," << synthesiser.getRelationName(merge.getSourceRelation()) << "->createContext());\n";
 
             // this is a bit of a mess, should integrate into search signatures
             int searchSignature = isa->getSearchSignature(&merge);
 
+            /*
             out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
             
             out << "if (tup[" << arity - 2 << "] < (iter)) {\n";
@@ -517,9 +520,72 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "}\n";
 
             out << "}\n";
+            */
 
+            out << "auto deltaExistenceCheck = " << synthesiser.getRelationName(merge.getExistingRelation()) << "->equalRange_" << searchSignature;
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 2; i++) {
+                out << "0";
+                out << ",";
+            }
+            out << "iter,0";
+            out << "}}, " << existingCtxName << ");\n";
+
+            out << "for (auto& tup : deltaExistenceCheck) {\n";
+            // check if tuple is in SourceRelation
+
+            out << "auto sourceExistenceCheck = " << synthesiser.getRelationName(merge.getSourceRelation()) << "->"
+                << "equalRange";
+            // out << synthesiser.toIndex(ne.getSearchSignature());
+            out << "_" << searchSignature;
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 2; i++) {
+                out << "tup[" << i << "]";
+                out << ",";
+            }
+
+            // extra 0s for incremental annotations
+            out << "0,0";
+
+            out << "}}, " << sourceCtxName << ");\n";
+
+            out << "for (auto& t : sourceExistenceCheck) {\n";
+            out << "if (t[" << arity - 2 << "] < iter) {\n";
+
+            // tuple is in SourceRelation, now check to make sure it's not in delta
+            out << "auto ensureDeltaExistenceCheck = " << synthesiser.getRelationName(merge.getExistingRelation()) << "->"
+                << "equalRange";
+            // out << synthesiser.toIndex(ne.getSearchSignature());
+            out << "_" << searchSignature;
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 2; i++) {
+                out << "tup[" << i << "]";
+                out << ",";
+            }
+            // extra 0s for incremental annotations
+            out << "0,0";
+            out << "}}, " << existingCtxName << ");\n";
+
+            out << "bool delta = true;\n";
+            out << "for (auto& ensureDelta : ensureDeltaExistenceCheck) {\n";
+            out << "if (ensureDelta[" << arity - 1 << "] > 0 && ensureDelta[" << arity - 2 << "] < iter) {\n";
+            out << "delta = false;\n";
+            out << "}\n";
             out << "}\n";
 
+            out << "if (delta) {\n";
+
+            out << "auto tuple = tup;\n";
+            out << "tuple[" << arity - 2 << "] = iter;\n";
+            out << "tuple[" << arity - 1 << "] = 1;\n";
+            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tuple, " << targetCtxName << ");\n";
+            out << "break;\n";
+            out << "}\n";
+            out << "}\n";
+            out << "}\n";
+            out << "}\n";
+
+            out << "}\n";
 
             PRINT_END_COMMENT(out);
         }

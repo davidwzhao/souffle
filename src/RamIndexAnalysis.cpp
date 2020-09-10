@@ -296,6 +296,10 @@ void RamIndexAnalysis::run(const RamTranslationUnit& translationUnit) {
         } else if (const auto* updateMerge = dynamic_cast<const RamUpdateMerge*>(&node)) {
             MinIndexSelection& indexes = getIndexes(updateMerge->getExistingRelation());
             indexes.addSearch(getSearchSignature(updateMerge));
+            indexes.addSearch(1 << updateMerge->getTargetRelation().getArity() - 2);
+
+            MinIndexSelection& indexes2 = getIndexes(updateMerge->getSourceRelation());
+            indexes.addSearch(getSearchSignature(updateMerge));
         } else if (const auto* posiMerge = dynamic_cast<const RamExistingMerge*>(&node)) {
             MinIndexSelection& indexes = getIndexes(posiMerge->getExistingRelation());
             indexes.addSearch(getSearchSignature(posiMerge));
