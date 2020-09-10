@@ -300,6 +300,14 @@ struct range {
         return a == b;
     }
 
+    int size() const {
+        // obtain the size
+        int n = 0;
+        for (auto i = a; i != b; ++i) n++;
+        return n;
+    }
+
+
     // splits up this range into the given number of partitions
     std::vector<range> partition(int np = 100) {
         // obtain the size

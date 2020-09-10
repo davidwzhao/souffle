@@ -485,7 +485,18 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // this is a bit of a mess, should integrate into search signatures
             int searchSignature = isa->getSearchSignature(&merge);
 
-            /*
+            out << "auto deltaExistenceCheck = " << synthesiser.getRelationName(merge.getExistingRelation()) << "->equalRange_" << (1 << arity - 2);
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 2; i++) {
+                out << "0";
+                out << ",";
+            }
+            out << "iter,0";
+            out << "}}, " << existingCtxName << ");\n";
+
+            out << "if (" << synthesiser.getRelationName(merge.getSourceRelation()) << "->size() < deltaExistenceCheck.size()) {\n";
+
+            // if source relation is smaller, then use it as the pivot
             out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
             
             out << "if (tup[" << arity - 2 << "] < (iter)) {\n";
@@ -520,16 +531,11 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "}\n";
 
             out << "}\n";
-            */
 
-            out << "auto deltaExistenceCheck = " << synthesiser.getRelationName(merge.getExistingRelation()) << "->equalRange_" << (1 << arity - 2);
-            out << "(Tuple<RamDomain," << arity << ">{{";
-            for (size_t i = 0; i < arity - 2; i++) {
-                out << "0";
-                out << ",";
-            }
-            out << "iter,0";
-            out << "}}, " << existingCtxName << ");\n";
+            out << "} else {\n";
+
+            // if existing relation is smaller, then use it as the pivot
+
 
             out << "for (auto& tup : deltaExistenceCheck) {\n";
             // check if tuple is in SourceRelation
@@ -581,6 +587,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "tuple[" << arity - 1 << "] = 1;\n";
             out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tuple, " << targetCtxName << ");\n";
             out << "break;\n";
+            out << "}\n";
             out << "}\n";
             out << "}\n";
             out << "}\n";
