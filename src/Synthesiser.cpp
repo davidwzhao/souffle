@@ -522,7 +522,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "}\n";
             */
 
-            out << "auto deltaExistenceCheck = " << synthesiser.getRelationName(merge.getExistingRelation()) << "->equalRange_" << searchSignature;
+            out << "auto deltaExistenceCheck = " << synthesiser.getRelationName(merge.getExistingRelation()) << "->equalRange_" << (1 << arity - 2);
             out << "(Tuple<RamDomain," << arity << ">{{";
             for (size_t i = 0; i < arity - 2; i++) {
                 out << "0";
@@ -534,6 +534,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "for (auto& tup : deltaExistenceCheck) {\n";
             // check if tuple is in SourceRelation
 
+            out << "if (tup[" << arity - 1 << "] > 0) {\n";
             out << "auto sourceExistenceCheck = " << synthesiser.getRelationName(merge.getSourceRelation()) << "->"
                 << "equalRange";
             // out << synthesiser.toIndex(ne.getSearchSignature());
@@ -580,6 +581,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "tuple[" << arity - 1 << "] = 1;\n";
             out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tuple, " << targetCtxName << ");\n";
             out << "break;\n";
+            out << "}\n";
             out << "}\n";
             out << "}\n";
             out << "}\n";
