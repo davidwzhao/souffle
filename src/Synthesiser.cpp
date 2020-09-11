@@ -494,7 +494,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "iter,0";
             out << "}}, " << existingCtxName << ");\n";
 
-            out << "if (" << synthesiser.getRelationName(merge.getSourceRelation()) << "->size() < deltaExistenceCheck.size()) {\n";
+            out << "if (" << synthesiser.getRelationName(merge.getSourceRelation()) << "->approx_size() < deltaExistenceCheck.size()) {\n";
 
             // if source relation is smaller, then use it as the pivot
             out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";

@@ -372,6 +372,9 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
     // typedef master index iterator to be struct iterator
     out << "using iterator = t_ind_" << masterIndex << "::iterator;\n";
 
+    // store an approximate size
+    out << "size_t approximate_size = 0;\n";
+
     // create a struct storing hints for each btree
     out << "struct context {\n";
     for (size_t i = 0; i < numIndexes; i++) {
@@ -393,6 +396,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
             out << "ind_" << i << ".insert(t, h.hints_" << i << ");\n";
         }
     }
+    out << "approximate_size++;\n";
     out << "return true;\n";
     out << "} else return false;\n";
     out << "}\n";  // end of insert(t_tuple&, context&)
@@ -456,6 +460,11 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
     // size method
     out << "std::size_t size() const {\n";
     out << "return ind_" << masterIndex << ".size();\n";
+    out << "}\n";
+
+    // approximate size
+    out << "size_t approx_size() const {\n";
+    out << "return approximate_size;\n";
     out << "}\n";
 
     // find methods
