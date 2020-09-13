@@ -573,6 +573,69 @@ protected:
 };
 
 /**
+ * @class RamDeltaMerge
+ * @brief Merge tuples from a source into target relation, 
+ * but only tuples that don't exist in an earlier iteration in the third relation.
+ * This is used to maintain the state of the delta_diff_applied relation
+ * - it should contain tuples from the current iteration, but not those where a smaller proof has been found
+ *
+ * Note that semantically uniqueness of tuples is not checked.
+ *
+ * The following example merges A \ C into B:
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * POSIMERGE B WITH A IF IN C
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ */
+class RamDeltaMerge : public RamBinRelationStatement {
+public:
+    RamDeltaMerge(std::unique_ptr<RamRelationReference> tRef, std::unique_ptr<RamRelationReference> sRef, std::unique_ptr<RamRelationReference> eRef)
+            : RamBinRelationStatement(std::move(sRef), std::move(tRef)), existingRelation(std::move(eRef)) {
+        assert(first->get()->getArity() == existingRelation->get()->getArity() && "mismatching relations");
+        for (size_t i = 0; i < first->get()->getArity(); i++) {
+            assert(first->get()->getArgTypeQualifier(i) == existingRelation->get()->getArgTypeQualifier(i) &&
+                    "mismatching type");
+        }
+    }
+
+    /** @brief Get source relation */
+    const RamRelation& getSourceRelation() const {
+        return getFirstRelation();
+    }
+
+    /** @brief Get target relation */
+    const RamRelation& getTargetRelation() const {
+        return getSecondRelation();
+    }
+
+    /** @brief Get target relation */
+    const RamRelation& getExistingRelation() const {
+        return *existingRelation->get();
+    }
+
+    void print(std::ostream& os, int tabpos) const override {
+        os << times(" ", tabpos);
+        os << "EXISTING MERGE " << getTargetRelation().getName() << " WITH " << getSourceRelation().getName() << " IF IN " << getExistingRelation().getName();
+        os << std::endl;
+    }
+
+    RamDeltaMerge* clone() const override {
+        auto* res = new RamDeltaMerge(std::unique_ptr<RamRelationReference>(second->clone()),
+                std::unique_ptr<RamRelationReference>(first->clone()), std::unique_ptr<RamRelationReference>(existingRelation->clone()));
+        return res;
+    }
+
+protected:
+    std::unique_ptr<RamRelationReference> existingRelation;
+
+    bool equal(const RamNode& node) const override {
+        bool res = RamBinRelationStatement::equal(node);
+        assert(nullptr != dynamic_cast<const RamExistingMerge*>(&node));
+        const auto& other = static_cast<const RamExistingMerge&>(node);
+        return res && getExistingRelation() == other.getExistingRelation();
+    }
+};
+
+/**
  * @class RamSemiMerge
  * @brief Merge tuples from a source into target relation, 
  * but only tuples that already existed in the target relation.

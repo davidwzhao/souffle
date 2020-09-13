@@ -649,6 +649,75 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             PRINT_END_COMMENT(out);
         }
 
+        void visitDeltaMerge(const RamDeltaMerge& merge, std::ostream& out) override {
+            // DeltaMerge works as follows:
+            // DeltaMerge(A, B, C):
+            //   FOR tuple in B WHERE iteration is current:
+            //     IF (tuple IN C WHERE tuple(C).iteration < tuple.iteration):
+            //       SKIP
+            //     ELSE:
+            //       INSERT tuple INTO A
+
+            PRINT_BEGIN_COMMENT(out);
+            size_t arity = merge.getTargetRelation().getArity();
+            auto existingCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getExistingRelation()) + ")";
+            auto targetCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getTargetRelation()) + ")";
+            auto sourceCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
+
+            out << "{\n";
+            out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getExistingRelation()) << "," << synthesiser.getRelationName(merge.getExistingRelation()) << "->createContext());\n";
+            if (synthesiser.getOpContextName(merge.getExistingRelation()) != synthesiser.getOpContextName(merge.getTargetRelation())) {
+                out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getTargetRelation()) << "," << synthesiser.getRelationName(merge.getTargetRelation()) << "->createContext());\n";
+            }
+            out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getSourceRelation()) << "," << synthesiser.getRelationName(merge.getSourceRelation()) << "->createContext());\n";
+
+            // this is a bit of a mess, should integrate into search signatures
+            int searchSignature = isa->getSearchSignature(&merge);
+
+            out << "auto deltaExistenceCheck = " << synthesiser.getRelationName(merge.getSourceRelation()) << "->equalRange_" << (1 << arity - 2);
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 2; i++) {
+                out << "0";
+                out << ",";
+            }
+            out << "iter,0";
+            out << "}}, " << sourceCtxName << ");\n";
+
+            out << "for (auto& tup : deltaExistenceCheck) {\n";
+
+            // check if tuple is in lower iteration in existing relation
+            out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getExistingRelation()) << "->"
+                << "equalRange";
+            // out << synthesiser.toIndex(ne.getSearchSignature());
+            out << "_" << searchSignature;
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 2; i++) {
+                out << "tup[" << i << "]";
+                out << ",";
+            }
+
+            // extra 0s for incremental annotations
+            out << "0,0";
+
+            out << "}}, " << existingCtxName << ");\n";
+
+            out << "bool insert = true;\n";
+            out << "for (auto& t : existenceCheck) {\n";
+            out << "if (t[" << arity - 2 << "] < iter) {\n";
+            out << "insert = false;\n";
+            out << "break;\n";
+            out << "}\n";
+            out << "}\n";
+
+            out << "if (insert) ";
+            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tup, " << targetCtxName << ");\n";
+
+            out << "}\n";
+            out << "}\n";
+
+            PRINT_END_COMMENT(out);
+        }
+
         void visitSemiMerge(const RamSemiMerge& merge, std::ostream& out) override {
             PRINT_BEGIN_COMMENT(out);
             size_t arity = merge.getTargetRelation().getArity();
@@ -656,6 +725,55 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // this is a bit of a mess, should integrate into search signatures
             int searchSignature = isa->getSearchSignature(&merge);
 
+            auto sourceCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
+            auto restrictionCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getRestrictionRelation()) + ")";
+            auto targetCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getTargetRelation()) + ")";
+
+            out << "{\n";
+            out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getRestrictionRelation()) << "," << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->createContext());\n";
+            if (synthesiser.getOpContextName(merge.getRestrictionRelation()) != synthesiser.getOpContextName(merge.getTargetRelation())) {
+                out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getTargetRelation()) << "," << synthesiser.getRelationName(merge.getTargetRelation()) << "->createContext());\n";
+            }
+            if (synthesiser.getOpContextName(merge.getSourceRelation()) != synthesiser.getOpContextName(merge.getTargetRelation())) {
+                out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getSourceRelation()) << "," << synthesiser.getRelationName(merge.getSourceRelation()) << "->createContext());\n";
+            }
+
+            out << "auto deltaExistenceCheck = " << synthesiser.getRelationName(merge.getSourceRelation()) << "->equalRange_" << (1 << arity - 2);
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 2; i++) {
+                out << "0";
+                out << ",";
+            }
+            out << "iter,0";
+            out << "}}, " << sourceCtxName << ");\n";
+
+            out << "for (auto& tup : deltaExistenceCheck) {\n";
+
+            // check if tuple is in lower iteration in existing relation
+            out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->"
+                << "equalRange";
+            // out << synthesiser.toIndex(ne.getSearchSignature());
+            out << "_" << searchSignature;
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 1; i++) {
+                out << "tup[" << i << "]";
+                out << ",";
+            }
+
+            // extra 0s for incremental annotations
+            out << "0";
+
+            out << "}}, " << restrictionCtxName << ");\n";
+            out << "if (!existenceCheck.empty()) {\n";
+
+            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(*(existenceCheck.begin()), " << targetCtxName << ");\n";
+            out << "}\n";
+
+            out << "}\n";
+            out << "}\n";
+
+
+            /*
             if (!merge.isSourceOuter()) {
                 auto sourceCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
                 auto targetCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getTargetRelation()) + ")";
@@ -740,6 +858,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
                 out << "}\n";
             }
+        */
 
 
             PRINT_END_COMMENT(out);

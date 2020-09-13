@@ -303,9 +303,16 @@ void RamIndexAnalysis::run(const RamTranslationUnit& translationUnit) {
         } else if (const auto* posiMerge = dynamic_cast<const RamExistingMerge*>(&node)) {
             MinIndexSelection& indexes = getIndexes(posiMerge->getExistingRelation());
             indexes.addSearch(getSearchSignature(posiMerge));
+        } else if (const auto* deltaMerge = dynamic_cast<const RamDeltaMerge*>(&node)) {
+            MinIndexSelection& indexes = getIndexes(updateMerge->getSourceRelation());
+            indexes.addSearch(getSearchSignature(updateMerge));
+            indexes.addSearch(1 << updateMerge->getTargetRelation().getArity() - 2);
+
+            MinIndexSelection& indexes2 = getIndexes(updateMerge->getExistingRelation());
+            indexes2.addSearch(getSearchSignature(updateMerge));
         } else if (const auto* semiMerge = dynamic_cast<const RamSemiMerge*>(&node)) {
             MinIndexSelection& indexes = getIndexes(semiMerge->getSourceRelation());
-            indexes.addSearch(getSearchSignature(semiMerge));
+            indexes.addSearch(1 << semiMerge->getTargetRelation().getArity() - 2);
 
             MinIndexSelection& indexes2 = getIndexes(semiMerge->getRestrictionRelation());
             indexes2.addSearch(getSearchSignature(semiMerge));
@@ -476,12 +483,21 @@ SearchSignature RamIndexAnalysis::getSearchSignature(
     return res;
 }
 
+SearchSignature RamIndexAnalysis::getSearchSignature(
+        const RamDeltaMerge* deltaMerge) const {
+    SearchSignature res = 0;
+    // - 2 because we don't want the iteration number
+    for (size_t i = 0; i < deltaMerge->getExistingRelation().getArity() - 2; i++) {
+        res |= (1 << i);
+    }
+    return res;
+}
 
 SearchSignature RamIndexAnalysis::getSearchSignature(
         const RamSemiMerge* semiMerge) const {
     SearchSignature res = 0;
     // - 2 because we don't want the iteration number
-    for (size_t i = 0; i < semiMerge->getSourceRelation().getArity() - 2; i++) {
+    for (size_t i = 0; i < semiMerge->getSourceRelation().getArity() - 1; i++) {
         res |= (1 << i);
     }
     return res;
