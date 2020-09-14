@@ -326,8 +326,8 @@ private:
     std::unique_ptr<RamRelationReference> translateNewDiffPlusRelation(const AstRelation* rel);
 
     std::unique_ptr<RamRelationReference> translateDeltaDiffAppliedRelation(const AstRelation* rel);
-    std::unique_ptr<RamRelationReference> translateDeltaDiffMinusRelation(const AstRelation* rel);
-    std::unique_ptr<RamRelationReference> translateDeltaDiffPlusRelation(const AstRelation* rel);
+    std::unique_ptr<RamRelationReference> translateActualDiffMinusRelation(const AstRelation* rel);
+    std::unique_ptr<RamRelationReference> translateActualDiffPlusRelation(const AstRelation* rel);
 
     std::unique_ptr<RamRelationReference> translateDiffAppliedRelation(const AstRelation* rel);
 

@@ -316,6 +316,10 @@ void RamIndexAnalysis::run(const RamTranslationUnit& translationUnit) {
 
             MinIndexSelection& indexes2 = getIndexes(semiMerge->getRestrictionRelation());
             indexes2.addSearch(getSearchSignature(semiMerge));
+            indexes2.addSearch(1 << semiMerge->getTargetRelation().getArity() - 2);
+
+            MinIndexSelection& indexes3 = getIndexes(semiMerge->getTargetRelation());
+            indexes3.addSearch(getSearchSignature(semiMerge));
         } else if (const auto* ramRel = dynamic_cast<const RamRelation*>(&node)) {
             MinIndexSelection& indexes = getIndexes(*ramRel);
             indexes.addSearch(getSearchSignature(ramRel));
@@ -497,7 +501,7 @@ SearchSignature RamIndexAnalysis::getSearchSignature(
         const RamSemiMerge* semiMerge) const {
     SearchSignature res = 0;
     // - 2 because we don't want the iteration number
-    for (size_t i = 0; i < semiMerge->getSourceRelation().getArity() - 1; i++) {
+    for (size_t i = 0; i < semiMerge->getSourceRelation().getArity() - 2; i++) {
         res |= (1 << i);
     }
     return res;
