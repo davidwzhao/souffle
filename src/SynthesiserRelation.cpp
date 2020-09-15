@@ -401,7 +401,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
     }
     out << "approximate_size++;\n";
     if (relation.getName().find("_plus@") == std::string::npos && relation.getName().find("_minus@") == std::string::npos) {
-        out << "approximate_size_per_iteration[" << arity - 2 << "]++;\n";
+        out << "approximate_size_per_iteration[t[" << arity - 2 << "]]++;\n";
     }
     out << "return true;\n";
     out << "} else return false;\n";
