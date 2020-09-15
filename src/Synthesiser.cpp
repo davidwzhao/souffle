@@ -485,7 +485,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // this is a bit of a mess, should integrate into search signatures
             int searchSignature = isa->getSearchSignature(&merge);
 
-            out << "auto deltaExistenceCheck = " << synthesiser.getRelationName(merge.getExistingRelation()) << "->equalRange_" << (1 << arity - 2);
+            out << "auto deltaExistenceCheck = " << synthesiser.getRelationName(merge.getExistingRelation()) << "->equalRange_" << (1 << (arity - 2));
             out << "(Tuple<RamDomain," << arity << ">{{";
             for (size_t i = 0; i < arity - 2; i++) {
                 out << "0";
@@ -494,7 +494,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "iter,0";
             out << "}}, " << existingCtxName << ");\n";
 
-            out << "if (" << synthesiser.getRelationName(merge.getSourceRelation()) << "->approx_size() < deltaExistenceCheck.size()) {\n";
+            out << "if (" << synthesiser.getRelationName(merge.getSourceRelation()) << "->approx_size() < " << synthesiser.getRelationName(merge.getExistingRelation()) << "->approx_size(iter)) {\n";
 
             // if source relation is smaller, then use it as the pivot
             out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
@@ -674,7 +674,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // this is a bit of a mess, should integrate into search signatures
             int searchSignature = isa->getSearchSignature(&merge);
 
-            out << "auto deltaExistenceCheck = " << synthesiser.getRelationName(merge.getSourceRelation()) << "->equalRange_" << (1 << arity - 2);
+            out << "auto deltaExistenceCheck = " << synthesiser.getRelationName(merge.getSourceRelation()) << "->equalRange_" << (1 << (arity - 2));
             out << "(Tuple<RamDomain," << arity << ">{{";
             for (size_t i = 0; i < arity - 2; i++) {
                 out << "0";
@@ -738,7 +738,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getSourceRelation()) << "," << synthesiser.getRelationName(merge.getSourceRelation()) << "->createContext());\n";
             }
 
-            out << "auto deltaSource = " << synthesiser.getRelationName(merge.getSourceRelation()) << "->equalRange_" << (1 << arity - 2);
+            out << "auto deltaSource = " << synthesiser.getRelationName(merge.getSourceRelation()) << "->equalRange_" << (1 << (arity - 2));
             out << "(Tuple<RamDomain," << arity << ">{{";
             for (size_t i = 0; i < arity - 2; i++) {
                 out << "0";
@@ -786,7 +786,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             //   if tup is in the source,
             //     this is not a 'true' insert/delete so update its count to 0
 
-            out << "auto deltaRestriction = " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->equalRange_" << (1 << arity - 2);
+            out << "auto deltaRestriction = " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->equalRange_" << (1 << (arity - 2));
             out << "(Tuple<RamDomain," << arity << ">{{";
             for (size_t i = 0; i < arity - 2; i++) {
                 out << "0";
@@ -795,14 +795,14 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "iter,0";
             out << "}}, " << restrictionCtxName << ");\n";
 
-            out << "if (" << synthesiser.getRelationName(merge.getTargetRelation()) << "->approx_size() < deltaRestriction.size()) {\n";
+            out << "if (" << synthesiser.getRelationName(merge.getTargetRelation()) << "->approx_size() < " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->approx_size(iter)) {\n";
 
             // use target relation as outer loop
             out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getTargetRelation()) << ") {\n";
             out << "if (tup[" << arity - 1 << "] == 0) continue;\n";
 
             // check existence in delta
-            out << "auto deltaExistenceCheck = " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->equalRange_" << searchSignature + (1 << arity - 2);
+            out << "auto deltaExistenceCheck = " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->equalRange_" << searchSignature + (1 << (arity - 2));
             out << "(Tuple<RamDomain," << arity << ">{{";
             for (size_t i = 0; i < arity - 2; i++) {
                 out << "tup[" << i <<  "]";

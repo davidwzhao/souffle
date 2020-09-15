@@ -374,6 +374,9 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
 
     // store an approximate size
     out << "size_t approximate_size = 0;\n";
+    if (relation.getName().find("_plus@") == std::string::npos && relation.getName().find("_minus@") == std::string::npos) {
+        out << "size_t approximate_size_per_iteration[50000] = {0};\n";
+    }
 
     // create a struct storing hints for each btree
     out << "struct context {\n";
@@ -397,6 +400,9 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         }
     }
     out << "approximate_size++;\n";
+    if (relation.getName().find("_plus@") == std::string::npos && relation.getName().find("_minus@") == std::string::npos) {
+        out << "approximate_size_per_iteration[" << arity - 2 << "]++;\n";
+    }
     out << "return true;\n";
     out << "} else return false;\n";
     out << "}\n";  // end of insert(t_tuple&, context&)
@@ -466,6 +472,13 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
     out << "size_t approx_size() const {\n";
     out << "return approximate_size;\n";
     out << "}\n";
+
+    if (relation.getName().find("_plus@") == std::string::npos && relation.getName().find("_minus@") == std::string::npos) {
+        // approximate size
+        out << "size_t approx_size(size_t iter) const {\n";
+        out << "return approximate_size_per_iteration[iter];\n";
+        out << "}\n";
+    }
 
     // find methods
     out << "iterator find(const t_tuple& t, context& h) const {\n";
@@ -545,6 +558,10 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
     out << "void purge() {\n";
     for (size_t i = 0; i < numIndexes; i++) {
         out << "ind_" << i << ".clear();\n";
+    }
+    out << "approximate_size = 0;\n";
+    if (relation.getName().find("_plus@") == std::string::npos && relation.getName().find("_minus@") == std::string::npos) {
+        out << "for (size_t i = 0; i < 50000; i++) approximate_size_per_iteration[i] = 0;\n";
     }
     out << "}\n";
 
