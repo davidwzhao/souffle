@@ -316,6 +316,7 @@ void RamIndexAnalysis::run(const RamTranslationUnit& translationUnit) {
 
             MinIndexSelection& indexes2 = getIndexes(semiMerge->getRestrictionRelation());
             indexes2.addSearch(getSearchSignature(semiMerge));
+            indexes2.addSearch(getSearchSignature(semiMerge) + (1 << semiMerge->getTargetRelation().getArity() - 2));
             indexes2.addSearch(1 << semiMerge->getTargetRelation().getArity() - 2);
 
             MinIndexSelection& indexes3 = getIndexes(semiMerge->getTargetRelation());
