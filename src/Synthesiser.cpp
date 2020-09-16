@@ -497,7 +497,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "if (" << synthesiser.getRelationName(merge.getSourceRelation()) << "->approx_size() < " << synthesiser.getRelationName(merge.getExistingRelation()) << "->approx_size(iter)) {\n";
 
             // if source relation is smaller, then use it as the pivot
-            out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
+            out << "for (const auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
             
             out << "if (tup[" << arity - 2 << "] < (iter)) {\n";
 
@@ -517,7 +517,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "}}, " << existingCtxName << ");\n";
 
             out << "int min_iter = MAX_RAM_DOMAIN;\n";
-            out << "for (auto& t : existenceCheck) {\n";
+            out << "for (const auto& t : existenceCheck) {\n";
             out << "if (t[" << arity - 1 << "] > 0 && t[" << arity - 2 << "] < min_iter) min_iter = t[" << arity - 2 << "];\n";
             out << "}\n";
 
@@ -537,7 +537,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // if existing relation is smaller, then use it as the pivot
 
 
-            out << "for (auto& tup : deltaExistenceCheck) {\n";
+            out << "for (const auto& tup : deltaExistenceCheck) {\n";
             // check if tuple is in SourceRelation
 
             out << "if (tup[" << arity - 1 << "] > 0) {\n";
@@ -556,7 +556,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             out << "}}, " << sourceCtxName << ");\n";
 
-            out << "for (auto& t : sourceExistenceCheck) {\n";
+            out << "for (const auto& t : sourceExistenceCheck) {\n";
             out << "if (t[" << arity - 2 << "] < iter) {\n";
 
             // tuple is in SourceRelation, now check to make sure it's not in delta
@@ -574,7 +574,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "}}, " << existingCtxName << ");\n";
 
             out << "bool delta = true;\n";
-            out << "for (auto& ensureDelta : ensureDeltaExistenceCheck) {\n";
+            out << "for (const auto& ensureDelta : ensureDeltaExistenceCheck) {\n";
             out << "if (ensureDelta[" << arity - 1 << "] > 0 && ensureDelta[" << arity - 2 << "] < iter) {\n";
             out << "delta = false;\n";
             out << "}\n";
@@ -622,7 +622,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // this is a bit of a mess, should integrate into search signatures
             int searchSignature = isa->getSearchSignature(&merge);
 
-            out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
+            out << "for (const auto& tup : *" << synthesiser.getRelationName(merge.getSourceRelation()) << ") {\n";
 
             out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getExistingRelation()) << "->"
                 << "equalRange";
@@ -683,7 +683,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "iter,0";
             out << "}}, " << sourceCtxName << ");\n";
 
-            out << "for (auto& tup : deltaExistenceCheck) {\n";
+            out << "for (const auto& tup : deltaExistenceCheck) {\n";
 
             // check if tuple is in lower iteration in existing relation
             out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getExistingRelation()) << "->"
@@ -702,7 +702,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "}}, " << existingCtxName << ");\n";
 
             out << "bool insert = true;\n";
-            out << "for (auto& t : existenceCheck) {\n";
+            out << "for (const auto& t : existenceCheck) {\n";
             out << "if (t[" << arity - 2 << "] < iter) {\n";
             out << "insert = false;\n";
             out << "break;\n";
@@ -746,7 +746,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             }
             out << "iter,0";
             out << "}}, " << sourceCtxName << ");\n";
-            out << "for (auto& tup : deltaSource) {\n";
+            out << "for (const auto& tup : deltaSource) {\n";
 
             // for each tup in source (diff_plus/diff_minus),
             //   if tup doesn't exist in restriction,
@@ -763,7 +763,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             // check if tup exists in restriction
             out << "bool insert = true;\n";
-            out << "for (auto& t : restrictionExistenceCheck) {\n";
+            out << "for (const auto& t : restrictionExistenceCheck) {\n";
             out << "if (t[" << arity - 2 << "] <= tup[" << arity - 2 << "] && t[" << arity - 1 << "] > 0) {\n";
             out << "insert = false;\n";
             out << "break;\n";
@@ -798,7 +798,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "if (" << synthesiser.getRelationName(merge.getTargetRelation()) << "->approx_size() < " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->approx_size(iter)) {\n";
 
             // use target relation as outer loop
-            out << "for (auto& tup : *" << synthesiser.getRelationName(merge.getTargetRelation()) << ") {\n";
+            out << "for (const auto& tup : *" << synthesiser.getRelationName(merge.getTargetRelation()) << ") {\n";
             out << "if (tup[" << arity - 1 << "] == 0) continue;\n";
 
             // check existence in delta
@@ -822,7 +822,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "} else {\n";
             // use deltaRestriction as outer loop
 
-            out << "for (auto& tup : deltaRestriction) {\n";
+            out << "for (const auto& tup : deltaRestriction) {\n";
             out << "if (tup[" << arity - 1 << "] <= 0) {\n";
             out << "continue;\n";
             out << "}\n";
@@ -838,7 +838,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "0,0";
             out << "}}, " << targetCtxName << ");\n";
 
-            out << "for (auto& t : existenceCheck) {\n";
+            out << "for (const auto& t : existenceCheck) {\n";
             out << "if (t[" << arity - 1 << "] == 0) continue;\n";
             out << "auto tuple = t;\n";
             out << "tuple[" << arity - 1 << "] = t[" << arity - 1 << "] == -1 ? 1 : -1;\n";
