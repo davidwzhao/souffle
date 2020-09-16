@@ -1178,16 +1178,11 @@ public:
         // the node where the last find-operation terminated
         node_cache last_find_end;
 
-        /*
         // the node where the last lower-bound operation terminated
         node_cache last_lower_bound_end;
 
         // the node where the last upper-bound operation terminated
         node_cache last_upper_bound_end;
-        */
-
-        // the node where the last bound (either upper or lower) operation terminated
-        node_cache last_bound_end;
 
         // default constructor
         btree_operation_hints() = default;
@@ -1196,11 +1191,8 @@ public:
         void clear() {
             last_insert.clear(nullptr);
             last_find_end.clear(nullptr);
-            /*
             last_lower_bound_end.clear(nullptr);
             last_upper_bound_end.clear(nullptr);
-            */
-            last_bound_end.clear(nullptr);
         }
     };
 
@@ -1848,15 +1840,15 @@ public:
 
         node* cur = root;
 
-        auto checkHints = [&](node* last_bound_end) {
-            if (!last_bound_end) return false;
-            if (!covers(last_bound_end, k)) return false;
-            cur = last_bound_end;
+        auto checkHints = [&](node* last_lower_bound_end) {
+            if (!last_lower_bound_end) return false;
+            if (!covers(last_lower_bound_end, k)) return false;
+            cur = last_lower_bound_end;
             return true;
         };
 
         // test last searched node
-        if (hints.last_bound_end.any(checkHints)) {
+        if (hints.last_lower_bound_end.any(checkHints)) {
             hint_stats.lower_bound.addHit();
         } else {
             hint_stats.lower_bound.addMiss();
@@ -1871,7 +1863,7 @@ public:
             auto idx = pos - a;
 
             if (!cur->inner) {
-                hints.last_bound_end.access(cur);
+                hints.last_lower_bound_end.access(cur);
                 return (pos != b) ? iterator(cur, idx) : res;
             }
 
@@ -1909,15 +1901,15 @@ public:
 
         node* cur = root;
 
-        auto checkHints = [&](node* last_bound_end) {
-            if (!last_bound_end) return false;
-            if (!coversUpperBound(last_bound_end, k)) return false;
-            cur = last_bound_end;
+        auto checkHints = [&](node* last_upper_bound_end) {
+            if (!last_upper_bound_end) return false;
+            if (!coversUpperBound(last_upper_bound_end, k)) return false;
+            cur = last_upper_bound_end;
             return true;
         };
 
         // test last search node
-        if (hints.last_bound_end.any(checkHints)) {
+        if (hints.last_upper_bound_end.any(checkHints)) {
             hint_stats.upper_bound.addHit();
         } else {
             hint_stats.upper_bound.addMiss();
@@ -1932,7 +1924,7 @@ public:
             auto idx = pos - a;
 
             if (!cur->inner) {
-                hints.last_bound_end.access(cur);
+                hints.last_upper_bound_end.access(cur);
                 return (pos != b) ? iterator(cur, idx) : res;
             }
 
