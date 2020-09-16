@@ -650,7 +650,7 @@ protected:
  */
 class RamSemiMerge : public RamBinRelationStatement {
 public:
-    RamSemiMerge(std::unique_ptr<RamRelationReference> tRef, std::unique_ptr<RamRelationReference> sRef, std::unique_ptr<RamRelationReference> rRef, bool sOuter = false)
+    RamSemiMerge(std::unique_ptr<RamRelationReference> tRef, std::unique_ptr<RamRelationReference> sRef, std::unique_ptr<RamRelationReference> rRef, std::unique_ptr<RamRelationReference> uRef, bool sOuter = false)
             : RamBinRelationStatement(std::move(sRef), std::move(tRef)), restrictionRelation(std::move(rRef)), sourceIsOuter(sOuter) {}
 
     RamSemiMerge(std::unique_ptr<RamRelationReference> tRef, std::unique_ptr<RamRelationReference> sRef, bool sOuter = false)
@@ -671,6 +671,11 @@ public:
         return *restrictionRelation->get();
     }
 
+    /** @brief Get target relation */
+    const RamRelation& getUpdateRelation() const {
+        return *updateRelation->get();
+    }
+
     bool isSourceOuter() const {
         return sourceIsOuter;
     }
@@ -689,6 +694,7 @@ public:
 
 protected:
     std::unique_ptr<RamRelationReference> restrictionRelation;
+    std::unique_ptr<RamRelationReference> updateRelation;
 
     bool sourceIsOuter;
 
