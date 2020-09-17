@@ -806,7 +806,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             // use target relation as outer loop
             out << "for (const auto& tup : *" << synthesiser.getRelationName(merge.getTargetRelation()) << ") {\n";
-            out << "if (tup[" << arity - 1 << "] == 0) continue;\n";
+            out << "if (tup[" << arity - 2 << "] == iter || tup[" << arity - 1 << "] == 0) continue;\n";
 
             // check existence in delta
             out << "auto deltaExistenceCheck = " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->equalRange_" << searchSignature + (1 << (arity - 2));
@@ -852,7 +852,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "}}, " << targetCtxName << ");\n";
 
             out << "for (const auto& t : existenceCheck) {\n";
-            out << "if (t[" << arity - 1 << "] == 0) continue;\n";
+            out << "if (t[" << arity - 2 << "] == iter || t[" << arity - 1 << "] == 0) continue;\n";
             out << "auto tuple = t;\n";
             out << "tuple[" << arity - 1 << "] = t[" << arity - 1 << "] == -1 ? 1 : -1;\n";
             out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tuple, " << targetCtxName << ");\n";
