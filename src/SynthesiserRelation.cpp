@@ -542,6 +542,27 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         out << "context h;\n";
         out << "return equalRange_" << search << "(t, h);\n";
         out << "}\n";
+
+        // create lower_bound methods that expose the underlying data structure's lower bound
+        out << "range<t_ind_" << indNum << "::iterator> lowerBound_" << search;
+        out << "(const t_tuple& t, context& h) const {\n";
+        // generate lower and upper bounds for range search
+        out << "t_tuple low(t);\n";
+        // check which indices to pad out
+        for (size_t column = 0; column < arity; column++) {
+            // if bit number column is set
+            if (!((search >> column) & 1)) {
+                out << "low[" << column << "] = MIN_RAM_DOMAIN;\n";
+            }
+        }
+        out << "return make_range(ind_" << indNum << ".lower_bound(low, h.hints_" << indNum << "), ind_" << indNum << ".end());\n";
+        out << "}\n";
+
+        out << "range<t_ind_" << indNum << "::iterator> lowerBound_" << search;
+        out << "(const t_tuple& t) const {\n";
+        out << "context h;\n";
+        out << "return lowerBound_" << search << "(t, h);\n";
+        out << "}\n";
     }
 
     // empty method
