@@ -374,7 +374,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
 
     // store an approximate size
     out << "size_t approximate_size = 0;\n";
-    if (relation.getName().find("_plus@") == std::string::npos && relation.getName().find("_minus@") == std::string::npos) {
+    if (relation.getName().find("_plus@") == std::string::npos && relation.getName().find("_minus@") == std::string::npos && arity >= 2) {
         out << "size_t approximate_size_per_iteration[50000] = {0};\n";
     }
 
@@ -400,7 +400,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         }
     }
     out << "approximate_size++;\n";
-    if (relation.getName().find("_plus@") == std::string::npos && relation.getName().find("_minus@") == std::string::npos) {
+    if (relation.getName().find("_plus@") == std::string::npos && relation.getName().find("_minus@") == std::string::npos && arity >= 2) {
         out << "approximate_size_per_iteration[t[" << arity - 2 << "]]++;\n";
     }
     out << "return true;\n";
@@ -473,7 +473,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
     out << "return approximate_size;\n";
     out << "}\n";
 
-    if (relation.getName().find("_plus@") == std::string::npos && relation.getName().find("_minus@") == std::string::npos) {
+    if (relation.getName().find("_plus@") == std::string::npos && relation.getName().find("_minus@") == std::string::npos && arity >= 2) {
         // approximate size
         out << "size_t approx_size(size_t iter) const {\n";
         out << "return approximate_size_per_iteration[iter];\n";
@@ -560,7 +560,7 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         out << "ind_" << i << ".clear();\n";
     }
     out << "approximate_size = 0;\n";
-    if (relation.getName().find("_plus@") == std::string::npos && relation.getName().find("_minus@") == std::string::npos) {
+    if (relation.getName().find("_plus@") == std::string::npos && relation.getName().find("_minus@") == std::string::npos && arity >= 2) {
         out << "for (size_t i = 0; i < 50000; i++) approximate_size_per_iteration[i] = 0;\n";
     }
     out << "}\n";

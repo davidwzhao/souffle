@@ -728,6 +728,10 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             auto sourceCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
             auto restrictionCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getRestrictionRelation()) + ")";
             auto targetCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getTargetRelation()) + ")";
+            std::string updateCtxName = "";
+            if (merge.isRecursive()) {
+                updateCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getUpdateRelation()) + ")";
+            }
 
             out << "{\n";
             out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getRestrictionRelation()) << "," << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->createContext());\n";
@@ -736,6 +740,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             }
             if (synthesiser.getOpContextName(merge.getSourceRelation()) != synthesiser.getOpContextName(merge.getTargetRelation())) {
                 out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getSourceRelation()) << "," << synthesiser.getRelationName(merge.getSourceRelation()) << "->createContext());\n";
+            }
+            if (merge.isRecursive()) {
+                out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getUpdateRelation()) << "," << synthesiser.getRelationName(merge.getUpdateRelation()) << "->createContext());\n";
             }
 
             out << "auto deltaSource = " << synthesiser.getRelationName(merge.getSourceRelation()) << "->equalRange_" << (1 << (arity - 2));
@@ -816,6 +823,12 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "auto tuple = tup;\n";
             out << "tuple[" << arity - 1 << "] = tup[" << arity - 1 << "] == -1 ? 1 : -1;\n";
             out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tuple, " << targetCtxName << ");\n";
+            if (merge.isRecursive()) {
+                out << "auto tupleUpdate = tup;\n";
+                out << "tupleUpdate[" << arity - 2 << "] = iter;\n";
+                out << "tupleUpdate[" << arity - 1 << "] = 1;\n";
+                out << synthesiser.getRelationName(merge.getUpdateRelation()) << "->insert(tupleUpdate, " << updateCtxName << ");\n";
+            }
             out << "}\n";
             out << "}\n";
 
@@ -843,6 +856,12 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "auto tuple = t;\n";
             out << "tuple[" << arity - 1 << "] = t[" << arity - 1 << "] == -1 ? 1 : -1;\n";
             out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tuple, " << targetCtxName << ");\n";
+            if (merge.isRecursive()) {
+                out << "auto tupleUpdate = t;\n";
+                out << "tupleUpdate[" << arity - 2 << "] = iter;\n";
+                out << "tupleUpdate[" << arity - 1 << "] = 1;\n";
+                out << synthesiser.getRelationName(merge.getUpdateRelation()) << "->insert(tupleUpdate, " << updateCtxName << ");\n";
+            }
             out << "}\n";
             out << "}\n";
 
