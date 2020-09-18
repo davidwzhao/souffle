@@ -441,6 +441,10 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         out << "ind_" << i << ".clear();\n";
         out << "ind_" << i << " = other.ind_" << i << ";\n";
     }
+    out << "approximate_size = other.approximate_size;\n";
+    if (relation.getName().find("_plus@") == std::string::npos && relation.getName().find("_minus@") == std::string::npos && arity >= 2) {
+        out << "for (size_t i = 0; i < 50000; i++) approximate_size_per_iteration[i] = other.approximate_size_per_iteration[i];\n";
+    }
     out << "}\n"; // end of relationLoad
 
 
