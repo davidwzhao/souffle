@@ -801,15 +801,6 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             //   if tup is in the source,
             //     this is not a 'true' insert/delete so update its count to 0
 
-            out << "auto deltaRestriction = " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->equalRange_" << (1 << (arity - 2));
-            out << "(Tuple<RamDomain," << arity << ">{{";
-            for (size_t i = 0; i < arity - 2; i++) {
-                out << "0";
-                out << ",";
-            }
-            out << "iter,0";
-            out << "}}, " << restrictionCtxName << ");\n";
-
             out << "if (" << synthesiser.getRelationName(merge.getTargetRelation()) << "->approx_size() < " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->approx_size(iter)) {\n";
 
             // use target relation as outer loop
@@ -851,6 +842,15 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             out << "} else {\n";
             // use deltaRestriction as outer loop
+            out << "auto deltaRestriction = " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->equalRange_" << (1 << (arity - 2));
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 2; i++) {
+                out << "0";
+                out << ",";
+            }
+            out << "iter,0";
+            out << "}}, " << restrictionCtxName << ");\n";
+
 
             out << "for (const auto& tup : deltaRestriction) {\n";
             out << "if (tup[" << arity - 1 << "] <= 0) {\n";
