@@ -759,7 +759,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             //   if tup doesn't exist in restriction,
             //     insert tup into target
 
-            out << "auto restrictionExistenceCheck = " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->lowerBound_" << searchSignature;
+            out << "auto restrictionExistenceCheck = " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->equalRange_" << searchSignature;
             out << "(Tuple<RamDomain," << arity << ">{{";
             for (size_t i = 0; i < arity - 2; i++) {
                 out << "tup[" << i <<  "]";
@@ -771,14 +771,6 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // check if tup exists in restriction
             out << "bool insert = true;\n";
             out << "for (const auto& t : restrictionExistenceCheck) {\n";
-            if (arity > 2) {
-                out << "if (";
-                for (size_t i = 0; i < arity - 3 ; i++) {
-                    out << "t[" << i << "] != tup[" << i << "] || ";
-                }
-                out << "t[" << arity - 3 << "] != tup[" << arity - 3 << "]) break;";
-            }
-
             out << "if (t[" << arity - 2 << "] <= tup[" << arity - 2 << "] && t[" << arity - 1 << "] > 0) {\n";
             out << "insert = false;\n";
             out << "break;\n";
@@ -808,7 +800,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "if (tup[" << arity - 2 << "] == iter || tup[" << arity - 1 << "] == 0) continue;\n";
 
             // check existence in delta
-            out << "auto deltaExistenceCheck = " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->lowerBound_" << searchSignature + (1 << (arity - 2));
+            out << "auto deltaExistenceCheck = " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->equalRange_" << searchSignature + (1 << (arity - 2));
             out << "(Tuple<RamDomain," << arity << ">{{";
             for (size_t i = 0; i < arity - 2; i++) {
                 out << "tup[" << i <<  "]";
@@ -817,17 +809,8 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "iter,0";
             out << "}}, " << restrictionCtxName << ");\n";
 
-            // out << "if (deltaExistenceCheck.empty()) continue;\n";
-            out << "if (deltaExistenceCheck.begin() == deltaExistenceCheck.end()) continue;\n";
-            out << "auto t = *deltaExistenceCheck.begin();\n";
-            if (arity > 2) {
-                out << "if (";
-                for (size_t i = 0; i < arity - 2 ; i++) {
-                    out << "t[" << i << "] != tup[" << i << "] || ";
-                }
-                out << "t[" << arity - 2 << "] != iter) continue;";
-            }
-            out << "if (t[" << arity - 1 << "] > 0) {\n";
+            out << "if (deltaExistenceCheck.empty()) continue;\n";
+            out << "if ((*deltaExistenceCheck.begin())[" << arity - 1 << "] > 0) {\n";
             out << "auto tuple = tup;\n";
             out << "tuple[" << arity - 1 << "] = tup[" << arity - 1 << "] == -1 ? 1 : -1;\n";
             out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tuple, " << targetCtxName << ");\n";
