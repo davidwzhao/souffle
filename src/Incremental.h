@@ -105,7 +105,7 @@ private:
     void addTuple(const std::string& relName, const std::vector<std::string>& tup) {
         auto rel = prog.getRelation(relName);
         if (rel == nullptr) {
-            printError("Relation not found!\n");
+            printError("Relation " + relName + " not found!\n");
             return;
         }
 
@@ -217,7 +217,7 @@ private:
         // regex for matching tuples
         // values matches numbers or strings enclosed in quotation marks
         std::regex relRegex(
-                "([a-zA-Z0-9_.-]*)[[:blank:]]*\\(([[:blank:]]*([0-9]+|\"[^\"]*\")([[:blank:]]*,[[:blank:]]*(["
+                "([a-zA-Z0-9_.-]*)[[:blank:]]*\\(([[:blank:]]*([0-9]+|\"[^\"]*\")([[:blank:]]*,[[:blank:]]*(-?["
                 "0-"
                 "9]+|\"[^\"]*\"))*)?\\)",
                 std::regex_constants::extended);
@@ -235,7 +235,7 @@ private:
         // extract each argument
         std::string argsList = relMatch[2];
         std::smatch argsMatcher;
-        std::regex argRegex(R"([0-9]+|"[^"]*")", std::regex_constants::extended);
+        std::regex argRegex(R"(-?[0-9]+|"[^"]*")", std::regex_constants::extended);
 
         while (std::regex_search(argsList, argsMatcher, argRegex)) {
             // match the start of the arguments
