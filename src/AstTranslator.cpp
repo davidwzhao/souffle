@@ -3730,8 +3730,10 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateUpdatedMinusRelation(rel)->clone())),
                             std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateUpdatedPlusRelation(rel)->clone())),
 
+                            /*
                             std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDeltaDiffMinusRelation(rel)->clone())),
                             std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDeltaDiffPlusRelation(rel)->clone())),
+                            */
 
                             std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDeltaRelation(rel)->clone())),
                             std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone()))
@@ -3761,6 +3763,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateNewDiffPlusRelation(rel)->clone())),
 
+                            /*
                             std::make_unique<RamDeltaMerge>(
                                     std::unique_ptr<RamRelationReference>(translateDeltaDiffMinusRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(rel)->clone()),
@@ -3770,6 +3773,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                     std::unique_ptr<RamRelationReference>(translateDeltaDiffPlusRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(rel)->clone()),
                                     std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone())),
+                                    */
 
                             std::make_unique<RamDeltaMerge>(
                                     std::unique_ptr<RamRelationReference>(translateDeltaRelation(rel)->clone()),
@@ -3849,6 +3853,26 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
             appendStmt(preamble,
                     std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
                             std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(rel)->clone())));
+
+            appendStmt(preamble,
+                    std::make_unique<RamDeltaMerge>(std::unique_ptr<RamRelationReference>(translateDeltaDiffAppliedRelation(rel)->clone()),
+                            std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone()),
+                            std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(rel)->clone())
+                            ));
+            appendStmt(preamble,
+                    std::make_unique<RamDeltaMerge>(std::unique_ptr<RamRelationReference>(translateDeltaRelation(rel)->clone()),
+                            std::unique_ptr<RamRelationReference>(translateRelation(rel)->clone()),
+                            std::unique_ptr<RamRelationReference>(translateRelation(rel)->clone())
+                            ));
+            /*
+            appendStmt(preamble,
+                    std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDeltaDiffPlusRelation(rel)->clone()),
+                            std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(rel)->clone())));
+            appendStmt(preamble,
+                    std::make_unique<RamMerge>(std::unique_ptr<RamRelationReference>(translateDeltaDiffMinusRelation(rel)->clone()),
+                            std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(rel)->clone())));
+                            */
+
             appendStmt(preamble,
                     std::make_unique<RamSemiMerge>(
                             std::unique_ptr<RamRelationReference>(translateActualDiffPlusRelation(rel)->clone()),
@@ -4745,7 +4769,11 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                             */
 
                                 if (j == i) {
-                                    r1->getAtoms()[j]->setName(translateDeltaDiffPlusRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                                    r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
+                                                // std::unique_ptr<AstArgument>(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 3)->clone()),
+                                                std::unique_ptr<AstArgument>(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 2)->clone()),
+                                                std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+                                    // r1->getAtoms()[j]->setName(translateDeltaDiffPlusRelation(getAtomRelation(atoms[j], program))->get()->getName());
                                 } else {
                                     r1->getAtoms()[j]->setName(translateDeltaDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
                                 }
@@ -4956,11 +4984,13 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 // create clone
                                 std::unique_ptr<AstClause> r1(rdiff->clone());
 
-                                // r1->getAtoms()[j]->setName(translateDeltaDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                                r1->getAtoms()[j]->setName(translateDeltaDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                                /*
                                 r1->getAtoms()[j]->setName(translateDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
                                 r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
                                             std::unique_ptr<AstArgument>(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 2)->clone()),
                                             std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+                                            */
 
                                 // any atoms before atom j should be in earlier itereations, check this by a constraint on the iteration number
                                 for (size_t k = 0; k < j; k++) {
@@ -5146,7 +5176,12 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                             */
 
                                 if (j == i) {
-                                    r1->getAtoms()[j]->setName(translateDeltaDiffMinusRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                                    // tuple j should be in the previous iteration, simulating delta relations
+                                    r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
+                                                // std::unique_ptr<AstArgument>(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 3)->clone()),
+                                                std::unique_ptr<AstArgument>(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 2)->clone()),
+                                                std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+                                    // r1->getAtoms()[j]->setName(translateDeltaDiffMinusRelation(getAtomRelation(atoms[j], program))->get()->getName());
                                 } else {
                                     r1->getAtoms()[j]->setName(translateDeltaRelation(getAtomRelation(atoms[j], program))->get()->getName());
                                 }
@@ -5373,12 +5408,14 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 // create clone
                                 std::unique_ptr<AstClause> r1(rdiff->clone());
 
-                                // r1->getAtoms()[j]->setName(translateDeltaRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                                r1->getAtoms()[j]->setName(translateDeltaRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                                /*
                                 r1->getAtoms()[j]->setName(translateRelation(getAtomRelation(atoms[j], program))->get()->getName());
                                 r1->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
                                             // std::unique_ptr<AstArgument>(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 3)->clone()),
                                             std::unique_ptr<AstArgument>(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 2)->clone()),
                                             std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
+                                            */
 
                                 // any atoms before atom j should be in earlier itereations, check this by a constraint on the iteration number
                                 for (size_t k = 0; k < j; k++) {
@@ -6498,10 +6535,12 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
                     appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
                                                 translateDeltaDiffAppliedRelation(relation))));
 
+                    /*
                     appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
                                                 translateDeltaDiffPlusRelation(relation))));
                     appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
                                                 translateDeltaDiffMinusRelation(relation))));
+                                                */
 
                     appendStmt(current, std::make_unique<RamCreate>(std::unique_ptr<RamRelationReference>(
                                                 translateNewDiffPlusRelation(relation))));

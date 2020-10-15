@@ -669,7 +669,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             if (synthesiser.getOpContextName(merge.getExistingRelation()) != synthesiser.getOpContextName(merge.getTargetRelation())) {
                 out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getTargetRelation()) << "," << synthesiser.getRelationName(merge.getTargetRelation()) << "->createContext());\n";
             }
-            out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getSourceRelation()) << "," << synthesiser.getRelationName(merge.getSourceRelation()) << "->createContext());\n";
+            if (synthesiser.getOpContextName(merge.getExistingRelation()) != synthesiser.getOpContextName(merge.getSourceRelation())) {
+                out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getSourceRelation()) << "," << synthesiser.getRelationName(merge.getSourceRelation()) << "->createContext());\n";
+            }
 
             // this is a bit of a mess, should integrate into search signatures
             int searchSignature = isa->getSearchSignature(&merge);
@@ -685,6 +687,11 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             out << "for (const auto& tup : deltaExistenceCheck) {\n";
 
+            out << "if (tup[" << arity - 1 << "] == 0) continue;\n";
+
+            out << "bool insert = true;\n";
+
+            out << "if (iter > 0) {\n";
             // check if tuple is in lower iteration in existing relation
             out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getExistingRelation()) << "->"
                 << "equalRange";
@@ -701,12 +708,13 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             out << "}}, " << existingCtxName << ");\n";
 
-            out << "bool insert = true;\n";
             out << "for (const auto& t : existenceCheck) {\n";
-            out << "if (t[" << arity - 2 << "] < iter) {\n";
+            out << "if (t[" << arity - 2 << "] < iter && t[" << arity - 1 << "] > 0) {\n";
             out << "insert = false;\n";
             out << "break;\n";
             out << "}\n";
+            out << "}\n";
+
             out << "}\n";
 
             out << "if (insert) ";

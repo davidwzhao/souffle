@@ -304,12 +304,12 @@ void RamIndexAnalysis::run(const RamTranslationUnit& translationUnit) {
             MinIndexSelection& indexes = getIndexes(posiMerge->getExistingRelation());
             indexes.addSearch(getSearchSignature(posiMerge));
         } else if (const auto* deltaMerge = dynamic_cast<const RamDeltaMerge*>(&node)) {
-            MinIndexSelection& indexes = getIndexes(updateMerge->getSourceRelation());
-            indexes.addSearch(getSearchSignature(updateMerge));
-            indexes.addSearch(1 << updateMerge->getTargetRelation().getArity() - 2);
+            MinIndexSelection& indexes = getIndexes(deltaMerge->getSourceRelation());
+            indexes.addSearch(getSearchSignature(deltaMerge));
+            indexes.addSearch(1 << deltaMerge->getTargetRelation().getArity() - 2);
 
-            MinIndexSelection& indexes2 = getIndexes(updateMerge->getExistingRelation());
-            indexes2.addSearch(getSearchSignature(updateMerge));
+            MinIndexSelection& indexes2 = getIndexes(deltaMerge->getExistingRelation());
+            indexes2.addSearch(getSearchSignature(deltaMerge));
         } else if (const auto* semiMerge = dynamic_cast<const RamSemiMerge*>(&node)) {
             MinIndexSelection& indexes = getIndexes(semiMerge->getSourceRelation());
             indexes.addSearch(1 << semiMerge->getTargetRelation().getArity() - 2);
