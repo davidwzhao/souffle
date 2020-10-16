@@ -372,6 +372,12 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
     // typedef master index iterator to be struct iterator
     out << "using iterator = t_ind_" << masterIndex << "::iterator;\n";
 
+    // store an approximate size
+    out << "size_t approximate_size = 0;\n";
+    if (relation.getName().find("_plus@") == std::string::npos && relation.getName().find("_minus@") == std::string::npos && arity >= 2) {
+        out << "size_t approximate_size_per_iteration[50000] = {0};\n";
+    }
+
     // create a struct storing hints for each btree
     out << "struct context {\n";
     for (size_t i = 0; i < numIndexes; i++) {
@@ -392,6 +398,10 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         if (i != masterIndex && provenanceIndexNumbers.find(i) == provenanceIndexNumbers.end()) {
             out << "ind_" << i << ".insert(t, h.hints_" << i << ");\n";
         }
+    }
+    out << "approximate_size++;\n";
+    if (relation.getName().find("_plus@") == std::string::npos && relation.getName().find("_minus@") == std::string::npos && arity >= 2) {
+        out << "approximate_size_per_iteration[t[" << arity - 2 << "]]++;\n";
     }
     out << "return true;\n";
     out << "} else return false;\n";
@@ -431,6 +441,10 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
         out << "ind_" << i << ".clear();\n";
         out << "ind_" << i << " = other.ind_" << i << ";\n";
     }
+    out << "approximate_size = other.approximate_size;\n";
+    if (relation.getName().find("_plus@") == std::string::npos && relation.getName().find("_minus@") == std::string::npos && arity >= 2) {
+        out << "for (size_t i = 0; i < 50000; i++) approximate_size_per_iteration[i] = other.approximate_size_per_iteration[i];\n";
+    }
     out << "}\n"; // end of relationLoad
 
 
@@ -457,6 +471,18 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
     out << "std::size_t size() const {\n";
     out << "return ind_" << masterIndex << ".size();\n";
     out << "}\n";
+
+    // approximate size
+    out << "size_t approx_size() const {\n";
+    out << "return approximate_size;\n";
+    out << "}\n";
+
+    if (relation.getName().find("_plus@") == std::string::npos && relation.getName().find("_minus@") == std::string::npos && arity >= 2) {
+        // approximate size
+        out << "size_t approx_size(size_t iter) const {\n";
+        out << "return approximate_size_per_iteration[iter];\n";
+        out << "}\n";
+    }
 
     // find methods
     out << "iterator find(const t_tuple& t, context& h) const {\n";
@@ -536,6 +562,10 @@ void SynthesiserDirectRelation::generateTypeStruct(std::ostream& out) {
     out << "void purge() {\n";
     for (size_t i = 0; i < numIndexes; i++) {
         out << "ind_" << i << ".clear();\n";
+    }
+    out << "approximate_size = 0;\n";
+    if (relation.getName().find("_plus@") == std::string::npos && relation.getName().find("_minus@") == std::string::npos && arity >= 2) {
+        out << "for (size_t i = 0; i < 50000; i++) approximate_size_per_iteration[i] = 0;\n";
     }
     out << "}\n";
 

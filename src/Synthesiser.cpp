@@ -595,6 +595,195 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // this is a bit of a mess, should integrate into search signatures
             int searchSignature = isa->getSearchSignature(&merge);
 
+            auto sourceCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
+            auto restrictionCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getRestrictionRelation()) + ")";
+            auto targetCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getTargetRelation()) + ")";
+            std::string updateCtxName = "";
+            if (merge.isRecursive()) {
+                updateCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getUpdateRelation()) + ")";
+            }
+
+            out << "{\n";
+            out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getRestrictionRelation()) << "," << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->createContext());\n";
+            if (synthesiser.getOpContextName(merge.getRestrictionRelation()) != synthesiser.getOpContextName(merge.getTargetRelation())) {
+                out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getTargetRelation()) << "," << synthesiser.getRelationName(merge.getTargetRelation()) << "->createContext());\n";
+            }
+            if (synthesiser.getOpContextName(merge.getSourceRelation()) != synthesiser.getOpContextName(merge.getTargetRelation())) {
+                out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getSourceRelation()) << "," << synthesiser.getRelationName(merge.getSourceRelation()) << "->createContext());\n";
+            }
+            if (merge.isRecursive()) {
+                out << "CREATE_OP_CONTEXT(" << synthesiser.getOpContextName(merge.getUpdateRelation()) << "," << synthesiser.getRelationName(merge.getUpdateRelation()) << "->createContext());\n";
+            }
+
+            out << "auto deltaSource = " << synthesiser.getRelationName(merge.getSourceRelation()) << "->equalRange_" << (1 << (arity - 2));
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 2; i++) {
+                out << "0";
+                out << ",";
+            }
+            out << "iter,0";
+            out << "}}, " << sourceCtxName << ");\n";
+            out << "for (const auto& tup : deltaSource) {\n";
+
+            // for each tup in source (diff_plus/diff_minus),
+            //   if tup doesn't exist in restriction,
+            //     insert tup into target
+
+            out << "auto restrictionExistenceCheck = " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->equalRange_" << searchSignature;
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 2; i++) {
+                out << "tup[" << i <<  "]";
+                out << ",";
+            }
+            out << "0,0";
+            out << "}}, " << restrictionCtxName << ");\n";
+
+            // check if tup exists in restriction
+            out << "bool insert = true;\n";
+            out << "for (const auto& t : restrictionExistenceCheck) {\n";
+            out << "if (t[" << arity - 2 << "] <= tup[" << arity - 2 << "] && t[" << arity - 1 << "] > 0) {\n";
+            out << "insert = false;\n";
+            out << "break;\n";
+            out << "}\n";
+            out << "}\n";
+
+            // if insert, then insert with either -1 or 1
+            out << "if (insert) {\n";
+            out << "auto tuple = tup;\n";
+            out << "tuple[" << arity - 1 << "] = tup[" << arity - 1 << "] < 0 ? -1 : 1;\n";
+            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tuple, " << targetCtxName << ");\n";
+            out << "}\n";
+
+            out << "}\n";
+
+            out << "if (iter > 0) {\n";
+
+            // second phase of merge
+            // for each tup in delta restriction,
+            //   if tup is in the source,
+            //     this is not a 'true' insert/delete so update its count to 0
+
+            out << "if (" << synthesiser.getRelationName(merge.getTargetRelation()) << "->approx_size() < " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->approx_size(iter)) {\n";
+
+            // use target relation as outer loop
+            out << "for (const auto& tup : *" << synthesiser.getRelationName(merge.getTargetRelation()) << ") {\n";
+            out << "if (tup[" << arity - 2 << "] == iter || tup[" << arity - 1 << "] == 0) continue;\n";
+
+            // check existence in delta
+            out << "auto deltaExistenceCheck = " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->equalRange_" << searchSignature + (1 << (arity - 2));
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 2; i++) {
+                out << "tup[" << i <<  "]";
+                out << ",";
+            }
+            out << "iter,0";
+            out << "}}, " << restrictionCtxName << ");\n";
+
+            out << "if (deltaExistenceCheck.empty()) continue;\n";
+            out << "if ((*deltaExistenceCheck.begin())[" << arity - 1 << "] > 0) {\n";
+            out << "auto tuple = tup;\n";
+            out << "tuple[" << arity - 1 << "] = tup[" << arity - 1 << "] == -1 ? 1 : -1;\n";
+            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tuple, " << targetCtxName << ");\n";
+            if (merge.isRecursive()) {
+                out << "auto tupleUpdate = tup;\n";
+                out << "tupleUpdate[" << arity - 2 << "] = iter;\n";
+                out << "tupleUpdate[" << arity - 1 << "] = 1;\n";
+                out << synthesiser.getRelationName(merge.getUpdateRelation()) << "->insert(tupleUpdate, " << updateCtxName << ");\n";
+            }
+            out << "}\n";
+            out << "}\n";
+
+            out << "} else {\n";
+            // use deltaRestriction as outer loop
+            out << "auto deltaRestriction = " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->equalRange_" << (1 << (arity - 2));
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 2; i++) {
+                out << "0";
+                out << ",";
+            }
+            out << "iter,0";
+            out << "}}, " << restrictionCtxName << ");\n";
+
+
+            out << "for (const auto& tup : deltaRestriction) {\n";
+            out << "if (tup[" << arity - 1 << "] <= 0) {\n";
+            out << "continue;\n";
+            out << "}\n";
+            out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getTargetRelation()) << "->"
+                << "equalRange";
+            // out << synthesiser.toIndex(ne.getSearchSignature());
+            out << "_" << searchSignature;
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 2; i++) {
+                out << "tup[" << i << "]";
+                out << ",";
+            }
+            out << "0,0";
+            out << "}}, " << targetCtxName << ");\n";
+
+            out << "for (const auto& t : existenceCheck) {\n";
+            out << "if (t[" << arity - 2 << "] == iter || t[" << arity - 1 << "] == 0) continue;\n";
+            out << "auto tuple = t;\n";
+            out << "tuple[" << arity - 1 << "] = t[" << arity - 1 << "] == -1 ? 1 : -1;\n";
+            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(tuple, " << targetCtxName << ");\n";
+            if (merge.isRecursive()) {
+                out << "auto tupleUpdate = t;\n";
+                out << "tupleUpdate[" << arity - 2 << "] = iter;\n";
+                out << "tupleUpdate[" << arity - 1 << "] = 1;\n";
+                out << synthesiser.getRelationName(merge.getUpdateRelation()) << "->insert(tupleUpdate, " << updateCtxName << ");\n";
+            }
+            out << "}\n";
+            out << "}\n";
+
+            out << "}\n";
+
+            out << "}\n";
+
+            out << "}\n";
+
+
+
+
+
+
+            /*
+            out << "auto deltaExistenceCheck = " << synthesiser.getRelationName(merge.getSourceRelation()) << "->equalRange_" << (1 << arity - 2);
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 2; i++) {
+                out << "0";
+                out << ",";
+            }
+            out << "iter,0";
+            out << "}}, " << sourceCtxName << ");\n";
+
+            out << "for (auto& tup : deltaExistenceCheck) {\n";
+
+            // check if tuple is in lower iteration in existing relation
+            out << "auto existenceCheck = " << synthesiser.getRelationName(merge.getRestrictionRelation()) << "->"
+                << "equalRange";
+            // out << synthesiser.toIndex(ne.getSearchSignature());
+            out << "_" << searchSignature;
+            out << "(Tuple<RamDomain," << arity << ">{{";
+            for (size_t i = 0; i < arity - 1; i++) {
+                out << "tup[" << i << "]";
+                out << ",";
+            }
+
+            // extra 0s for incremental annotations
+            out << "0";
+
+            out << "}}, " << restrictionCtxName << ");\n";
+            out << "if (!existenceCheck.empty()) {\n";
+
+            out << synthesiser.getRelationName(merge.getTargetRelation()) << "->insert(*(existenceCheck.begin()), " << targetCtxName << ");\n";
+            out << "}\n";
+
+            out << "}\n";
+            out << "}\n";
+            */
+
+
+            /*
             if (!merge.isSourceOuter()) {
                 auto sourceCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getSourceRelation()) + ")";
                 auto targetCtxName = "READ_OP_CONTEXT(" + synthesiser.getOpContextName(merge.getTargetRelation()) + ")";
@@ -679,6 +868,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
                 out << "}\n";
             }
+        */
 
 
             PRINT_END_COMMENT(out);

@@ -575,11 +575,11 @@ protected:
  */
 class RamSemiMerge : public RamBinRelationStatement {
 public:
-    RamSemiMerge(std::unique_ptr<RamRelationReference> tRef, std::unique_ptr<RamRelationReference> sRef, std::unique_ptr<RamRelationReference> rRef, bool sOuter = false)
-            : RamBinRelationStatement(std::move(sRef), std::move(tRef)), restrictionRelation(std::move(rRef)), sourceIsOuter(sOuter) {}
+    RamSemiMerge(std::unique_ptr<RamRelationReference> tRef, std::unique_ptr<RamRelationReference> sRef, std::unique_ptr<RamRelationReference> rRef, std::unique_ptr<RamRelationReference> uRef, bool isRec = false)
+            : RamBinRelationStatement(std::move(sRef), std::move(tRef)), restrictionRelation(std::move(rRef)), updateRelation(std::move(uRef)), isRecursiveRel(isRec) {}
 
-    RamSemiMerge(std::unique_ptr<RamRelationReference> tRef, std::unique_ptr<RamRelationReference> sRef, bool sOuter = false)
-            : RamBinRelationStatement(std::move(sRef), std::unique_ptr<RamRelationReference>(tRef->clone())), restrictionRelation(std::move(tRef)), sourceIsOuter(sOuter) {}
+    RamSemiMerge(std::unique_ptr<RamRelationReference> tRef, std::unique_ptr<RamRelationReference> sRef, bool isRec = false)
+            : RamBinRelationStatement(std::move(sRef), std::unique_ptr<RamRelationReference>(tRef->clone())), restrictionRelation(std::move(tRef)), isRecursiveRel(isRec) {}
 
     /** @brief Get source relation */
     const RamRelation& getSourceRelation() const {
@@ -596,8 +596,13 @@ public:
         return *restrictionRelation->get();
     }
 
-    bool isSourceOuter() const {
-        return sourceIsOuter;
+    /** @brief Get target relation */
+    const RamRelation& getUpdateRelation() const {
+        return *updateRelation->get();
+    }
+
+    bool isRecursive() const {
+        return isRecursiveRel;
     }
 
     void print(std::ostream& os, int tabpos) const override {
@@ -608,20 +613,21 @@ public:
 
     RamSemiMerge* clone() const override {
         auto* res = new RamSemiMerge(std::unique_ptr<RamRelationReference>(second->clone()),
-                std::unique_ptr<RamRelationReference>(first->clone()), std::unique_ptr<RamRelationReference>(restrictionRelation->clone()));
+                std::unique_ptr<RamRelationReference>(first->clone()), std::unique_ptr<RamRelationReference>(restrictionRelation->clone()), std::unique_ptr<RamRelationReference>(updateRelation->clone()), isRecursiveRel);
         return res;
     }
 
 protected:
     std::unique_ptr<RamRelationReference> restrictionRelation;
+    std::unique_ptr<RamRelationReference> updateRelation;
 
-    bool sourceIsOuter;
+    bool isRecursiveRel;
 
     bool equal(const RamNode& node) const override {
         bool res = RamBinRelationStatement::equal(node);
         assert(nullptr != dynamic_cast<const RamSemiMerge*>(&node));
         const auto& other = static_cast<const RamSemiMerge&>(node);
-        return res && getRestrictionRelation() == other.getRestrictionRelation();
+        return res && getRestrictionRelation() == other.getRestrictionRelation() && isRecursiveRel == other.isRecursiveRel;
     }
 };
 
