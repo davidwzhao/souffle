@@ -983,6 +983,12 @@ std::unique_ptr<RamStatement> AstTranslator::ClauseTranslator::translateClause(
                                                              std::make_unique<RamNumber>(c->getIndex())),
                             std::move(op));
                 }
+                if (auto* i = dynamic_cast<AstIterationNumber*>(atom->getArgument(pos))) {
+                    op = std::make_unique<RamFilter>(std::make_unique<RamConstraint>(BinaryConstraintOp::EQ,
+                                                             std::make_unique<RamTupleElement>(level, pos),
+                                                             std::make_unique<RamIterationNumber>()),
+                            std::move(op));
+                }
             }
 
             // check whether all arguments are unnamed variables
@@ -2126,7 +2132,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                                     std::make_unique<AstNumberConstant>(0)));
                                     */
 
-                        cl->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,
+                        cl->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LT,
                                     std::unique_ptr<AstArgument>(atoms[i]->getArgument(atoms[i]->getArity() - 1)->clone()),
                                     std::make_unique<AstNumberConstant>(0)));
 
@@ -4079,8 +4085,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 restrictionClause->setHead(std::unique_ptr<AstAtom>(restrictionAtom->clone()));
 
                                 auto relationHead = cl->getHead()->clone();
-                                relationHead->setName(translateDiffMinusRelation(rel)->get()->getName());
-                                relationHead->setArgument(rel->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                                relationHead->setName(translateActualDiffMinusRelation(rel)->get()->getName());
+                                relationHead->setArgument(rel->getArity() - 1, std::make_unique<AstNumberConstant>(-1));
 
                                 // remove all irrelevant arguments
                                 for (size_t k = 0; k < relationHead->argSize(); k++) {
@@ -4099,11 +4105,12 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 restrictionUpdateClause->setHead(std::unique_ptr<AstAtom>(restrictionAtom->clone()));
 
                                 auto relationUpdateHead = cl->getHead()->clone();
-                                relationUpdateHead->setName(translateNewDiffMinusRelation(rel)->get()->getName());
-                                relationUpdateHead->setArgument(rel->getArity() - 1, std::make_unique<AstUnnamedVariable>());
+                                relationUpdateHead->setName(translateActualDiffMinusRelation(rel)->get()->getName());
+                                relationUpdateHead->setArgument(rel->getArity() - 1, std::make_unique<AstNumberConstant>(-1));
+                                relationUpdateHead->setArgument(rel->getArity() - 2, std::make_unique<AstIterationNumber>());
 
                                 // remove all irrelevant arguments
-                                for (size_t k = 0; k < relationUpdateHead->argSize(); k++) {
+                                for (size_t k = 0; k < relationUpdateHead->argSize() - 2; k++) {
                                     if (dynamic_cast<AstVariable*>(relationUpdateHead->getArgument(k)) == nullptr) {
                                         relationUpdateHead->setArgument(k, std::make_unique<AstUnnamedVariable>());
                                     }
@@ -4647,7 +4654,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
 
                                 version++;
                             }
-                            diffVersion++;
+                            // diffVersion++;
                         }
                     } else if (isDeletionRule) {
                         diffVersion = 1;
@@ -4682,7 +4689,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                         std::make_unique<AstNumberConstant>(0)));
                                         */
 
-                            rdiff->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE,
+                            rdiff->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LT,
                                         std::unique_ptr<AstArgument>(atoms[i]->getArgument(atoms[i]->getArity() - 1)->clone()),
                                         std::make_unique<AstNumberConstant>(0)));
 
@@ -5066,7 +5073,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
 
                                 version++;
                             }
-                            diffVersion++;
+                            // diffVersion++;
                         }
                     }
                 }
