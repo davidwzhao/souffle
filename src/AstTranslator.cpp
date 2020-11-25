@@ -2100,6 +2100,36 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                         // add rule to result
                         appendStmt(res, std::move(rule));
                     }
+
+                    // generate special versions of the rule that recompute aggregates
+                    std::vector<const AstAggregator*> aggregates;
+
+                    visitDepthFirst(*clause, [&](const AstAggregator& agg) {
+                            aggregates.push_back(&agg);
+                    });
+
+                    // if rule has aggregates
+                    if (aggregates.size() > 0) {
+                        std::vector<AstConstraint*> aggregateEqualityChecks;
+
+                        // create a filter that checks if any aggregate results differ from diff_applied versions
+                        for (auto agg : aggregates) {
+                            auto origAgg = agg->clone();
+                            auto appliedAgg = agg->clone();
+
+                            // set appliedAgg literals to be diff_applied
+                            for (auto lit : appliedAgg->getBodyLiterals()) {
+                                if (auto atom = dynamic_cast<AstAtom*>(lit)) {
+                                    atom->setName(translateDiffAppliedRelation(getAtomRelation(atom, program))->get()->getName());
+                                }
+                            }
+
+                            // create an inequality check
+                            aggregateEqualityChecks.push_back(new AstBinaryConstraint(BinaryConstraintOp::NE,
+                                        std::unique_ptr<AstArgument>(origAgg), std::unique_ptr<AstArgument>(appliedAgg)));
+                        }
+                    }
+
                 } else if (isDeletionRule) {
                     for (size_t i = 0; i < atoms.size(); i++) {
                         // a deletion rule should look as follows:

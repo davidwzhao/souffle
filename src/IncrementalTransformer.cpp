@@ -66,6 +66,13 @@ struct addUnnamedVariables : public AstNodeMapper {
                     return node;
                 }
             }
+
+            for (auto bodyLit : agg->getBodyLiterals()) {
+                if (auto atom = dynamic_cast<AstAtom*>(bodyLit)) {
+                    atom->addArgument(std::make_unique<AstUnnamedVariable>());
+                    atom->addArgument(std::make_unique<AstUnnamedVariable>());
+                }
+            }
         }
 
         // otherwise - apply mapper recursively
