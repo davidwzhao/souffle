@@ -2128,6 +2128,98 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                             aggregateEqualityChecks.push_back(new AstBinaryConstraint(BinaryConstraintOp::NE,
                                         std::unique_ptr<AstArgument>(origAgg), std::unique_ptr<AstArgument>(appliedAgg)));
                         }
+
+                        /*
+                        std::cout << "aggregate inequality check: " << std::endl;
+                        for (auto* check : aggregateEqualityChecks) {
+                            std::cout << *check << std::endl;
+                        }
+                        */
+
+                        auto cl = clause->clone();
+
+                        // the base relation for addition should be diff_applied, so translate each positive atom to the diff applied version
+                        for (size_t j = 0; j < atoms.size(); j++) {
+                            cl->getAtoms()[j]->setName(translateDiffAppliedRelation(getAtomRelation(atoms[j], program))->get()->getName());
+
+                            // we only insert a new tuple if other rules are not handling the insertion already
+                            // ensure tuple is not actually inserted
+                            auto curAtom = atoms[j]->clone();
+                            // curAtom->setName(translateDiffPlusCountRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                            curAtom->setName(translateDiffPlusRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                            curAtom->setArgument(curAtom->getArity() - 1, std::make_unique<AstNumberConstant>(0));
+                            // curAtom->setArgument(curAtom->getArity() - 2, std::make_unique<AstNumberConstant>(0));
+
+                            // also ensure tuple existed previously
+                            auto noPrevious = atoms[j]->clone();
+                            noPrevious->setName(translateRelation(getAtomRelation(atoms[j], program))->get()->getName());
+                            noPrevious->setArgument(noPrevious->getArity() - 1, std::make_unique<AstNumberConstant>(1));
+                            // noPrevious->setArgument(noPrevious->getArity() - 2, std::make_unique<AstNumberConstant>(0));
+                            // noPrevious->setArgument(noPrevious->getArity() - 3, std::make_unique<AstUnnamedVariable>());
+
+                            cl->addToBody(std::make_unique<AstDisjunctionConstraint>(std::make_unique<AstPositiveNegation>(std::unique_ptr<AstAtom>(curAtom)), std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious))));
+                            // cl->addToBody(std::make_unique<AstExistenceCheck>(std::unique_ptr<AstAtom>(noPrevious)));
+                            
+                            // add a constraint saying that the tuples must have existed previously
+                            cl->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::GT,
+                                        std::unique_ptr<AstArgument>(atoms[j]->getArgument(atoms[j]->getArity() - 1)->clone()),
+                                        std::make_unique<AstNumberConstant>(0)));
+                        }
+
+                        struct transformAggregates : public AstNodeMapper {
+                            using AstNodeMapper::operator();
+
+                            const AstProgram* prog;
+                            AstTranslator* trans;
+
+                            transformAggregates(const AstProgram* p, AstTranslator* t) : prog(p), trans(t) {}
+
+                            std::unique_ptr<AstNode> operator()(std::unique_ptr<AstNode> node) const override {
+                                // add provenance columns
+                                if (auto agg = dynamic_cast<AstAggregator*>(node.get())) {
+                                    for (auto bodyLit : agg->getBodyLiterals()) {
+                                        if (auto atom = dynamic_cast<AstAtom*>(bodyLit)) {
+                                            atom->setName(trans->translateDiffAppliedRelation(getAtomRelation(atom, prog))->get()->getName());
+                                        }
+                                    }
+                                }
+
+                                // otherwise - apply mapper recursively
+                                node->apply(*this);
+                                return node;
+                            }
+                        };
+
+                        cl->apply(transformAggregates(program, this));
+                        cl->addToBody(toAstDisjunction(aggregateEqualityChecks));
+
+
+                        std::cout << "non-recursive aggregate: " << *cl << std::endl;
+
+                        // translate cl
+                        std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause, 0, atoms.size() + negations.size() + 1);
+
+                        // add logging
+                        if (Global::config().has("profile")) {
+                            const std::string& relationName = toString(rel.getName());
+                            const SrcLocation& srcLocation = cl->getSrcLoc();
+                            const std::string clText = stringify(toString(*cl));
+                            const std::string logTimerStatement =
+                                    LogStatement::tNonrecursiveRule(relationName, srcLocation, clText);
+                            const std::string logSizeStatement =
+                                    LogStatement::nNonrecursiveRule(relationName, srcLocation, clText);
+                            rule = std::make_unique<RamSequence>(std::make_unique<RamLogRelationTimer>(std::move(rule),
+                                    logTimerStatement, std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(&rel)->clone())));
+                        }
+
+                        // add debug info
+                        std::ostringstream ds;
+                        ds << toString(*cl) << "\nin file ";
+                        ds << cl->getSrcLoc();
+                        rule = std::make_unique<RamDebugInfo>(std::move(rule), ds.str());
+
+                        // add rule to result
+                        appendStmt(res, std::move(rule));
                     }
 
                 } else if (isDeletionRule) {
