@@ -491,7 +491,7 @@ int main(int argc, char** argv) {
                             std::make_unique<ExpandFilterTransformer>(),
                             std::make_unique<HoistConditionsTransformer>(),
                             std::make_unique<MakeIndexTransformer>())),
-            std::make_unique<IfConversionTransformer>(), std::make_unique<ChoiceConversionTransformer>(),
+            /* std::make_unique<IfConversionTransformer>(), std::make_unique<ChoiceConversionTransformer>(), */
             std::make_unique<CollapseFiltersTransformer>(), std::make_unique<TupleIdTransformer>(),
             std::make_unique<RamLoopTransformer>(std::make_unique<RamTransformerSequence>(
                     std::make_unique<HoistAggregateTransformer>(), std::make_unique<TupleIdTransformer>())),

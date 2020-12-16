@@ -1307,9 +1307,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             if (aggregate.getFunction() == souffle::MIN || aggregate.getFunction() == souffle::MAX) {
                 // check whether there exists a min/max first before next loop
-                out << "if(res" << identifier << " != " << init << "){\n";
+                // out << "if(res" << identifier << " != " << init << "){\n";
                 visitTupleOperation(aggregate, out);
-                out << "}\n";
+                // out << "}\n";
             } else {
                 visitTupleOperation(aggregate, out);
             }
@@ -1401,9 +1401,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             if (aggregate.getFunction() == souffle::MIN || aggregate.getFunction() == souffle::MAX) {
                 // check whether there exists a min/max first before next loop
-                out << "if(res" << identifier << " != " << init << "){\n";
+                // out << "if(res" << identifier << " != " << init << "){\n";
                 visitTupleOperation(aggregate, out);
-                out << "}\n";
+                // out << "}\n";
             } else {
                 visitTupleOperation(aggregate, out);
             }
