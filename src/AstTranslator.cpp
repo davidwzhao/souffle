@@ -3999,12 +3999,18 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                         // do a sips-based reordering
                         // generate a list of variables that are a-priori bound by the head atom
                         std::set<std::string> boundVariables;
+                        visitDepthFirst(r1->getHead()->getArguments(), [&](const AstVariable& var) {
+                            std::cout << "bound variable: " << var << std::endl;
+                            boundVariables.insert("+" + toString(var));
+                        });
+                        /*
                         for (size_t k = 0; k < rel->getArity(); k++) {
                             auto arg = r1->getHead()->getArgument(k);
                             if (auto var = dynamic_cast<AstVariable*>(arg)) {
                                 boundVariables.insert("+" + toString(*var));
                             }
                         }
+                        */
 
                         // and also by the iteration number for the delta relation
                         boundVariables.insert(toString(*(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 2))));
@@ -5758,12 +5764,18 @@ std::pair<std::vector<AstRelation*>, std::vector<AstAtom*>> AstTranslator::creat
 
     // store only the variables in the head of the rule
     size_t numHeadVariables = 0;
+    visitDepthFirst(*clause.getHead(), [&](const AstVariable& var) {
+        numHeadVariables++;
+            /*
     for (auto arg : clause.getHead()->getArguments()) {
         if (auto var = dynamic_cast<AstVariable*>(arg)) {
             // headVariables.push_back(var);
             numHeadVariables++;
         }
-    }
+        */
+    });
+
+    std::cout << "numHeadVariables: " << numHeadVariables << std::endl;
 
     // store the set of variables that are covered so far
     std::set<const AstVariable*> coveredVariables;
@@ -5771,6 +5783,7 @@ std::pair<std::vector<AstRelation*>, std::vector<AstAtom*>> AstTranslator::creat
     // go through each atom in the body of the rule
     // for (size_t i = 0; i < clause->getAtoms().size(); i++) {
     for (auto i : order) {
+        std::cout << "order index " << i << std::endl;
         if (i > clause.getAtoms().size()) {
             continue;
         }
@@ -5783,14 +5796,16 @@ std::pair<std::vector<AstRelation*>, std::vector<AstAtom*>> AstTranslator::creat
         }
 
         std::vector<AstVariable*> coversAtom;
-
         std::vector<int> variableNums;
+
         // find all variables in the head of the rule that match
         int j = 0;
-        visitDepthFirst(clause.getHead()->getArguments(), [&](const AstVariable& var) {
+        visitDepthFirst(*clause.getHead(), [&](const AstVariable& var) {
             if (j >= clause.getHead()->getArguments().size() - 2) {
                 return;
             }
+
+            std::cout << "checking for covering: " << var << std::endl;
 
             bool covers = false;
             for (auto atomArg : atom->getArguments()) {
@@ -5811,6 +5826,7 @@ std::pair<std::vector<AstRelation*>, std::vector<AstAtom*>> AstTranslator::creat
             }
 
             if (covers) {
+                std::cout << "covers variable: " << var << std::endl;
                 // we need to cover this variable with a relation
                 coversAtom.push_back(var.clone());
 
