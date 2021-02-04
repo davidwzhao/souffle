@@ -52,6 +52,14 @@ unsigned int numBoundArguments(const AstAtom* atom, const std::set<std::string>&
         // argument is bound iff all contained variables are bound
         bool isBound = true;
 
+        if (dynamic_cast<const AstConstant*>(arg) != nullptr) {
+            isBound = false;
+        }
+
+        if (dynamic_cast<const AstUnnamedVariable*>(arg) != nullptr) {
+            isBound = false;
+        }
+
         visitDepthFirst(*arg, [&](const AstVariable& var) {
             if (boundVariables.find(var.getName()) == boundVariables.end()) {
                 // found an unbound variable, so argument is unbound
