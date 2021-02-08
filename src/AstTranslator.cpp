@@ -4106,6 +4106,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
 
                                 restrictionClause->addToBody(std::unique_ptr<AstAtom>(relationHead));
 
+                                std::cout <<  "restriction clause: " << *restrictionClause << std::endl;
+
                                 appendStmt(preamble, ClauseTranslator(*this).translateClause(*restrictionClause, *restrictionClause));
 
                                 // create an AstClause for updateTable
@@ -4129,6 +4131,8 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 }
 
                                 restrictionUpdateClause->addToBody(std::unique_ptr<AstAtom>(relationUpdateHead));
+
+                                std::cout <<  "restriction update clause: " << *restrictionUpdateClause << std::endl;
 
                                 updateTable->add(ClauseTranslator(*this).translateClause(*restrictionUpdateClause, *restrictionUpdateClause));
 
@@ -5769,7 +5773,7 @@ std::pair<std::vector<AstRelation*>, std::pair<std::vector<AstAtom*>, std::vecto
     std::cout << "numHeadVariables: " << numHeadVariables << std::endl;
 
     // store the set of variables that are covered so far
-    std::set<const AstVariable*> coveredVariables;
+    std::set<const AstArgument*> coveredArguments;
 
     // go through each atom in the body of the rule
     // for (size_t i = 0; i < clause->getAtoms().size(); i++) {
@@ -5782,7 +5786,7 @@ std::pair<std::vector<AstRelation*>, std::pair<std::vector<AstAtom*>, std::vecto
         auto atom = clause.getAtoms()[i - 1];
 
         // exit if we have covered everything
-        if (coveredVariables.size() == numHeadVariables) {
+        if (coveredArguments.size() == numHeadVariables) {
             break;
         }
 
@@ -5792,40 +5796,48 @@ std::pair<std::vector<AstRelation*>, std::pair<std::vector<AstAtom*>, std::vecto
 
         // find all variables in the head of the rule that contain
         // variables that are bound in the body of the rule
-        for (size_t j = 0; j < clause.getHead()->getArguments().size(); j++) {
-            bool covers = false;
+        for (size_t j = 0; j < clause.getHead()->getArguments().size() - 2; j++) {
+            bool covers = true;
 
-            visitDepthFirst(*clause.getHead()->getArgument(j), [&](const AstVariable& var) {
-                if (j >= clause.getHead()->getArguments().size() - 2) {
-                    return;
-                }
+            auto arg = clause.getHead()->getArgument(j);
 
+            visitDepthFirst(*arg, [&](const AstVariable& var) {
                 std::cout << "checking for covering: " << var << std::endl;
 
+                /*
+                if (!contains(atom->getArguments(), var)) {
+                    covers = false;
+                }
+                */
+
+                bool contains = false;
                 for (auto atomArg : atom->getArguments()) {
                     if (var == *atomArg) {
-                        covers = true;
+                        contains = true;
                         break;
                     }
                 }
 
-                // don't duplicate variables
-                if (covers) {
-                    for (auto coveredVar : coveredVariables) {
-                        if (var == *coveredVar) {
-                            covers = false;
-                            break;
-                        }
-                    }
+                if (!contains) {
+                    covers = false;
                 }
 
-                if (covers) {
-                    // add to the set of covered variables
-                    coveredVariables.insert(var.clone());
-                }
             });
 
+            // don't duplicate variables
             if (covers) {
+                for (auto coveredArg : coveredArguments) {
+                    if (*arg == *coveredArg) {
+                        covers = false;
+                        continue;
+                    }
+                }
+            }
+
+            if (covers) {
+                // add to the set of covered variables
+                coveredArguments.insert(arg->clone());
+
                 bodyCoversAtom.push_back(clause.getHead()->getArgument(j)->clone());
 
                 // create a dummy variable to represent this argument of the relation
