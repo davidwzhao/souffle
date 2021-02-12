@@ -3999,18 +3999,12 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                         // do a sips-based reordering
                         // generate a list of variables that are a-priori bound by the head atom
                         std::set<std::string> boundVariables;
-                        visitDepthFirst(r1->getHead()->getArguments(), [&](const AstVariable& var) {
-                            std::cout << "bound variable: " << var << std::endl;
-                            boundVariables.insert("+" + toString(var));
-                        });
-                        /*
                         for (size_t k = 0; k < rel->getArity(); k++) {
                             auto arg = r1->getHead()->getArgument(k);
                             if (auto var = dynamic_cast<AstVariable*>(arg)) {
                                 boundVariables.insert("+" + toString(*var));
                             }
                         }
-                        */
 
                         // and also by the iteration number for the delta relation
                         boundVariables.insert(toString(*(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 2))));
@@ -4082,7 +4076,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                         }
 
                         // create a 'rule' in preamble that populates this restriction filter
-                        for (AstAtom* restrictionAtom : restrictionAtoms.second.first) {
+                        for (AstAtom* restrictionAtom : restrictionAtoms.second) {
                             // restriction atoms are uniquely identified by the atom name
                             if (!contains(processedRestrictionAtoms, restrictionAtom->getName())) {
                                 // create an AstClause for the preamble
@@ -4095,18 +4089,13 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 relationHead->setArgument(rel->getArity() - 1, std::make_unique<AstNumberConstant>(-1));
 
                                 // remove all irrelevant arguments
-                                for (size_t k = 0; k < relationHead->argSize() - 2; k++) {
-                                    /*
+                                for (size_t k = 0; k < relationHead->argSize(); k++) {
                                     if (dynamic_cast<AstVariable*>(relationHead->getArgument(k)) == nullptr) {
                                         relationHead->setArgument(k, std::make_unique<AstUnnamedVariable>());
                                     }
-                                    */
-                                    relationHead->setArgument(k, std::make_unique<AstVariable>("var_" + std::to_string(k)));
                                 }
 
                                 restrictionClause->addToBody(std::unique_ptr<AstAtom>(relationHead));
-
-                                std::cout <<  "restriction clause: " << *restrictionClause << std::endl;
 
                                 appendStmt(preamble, ClauseTranslator(*this).translateClause(*restrictionClause, *restrictionClause));
 
@@ -4122,25 +4111,18 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
 
                                 // remove all irrelevant arguments
                                 for (size_t k = 0; k < relationUpdateHead->argSize() - 2; k++) {
-                                    /*
                                     if (dynamic_cast<AstVariable*>(relationUpdateHead->getArgument(k)) == nullptr) {
                                         relationUpdateHead->setArgument(k, std::make_unique<AstUnnamedVariable>());
                                     }
-                                    */
-                                    relationUpdateHead->setArgument(k, std::make_unique<AstVariable>("var_" + std::to_string(k)));
                                 }
 
                                 restrictionUpdateClause->addToBody(std::unique_ptr<AstAtom>(relationUpdateHead));
-
-                                std::cout <<  "restriction update clause: " << *restrictionUpdateClause << std::endl;
 
                                 updateTable->add(ClauseTranslator(*this).translateClause(*restrictionUpdateClause, *restrictionUpdateClause));
 
                                 processedRestrictionAtoms.insert(restrictionAtom->getName());
                             }
-                        }
 
-                        for (AstAtom* restrictionAtom : restrictionAtoms.second.second) {
                             // also add the restriction atom to the body of the rule
                             r1->addToBody(std::unique_ptr<AstAtom>(restrictionAtom->clone()));
                         }
@@ -4171,7 +4153,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             int atomIndex = (*currentOrder)[k];
                             bool covers = true;
 
-                            if (filterAtomIndex >= restrictionAtoms.second.second.size()) {
+                            if (filterAtomIndex >= restrictionAtoms.second.size()) {
                                 covers = false;
                             }
 
@@ -4182,7 +4164,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
 
                             if (covers) {
                                 // check if the current filterAtom covers this
-                                for (AstArgument* filterArg : restrictionAtoms.second.second[filterAtomIndex]->getArguments()) {
+                                for (AstArgument* filterArg : restrictionAtoms.second[filterAtomIndex]->getArguments()) {
                                     bool found = false;
                                     for (AstArgument* bodyArg : r1->getAtoms()[atomIndex - 1]->getArguments()) {
                                         if (*bodyArg == *filterArg) {
@@ -5746,39 +5728,49 @@ std::unique_ptr<RamStatement> AstTranslator::makeNegationSubproofSubroutine(cons
     return std::move(searchSequence);
 }
 
-std::pair<std::vector<AstRelation*>, std::pair<std::vector<AstAtom*>, std::vector<AstAtom*>>> AstTranslator::createIncrementalRediscoverFilters(const AstClause& clause, int clauseNum, const std::vector<unsigned int>& order, const AstProgram& program, const RecursiveClauses* recursiveClauses) {
+std::pair<std::vector<AstRelation*>, std::vector<AstAtom*>> AstTranslator::createIncrementalRediscoverFilters(const AstClause& clause, int clauseNum, const std::vector<unsigned int>& order, const AstProgram& program, const RecursiveClauses* recursiveClauses) {
     // create a set of relations that restrict each predicate for the re-discovery rule
     // if we have a rule like R(x, y) :- R1(x, z), R2(z, y)., then we wish to restrict this as:
     // R(x, y) :- R_R1(x), R1(x, z), R_R2(y), R2(z, y).
 
     std::vector<AstRelation*> coveringRelations;
     std::vector<AstAtom*> covering;
-    std::vector<AstAtom*> bodyAtoms;
+
+    /*
+    auto clause = ClauseTranslator(*this).getReorderedClause(origClause, version, version2);
+
+    if (clause == nullptr) {
+        clause = std::unique_ptr<AstClause>(origClause.clone());
+    }
+
+    auto curCount = clause->getHead()->getArgument(clause->getHead()->getArity() - 1);
+    auto curCountNum = dynamic_cast<AstNumberConstant*>(curCount);
+    bool isReinsertionRule = *curCountNum == AstNumberConstant(2);
+
+    // skip non-recursive rules and only process re-insertion rules
+    if (!recursiveClauses->recursive(&origClause) || !isReinsertionRule) {
+    // if (!recursiveClauses->recursive(&origClause)) {
+        return std::make_pair(coveringRelations, covering);
+    }
+    */
 
     assert(order.size() >= clause.getAtoms().size() && "ordering doesn't match size of clause for creating filters");
 
     // store only the variables in the head of the rule
     size_t numHeadVariables = 0;
-    visitDepthFirst(*clause.getHead(), [&](const AstVariable& var) {
-        numHeadVariables++;
-            /*
     for (auto arg : clause.getHead()->getArguments()) {
         if (auto var = dynamic_cast<AstVariable*>(arg)) {
             // headVariables.push_back(var);
             numHeadVariables++;
         }
-        */
-    });
-
-    std::cout << "numHeadVariables: " << numHeadVariables << std::endl;
+    }
 
     // store the set of variables that are covered so far
-    std::set<const AstArgument*> coveredArguments;
+    std::set<const AstVariable*> coveredVariables;
 
     // go through each atom in the body of the rule
     // for (size_t i = 0; i < clause->getAtoms().size(); i++) {
     for (auto i : order) {
-        std::cout << "order index " << i << std::endl;
         if (i > clause.getAtoms().size()) {
             continue;
         }
@@ -5786,73 +5778,86 @@ std::pair<std::vector<AstRelation*>, std::pair<std::vector<AstAtom*>, std::vecto
         auto atom = clause.getAtoms()[i - 1];
 
         // exit if we have covered everything
-        if (coveredArguments.size() == numHeadVariables) {
+        if (coveredVariables.size() == numHeadVariables) {
             break;
         }
 
         std::vector<AstVariable*> coversAtom;
-        std::vector<AstArgument*> bodyCoversAtom;
+
         std::vector<int> variableNums;
+        // find all variables in the head of the rule that match
+        int j = 0;
+        visitDepthFirst(clause.getHead()->getArguments(), [&](const AstVariable& var) {
+            if (j >= clause.getHead()->getArguments().size() - 2) {
+                return;
+            }
 
-        // find all variables in the head of the rule that contain
-        // variables that are bound in the body of the rule
-        for (size_t j = 0; j < clause.getHead()->getArguments().size() - 2; j++) {
-            bool covers = true;
-
-            auto arg = clause.getHead()->getArgument(j);
-
-            visitDepthFirst(*arg, [&](const AstVariable& var) {
-                std::cout << "checking for covering: " << var << std::endl;
-
-                /*
-                if (!contains(atom->getArguments(), var)) {
-                    covers = false;
+            bool covers = false;
+            for (auto atomArg : atom->getArguments()) {
+                if (var == *atomArg) {
+                    covers = true;
+                    break;
                 }
-                */
-
-                bool contains = false;
-                for (auto atomArg : atom->getArguments()) {
-                    if (var == *atomArg) {
-                        contains = true;
-                        break;
-                    }
-                }
-
-                if (!contains) {
-                    covers = false;
-                }
-
-            });
+            }
 
             // don't duplicate variables
             if (covers) {
-                for (auto coveredArg : coveredArguments) {
-                    if (*arg == *coveredArg) {
+                for (auto coveredVar : coveredVariables) {
+                    if (var == *coveredVar) {
                         covers = false;
-                        continue;
+                        break;
                     }
                 }
             }
 
             if (covers) {
-                // add to the set of covered variables
-                coveredArguments.insert(arg->clone());
-
-                bodyCoversAtom.push_back(clause.getHead()->getArgument(j)->clone());
-
-                // create a dummy variable to represent this argument of the relation
-                // this allows functors to be picked up too
-                auto var = std::make_unique<AstVariable>("var_" + std::to_string(j));
-
-                std::cout << "covers variable: " << *var << std::endl;
-
                 // we need to cover this variable with a relation
-                coversAtom.push_back(var->clone());
+                coversAtom.push_back(var.clone());
+
+                // add to the set of covered variables
+                coveredVariables.insert(var.clone());
 
                 // record the number of this atom
                 variableNums.push_back(j);
             }
+
+            j++;
+        });
+
+        /*
+        for (int j = 0; j < clause.getHead()->getArguments().size() - 2; j++) {
+            if (auto var = dynamic_cast<AstVariable*>(clause.getHead()->getArguments()[j])) {
+                bool covers = false;
+                for (auto atomArg : atom->getArguments()) {
+                    if (*var == *atomArg) {
+                        covers = true;
+                        break;
+                    }
+                }
+
+                // don't duplicate variables
+                if (covers) {
+                    for (auto coveredVar : coveredVariables) {
+                        if (*var == *coveredVar) {
+                            covers = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (covers) {
+                    // we need to cover this variable with a relation
+                    coversAtom.push_back(var);
+
+                    // add to the set of covered variables
+                    coveredVariables.insert(var);
+
+                    // record the number of this atom
+                    variableNums.push_back(j);
+                }
+            }
         }
+        */
 
         /*
         std::cout << *atom << " is covered by: " << std::endl;
@@ -5881,17 +5886,10 @@ std::pair<std::vector<AstRelation*>, std::pair<std::vector<AstAtom*>, std::vecto
             }
 
             covering.push_back(restriction);
-
-            auto bodyRestriction = new AstAtom(AstRelationIdentifier(restrictionName));
-            for (auto var : bodyCoversAtom) {
-                bodyRestriction->addArgument(std::unique_ptr<AstArgument>(var->clone()));
-            }
-
-            bodyAtoms.push_back(bodyRestriction);
         }
     }
 
-    return std::make_pair(coveringRelations, std::make_pair(covering, bodyAtoms));
+    return std::make_pair(coveringRelations, covering);
 }
 
 /** translates the given datalog program into an equivalent RAM program  */
