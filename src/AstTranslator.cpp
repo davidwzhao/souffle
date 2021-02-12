@@ -5786,45 +5786,6 @@ std::pair<std::vector<AstRelation*>, std::vector<AstAtom*>> AstTranslator::creat
 
         std::vector<int> variableNums;
         // find all variables in the head of the rule that match
-        int j = 0;
-        visitDepthFirst(clause.getHead()->getArguments(), [&](const AstVariable& var) {
-            if (j >= clause.getHead()->getArguments().size() - 2) {
-                return;
-            }
-
-            bool covers = false;
-            for (auto atomArg : atom->getArguments()) {
-                if (var == *atomArg) {
-                    covers = true;
-                    break;
-                }
-            }
-
-            // don't duplicate variables
-            if (covers) {
-                for (auto coveredVar : coveredVariables) {
-                    if (var == *coveredVar) {
-                        covers = false;
-                        break;
-                    }
-                }
-            }
-
-            if (covers) {
-                // we need to cover this variable with a relation
-                coversAtom.push_back(var.clone());
-
-                // add to the set of covered variables
-                coveredVariables.insert(var.clone());
-
-                // record the number of this atom
-                variableNums.push_back(j);
-            }
-
-            j++;
-        });
-
-        /*
         for (int j = 0; j < clause.getHead()->getArguments().size() - 2; j++) {
             if (auto var = dynamic_cast<AstVariable*>(clause.getHead()->getArguments()[j])) {
                 bool covers = false;
@@ -5857,7 +5818,6 @@ std::pair<std::vector<AstRelation*>, std::vector<AstAtom*>> AstTranslator::creat
                 }
             }
         }
-        */
 
         /*
         std::cout << *atom << " is covered by: " << std::endl;
