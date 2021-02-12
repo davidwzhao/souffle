@@ -3880,6 +3880,19 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                 if (isReinsertionRule) {
                     std::unique_ptr<AstClause> rdiff(cl->clone());
 
+                    // check if head contains any functors
+                    bool headHasFunctors = false;
+                    for (auto arg : rdiff->getHead()->getArguments()) {
+                        if (dynamic_cast<AstVariable*>(arg) != nullptr) {
+                            headHasFunctors = false;
+                            break;
+                        }
+
+                        if (dynamic_cast<AstFunctor*>(arg) != nullptr) {
+                            headHasFunctors = true;
+                        }
+                    }
+
                     rdiff->getHead()->setName(translateNewDiffPlusRelation(rel)->get()->getName());
 
                     // this is needed because the count is set to 2 by IncrementalTransformer, so it is detected and reset here
@@ -3918,17 +3931,17 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                     rdiff->addToBody(std::make_unique<AstSubsumptionNegation>(
                             std::unique_ptr<AstAtom>(diffAppliedHeadAtom), 1));
 
-                    /*
-                    // a tuple should only be reinserted if that tuple is deleted
-                    auto deletedTuple = cl->getHead()->clone();
-                    // deletedTuple->setName(translateDiffMinusCountRelation(rel)->get()->getName());
-                    deletedTuple->setName(translateDiffMinusRelation(rel)->get()->getName());
-                    deletedTuple->setArgument(deletedTuple->getArity() - 1, std::make_unique<AstVariable>("@deleted_count"));
-                    deletedTuple->setArgument(deletedTuple->getArity() - 2, std::make_unique<AstUnnamedVariable>());
-                    // deletedTuple->setArgument(deletedTuple->getArity() - 3, std::make_unique<AstUnnamedVariable>());
-                    rdiff->addToBody(std::unique_ptr<AstAtom>(deletedTuple));
-                    rdiff->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE, std::make_unique<AstVariable>("@deleted_count"), std::make_unique<AstNumberConstant>(0)));
-                    */
+                    if (headHasFunctors) {
+                        // a tuple should only be reinserted if that tuple is deleted
+                        auto deletedTuple = cl->getHead()->clone();
+                        // deletedTuple->setName(translateDiffMinusCountRelation(rel)->get()->getName());
+                        deletedTuple->setName(translateActualDiffMinusRelation(rel)->get()->getName());
+                        deletedTuple->setArgument(deletedTuple->getArity() - 1, std::make_unique<AstVariable>("@deleted_count"));
+                        deletedTuple->setArgument(deletedTuple->getArity() - 2, std::make_unique<AstUnnamedVariable>());
+                        // deletedTuple->setArgument(deletedTuple->getArity() - 3, std::make_unique<AstUnnamedVariable>());
+                        rdiff->addToBody(std::unique_ptr<AstAtom>(deletedTuple));
+                        rdiff->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LE, std::make_unique<AstVariable>("@deleted_count"), std::make_unique<AstNumberConstant>(0)));
+                    }
 
                     std::vector<std::unique_ptr<AstLiteral>> notDeletedChecks;
 
@@ -3996,213 +4009,226 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                             }
                         }
 
-                        // do a sips-based reordering
-                        // generate a list of variables that are a-priori bound by the head atom
-                        std::set<std::string> boundVariables;
-                        for (size_t k = 0; k < rel->getArity(); k++) {
-                            auto arg = r1->getHead()->getArgument(k);
-                            if (auto var = dynamic_cast<AstVariable*>(arg)) {
-                                boundVariables.insert("+" + toString(*var));
-                            }
-                        }
-
-                        // and also by the iteration number for the delta relation
-                        boundVariables.insert(toString(*(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 2))));
-
-                        // get existing execution plan
-                        AstExecutionPlan* plan;
-                        if (r1->getExecutionPlan() != nullptr) {
-                            plan = r1->getExecutionPlan()->clone();
-                        } else {
-                            plan = new AstExecutionPlan();
-                        }
-
-                        std::unique_ptr<AstExecutionOrder> executionReordering;
-                        if (plan->hasOrderFor(version, diffVersion)) {
-                            executionReordering = std::unique_ptr<AstExecutionOrder>(plan->getOrderFor(version, diffVersion).clone());
-                        } else {
-                            AstExecutionOrder* existingOrder;
-
-                            if (plan->hasOrderFor(version, 0)) {
-                                existingOrder = plan->getOrderFor(version, 0).clone();
+                        if (headHasFunctors) {
+                            // get existing execution plan
+                            AstExecutionPlan* plan;
+                            if (r1->getExecutionPlan() != nullptr) {
+                                plan = r1->getExecutionPlan()->clone();
                             } else {
-                                existingOrder = new AstExecutionOrder();
-                                for (size_t k = 1; k <= atoms.size(); k++) {
-                                    existingOrder->appendAtomIndex(k);
+                                plan = new AstExecutionPlan();
+                            }
+
+                            plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, version, diffVersion)));
+                            r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan->clone()));
+                        } else {
+                            // do a sips-based reordering
+                            // generate a list of variables that are a-priori bound by the head atom
+                            std::set<std::string> boundVariables;
+                            for (size_t k = 0; k < rel->getArity(); k++) {
+                                auto arg = r1->getHead()->getArgument(k);
+                                if (auto var = dynamic_cast<AstVariable*>(arg)) {
+                                    boundVariables.insert("+" + toString(*var));
                                 }
                             }
 
-                            // create a clone of cl for reordering purposes
-                            auto reorderedClause = std::unique_ptr<AstClause>(cl->clone());
+                            // and also by the iteration number for the delta relation
+                            boundVariables.insert(toString(*(r1->getAtoms()[j]->getArgument(r1->getAtoms()[j]->getArity() - 2))));
 
-                            std::vector<unsigned int> newOrderVector(existingOrder->size());
-                            std::transform(existingOrder->begin(), existingOrder->end(), newOrderVector.begin(),
-                                    [](unsigned int i) -> unsigned int { return i - 1; });
-
-                            reorderedClause->reorderAtoms(newOrderVector);
-
-                            // create a sips function and do reordering
-                            auto sipsFunc = ReorderLiteralsTransformer::getSipsFunction("incremental-reordering-rediscovery");
-                            // auto sipsFunc = ReorderLiteralsTransformer::getSipsFunction("none");
-                            auto reordering = ReorderLiteralsTransformer::applySips(sipsFunc, reorderedClause->getAtoms(), boundVariables);
-
-                            // put this into an AstExecutionOrder
-                            executionReordering = std::make_unique<AstExecutionOrder>();
-                            for (auto i : reordering) {
-                                executionReordering->appendAtomIndex((*existingOrder)[i]);
+                            // get existing execution plan
+                            AstExecutionPlan* plan;
+                            if (r1->getExecutionPlan() != nullptr) {
+                                plan = r1->getExecutionPlan()->clone();
+                            } else {
+                                plan = new AstExecutionPlan();
                             }
-                        }
 
-                        /*
-                        // create another clone for filter creation purposes
-                        auto filterClause = std::unique_ptr<AstClause>(cl->clone());
-                        plan->setOrderFor(version, diffVersion, std::unique_ptr<AstExecutionOrder>(executionReordering->clone()));
-                        filterClause->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan->clone()));
-                        */
+                            std::unique_ptr<AstExecutionOrder> executionReordering;
+                            if (plan->hasOrderFor(version, diffVersion)) {
+                                executionReordering = std::unique_ptr<AstExecutionOrder>(plan->getOrderFor(version, diffVersion).clone());
+                            } else {
+                                AstExecutionOrder* existingOrder;
 
-                        auto restrictionAtoms = createIncrementalRediscoverFilters(*cl, i, executionReordering->getOrder(), *program, recursiveClauses);
-
-                        // add RamCreate statements for each restriction relation
-                        // this has to go before adding the rules populating them so that the relations exist at that point
-                        for (AstRelation* restrictionRel : restrictionAtoms.first) {
-                            if (!contains(processedRestrictionCreates, restrictionRel->getName())) {
-                                // if not already processed
-                                appendStmt(preamble, 
-                                        std::make_unique<RamCreate>(
-                                            std::unique_ptr<RamRelationReference>(translateRelation(restrictionRel)->clone())));
-
-                                processedRestrictionCreates.insert(restrictionRel->getName());
-                            }
-                        }
-
-                        // create a 'rule' in preamble that populates this restriction filter
-                        for (AstAtom* restrictionAtom : restrictionAtoms.second) {
-                            // restriction atoms are uniquely identified by the atom name
-                            if (!contains(processedRestrictionAtoms, restrictionAtom->getName())) {
-                                // create an AstClause for the preamble
-                                auto restrictionClause = std::make_unique<AstClause>();
-
-                                restrictionClause->setHead(std::unique_ptr<AstAtom>(restrictionAtom->clone()));
-
-                                auto relationHead = cl->getHead()->clone();
-                                relationHead->setName(translateActualDiffMinusRelation(rel)->get()->getName());
-                                relationHead->setArgument(rel->getArity() - 1, std::make_unique<AstNumberConstant>(-1));
-
-                                // remove all irrelevant arguments
-                                for (size_t k = 0; k < relationHead->argSize(); k++) {
-                                    if (dynamic_cast<AstVariable*>(relationHead->getArgument(k)) == nullptr) {
-                                        relationHead->setArgument(k, std::make_unique<AstUnnamedVariable>());
+                                if (plan->hasOrderFor(version, 0)) {
+                                    existingOrder = plan->getOrderFor(version, 0).clone();
+                                } else {
+                                    existingOrder = new AstExecutionOrder();
+                                    for (size_t k = 1; k <= atoms.size(); k++) {
+                                        existingOrder->appendAtomIndex(k);
                                     }
                                 }
 
-                                restrictionClause->addToBody(std::unique_ptr<AstAtom>(relationHead));
+                                // create a clone of cl for reordering purposes
+                                auto reorderedClause = std::unique_ptr<AstClause>(cl->clone());
 
-                                appendStmt(preamble, ClauseTranslator(*this).translateClause(*restrictionClause, *restrictionClause));
+                                std::vector<unsigned int> newOrderVector(existingOrder->size());
+                                std::transform(existingOrder->begin(), existingOrder->end(), newOrderVector.begin(),
+                                        [](unsigned int i) -> unsigned int { return i - 1; });
 
-                                // create an AstClause for updateTable
-                                auto restrictionUpdateClause = std::make_unique<AstClause>();
+                                reorderedClause->reorderAtoms(newOrderVector);
 
-                                restrictionUpdateClause->setHead(std::unique_ptr<AstAtom>(restrictionAtom->clone()));
+                                // create a sips function and do reordering
+                                auto sipsFunc = ReorderLiteralsTransformer::getSipsFunction("incremental-reordering-rediscovery");
+                                // auto sipsFunc = ReorderLiteralsTransformer::getSipsFunction("none");
+                                auto reordering = ReorderLiteralsTransformer::applySips(sipsFunc, reorderedClause->getAtoms(), boundVariables);
 
-                                auto relationUpdateHead = cl->getHead()->clone();
-                                relationUpdateHead->setName(translateActualDiffMinusRelation(rel)->get()->getName());
-                                relationUpdateHead->setArgument(rel->getArity() - 1, std::make_unique<AstNumberConstant>(-1));
-                                relationUpdateHead->setArgument(rel->getArity() - 2, std::make_unique<AstIterationNumber>());
+                                // put this into an AstExecutionOrder
+                                executionReordering = std::make_unique<AstExecutionOrder>();
+                                for (auto i : reordering) {
+                                    executionReordering->appendAtomIndex((*existingOrder)[i]);
+                                }
+                            }
 
-                                // remove all irrelevant arguments
-                                for (size_t k = 0; k < relationUpdateHead->argSize() - 2; k++) {
-                                    if (dynamic_cast<AstVariable*>(relationUpdateHead->getArgument(k)) == nullptr) {
-                                        relationUpdateHead->setArgument(k, std::make_unique<AstUnnamedVariable>());
+                            /*
+                            // create another clone for filter creation purposes
+                            auto filterClause = std::unique_ptr<AstClause>(cl->clone());
+                            plan->setOrderFor(version, diffVersion, std::unique_ptr<AstExecutionOrder>(executionReordering->clone()));
+                            filterClause->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan->clone()));
+                            */
+
+                            auto restrictionAtoms = createIncrementalRediscoverFilters(*cl, i, executionReordering->getOrder(), *program, recursiveClauses);
+
+                            // add RamCreate statements for each restriction relation
+                            // this has to go before adding the rules populating them so that the relations exist at that point
+                            for (AstRelation* restrictionRel : restrictionAtoms.first) {
+                                if (!contains(processedRestrictionCreates, restrictionRel->getName())) {
+                                    // if not already processed
+                                    appendStmt(preamble, 
+                                            std::make_unique<RamCreate>(
+                                                std::unique_ptr<RamRelationReference>(translateRelation(restrictionRel)->clone())));
+
+                                    processedRestrictionCreates.insert(restrictionRel->getName());
+                                }
+                            }
+
+                            // create a 'rule' in preamble that populates this restriction filter
+                            for (AstAtom* restrictionAtom : restrictionAtoms.second) {
+                                // restriction atoms are uniquely identified by the atom name
+                                if (!contains(processedRestrictionAtoms, restrictionAtom->getName())) {
+                                    // create an AstClause for the preamble
+                                    auto restrictionClause = std::make_unique<AstClause>();
+
+                                    restrictionClause->setHead(std::unique_ptr<AstAtom>(restrictionAtom->clone()));
+
+                                    auto relationHead = cl->getHead()->clone();
+                                    relationHead->setName(translateActualDiffMinusRelation(rel)->get()->getName());
+                                    relationHead->setArgument(rel->getArity() - 1, std::make_unique<AstNumberConstant>(-1));
+
+                                    // remove all irrelevant arguments
+                                    for (size_t k = 0; k < relationHead->argSize(); k++) {
+                                        if (dynamic_cast<AstVariable*>(relationHead->getArgument(k)) == nullptr) {
+                                            relationHead->setArgument(k, std::make_unique<AstUnnamedVariable>());
+                                        }
                                     }
+
+                                    restrictionClause->addToBody(std::unique_ptr<AstAtom>(relationHead));
+
+                                    appendStmt(preamble, ClauseTranslator(*this).translateClause(*restrictionClause, *restrictionClause));
+
+                                    // create an AstClause for updateTable
+                                    auto restrictionUpdateClause = std::make_unique<AstClause>();
+
+                                    restrictionUpdateClause->setHead(std::unique_ptr<AstAtom>(restrictionAtom->clone()));
+
+                                    auto relationUpdateHead = cl->getHead()->clone();
+                                    relationUpdateHead->setName(translateActualDiffMinusRelation(rel)->get()->getName());
+                                    relationUpdateHead->setArgument(rel->getArity() - 1, std::make_unique<AstNumberConstant>(-1));
+                                    relationUpdateHead->setArgument(rel->getArity() - 2, std::make_unique<AstIterationNumber>());
+
+                                    // remove all irrelevant arguments
+                                    for (size_t k = 0; k < relationUpdateHead->argSize() - 2; k++) {
+                                        if (dynamic_cast<AstVariable*>(relationUpdateHead->getArgument(k)) == nullptr) {
+                                            relationUpdateHead->setArgument(k, std::make_unique<AstUnnamedVariable>());
+                                        }
+                                    }
+
+                                    restrictionUpdateClause->addToBody(std::unique_ptr<AstAtom>(relationUpdateHead));
+
+                                    updateTable->add(ClauseTranslator(*this).translateClause(*restrictionUpdateClause, *restrictionUpdateClause));
+
+                                    processedRestrictionAtoms.insert(restrictionAtom->getName());
                                 }
 
-                                restrictionUpdateClause->addToBody(std::unique_ptr<AstAtom>(relationUpdateHead));
-
-                                updateTable->add(ClauseTranslator(*this).translateClause(*restrictionUpdateClause, *restrictionUpdateClause));
-
-                                processedRestrictionAtoms.insert(restrictionAtom->getName());
+                                // also add the restriction atom to the body of the rule
+                                r1->addToBody(std::unique_ptr<AstAtom>(restrictionAtom->clone()));
                             }
 
-                            // also add the restriction atom to the body of the rule
-                            r1->addToBody(std::unique_ptr<AstAtom>(restrictionAtom->clone()));
-                        }
+                            // drop the restriction relations after the loop
+                            for (AstRelation* restrictionRel : restrictionAtoms.first) {
+                                if (!contains(processedRestrictionDeletions, restrictionRel->getName())) {
+                                    // drop the filter relation at the end of the loop
+                                    appendStmt(postamble, 
+                                            std::make_unique<RamDrop>(
+                                                std::unique_ptr<RamRelationReference>(translateRelation(restrictionRel)->clone())));
 
-                        // drop the restriction relations after the loop
-                        for (AstRelation* restrictionRel : restrictionAtoms.first) {
-                            if (!contains(processedRestrictionDeletions, restrictionRel->getName())) {
-                                // drop the filter relation at the end of the loop
-                                appendStmt(postamble, 
-                                        std::make_unique<RamDrop>(
-                                            std::unique_ptr<RamRelationReference>(translateRelation(restrictionRel)->clone())));
-
-                                processedRestrictionDeletions.insert(restrictionRel->getName());
-                            }
-                        }
-
-
-                        // set an execution plan so the diff_plus version of the relation is evaluated first
-                        // get existing execution plan - we are guaranteed to have a plan because of the sips reordering
-                        AstExecutionOrder* currentOrder = executionReordering->clone();
-
-                        AstExecutionOrder* order = new AstExecutionOrder();
-
-                        // for each atom in the order, check which filter atom should go before it
-                        int filterAtomIndex = 0;
-                        
-                        for (size_t k = 0; k < currentOrder->size(); k++) {
-                            int atomIndex = (*currentOrder)[k];
-                            bool covers = true;
-
-                            if (filterAtomIndex >= restrictionAtoms.second.size()) {
-                                covers = false;
+                                    processedRestrictionDeletions.insert(restrictionRel->getName());
+                                }
                             }
 
-                            // if atomIndex refers to a filter atom, it doesn't cover anything
-                            if (atomIndex > cl->getAtoms().size()) {
-                                covers = false;
-                            }
 
-                            if (covers) {
-                                // check if the current filterAtom covers this
-                                for (AstArgument* filterArg : restrictionAtoms.second[filterAtomIndex]->getArguments()) {
-                                    bool found = false;
-                                    for (AstArgument* bodyArg : r1->getAtoms()[atomIndex - 1]->getArguments()) {
-                                        if (*bodyArg == *filterArg) {
-                                            found = true;
+                            // set an execution plan so the diff_plus version of the relation is evaluated first
+                            // get existing execution plan - we are guaranteed to have a plan because of the sips reordering
+                            AstExecutionOrder* currentOrder = executionReordering->clone();
+
+                            AstExecutionOrder* order = new AstExecutionOrder();
+
+                            // for each atom in the order, check which filter atom should go before it
+                            int filterAtomIndex = 0;
+                            
+                            for (size_t k = 0; k < currentOrder->size(); k++) {
+                                int atomIndex = (*currentOrder)[k];
+                                bool covers = true;
+
+                                if (filterAtomIndex >= restrictionAtoms.second.size()) {
+                                    covers = false;
+                                }
+
+                                // if atomIndex refers to a filter atom, it doesn't cover anything
+                                if (atomIndex > cl->getAtoms().size()) {
+                                    covers = false;
+                                }
+
+                                if (covers) {
+                                    // check if the current filterAtom covers this
+                                    for (AstArgument* filterArg : restrictionAtoms.second[filterAtomIndex]->getArguments()) {
+                                        bool found = false;
+                                        for (AstArgument* bodyArg : r1->getAtoms()[atomIndex - 1]->getArguments()) {
+                                            if (*bodyArg == *filterArg) {
+                                                found = true;
+                                                break;
+                                            }
+                                        }
+                                        
+                                        if (!found) {
+                                            covers = false;
                                             break;
                                         }
                                     }
-                                    
-                                    if (!found) {
-                                        covers = false;
-                                        break;
-                                    }
                                 }
-                            }
 
-                            // we know this filter atom covers the body atom, so we insert it into the order
-                            if (covers) {
-                                if (contains(currentOrder->getOrder(), atoms.size() + filterAtomIndex + 1)) {
-                                    // check if the corresponding filter atom is already in the order
-                                    order->appendAtomIndex(atomIndex);
-                                } else if (k == 0) {
-                                    // only the first filter should come before the atom, the subsequent ones should go after to prevent cross products
-                                    order->appendAtomIndex(atoms.size() + filterAtomIndex + 1);
-                                    order->appendAtomIndex(atomIndex);
+                                // we know this filter atom covers the body atom, so we insert it into the order
+                                if (covers) {
+                                    if (contains(currentOrder->getOrder(), atoms.size() + filterAtomIndex + 1)) {
+                                        // check if the corresponding filter atom is already in the order
+                                        order->appendAtomIndex(atomIndex);
+                                    } else if (k == 0) {
+                                        // only the first filter should come before the atom, the subsequent ones should go after to prevent cross products
+                                        order->appendAtomIndex(atoms.size() + filterAtomIndex + 1);
+                                        order->appendAtomIndex(atomIndex);
+                                    } else {
+                                        order->appendAtomIndex(atomIndex);
+                                        order->appendAtomIndex(atoms.size() + filterAtomIndex + 1);
+                                    }
+                                    filterAtomIndex++;
                                 } else {
                                     order->appendAtomIndex(atomIndex);
-                                    order->appendAtomIndex(atoms.size() + filterAtomIndex + 1);
                                 }
-                                filterAtomIndex++;
-                            } else {
-                                order->appendAtomIndex(atomIndex);
                             }
-                        }
 
-                        // if (!plan->hasOrderFor(version, diffVersion)) {
-                        plan->setOrderFor(version, diffVersion, std::unique_ptr<AstExecutionOrder>(order));
-                        // }
-                        r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan->clone()));
+                            // if (!plan->hasOrderFor(version, diffVersion)) {
+                            plan->setOrderFor(version, diffVersion, std::unique_ptr<AstExecutionOrder>(order));
+                            // }
+                            r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan->clone()));
+                        }
 
 
                         std::cout << "reinsertion recursive: " << *r1 << std::endl;
