@@ -1072,6 +1072,80 @@ protected:
 };
 
 /**
+ * @class RamOperationSequence
+ * @brief Sequence of RAM operations
+ *
+ * Execute statement one by one from an ordered list of statements.
+ */
+class RamOperationSequence : public RamOperation {
+public:
+    RamOperationSequence() : RamOperation() {}
+
+    template <typename... Opers>
+    RamOperationSequence(std::unique_ptr<Opers>&&... opers) : RamOperation() {
+        // move all the given statements into the vector (not so simple)
+        std::unique_ptr<RamOperation> tmp[] = {std::move(opers)...};
+        for (auto& cur : tmp) {
+            operations.emplace_back(std::move(cur));
+        }
+        for (const auto& cur : operations) {
+            (void)cur;
+            assert(cur);
+        }
+    }
+
+    /** @brief Get statements */
+    std::vector<RamOperation*> getOperations() const {
+        return toPtrVector(operations);
+    }
+
+    /** @brief Add new statement to the block */
+    void add(std::unique_ptr<RamOperation> oper) {
+        if (oper) {
+            operations.push_back(std::move(oper));
+        }
+    }
+
+    std::vector<const RamNode*> getChildNodes() const override {
+        std::vector<const RamNode*> res;
+        for (const auto& cur : operations) {
+            res.push_back(cur.get());
+        }
+        return res;
+    }
+
+    void print(std::ostream& os, int tabpos) const override {
+        for (const auto& oper : operations) {
+            oper->print(os, tabpos);
+        }
+    }
+
+    void apply(const RamNodeMapper& map) override {
+        for (auto& oper : operations) {
+            oper = map(std::move(oper));
+        }
+    }
+
+    RamOperationSequence* clone() const override {
+        auto* res = new RamOperationSequence();
+        for (auto& cur : operations) {
+            res->add(std::unique_ptr<RamOperation>(cur->clone()));
+        }
+        return res;
+    }
+
+protected:
+    /** ordered list of RAM statements */
+    std::vector<std::unique_ptr<RamOperation>> operations;
+
+    bool equal(const RamNode& node) const override {
+        assert(nullptr != dynamic_cast<const RamOperationSequence*>(&node));
+        const auto& other = static_cast<const RamOperationSequence&>(node);
+        return equal_targets(operations, other.operations);
+    }
+};
+
+/**
  * @class RamSubroutineReturnValue
  * @brief A statement for returning from a ram subroutine
  *

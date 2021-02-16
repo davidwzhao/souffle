@@ -119,6 +119,7 @@ struct RamVisitor : public ram_visitor_tag {
         FORWARD(ParallelIndexChoice);
         FORWARD(IndexChoice);
         FORWARD(Aggregate);
+        FORWARD(OperationSequence);
         FORWARD(IndexAggregate);
 
         // Statements
@@ -205,6 +206,7 @@ protected:
 
     // -- operations --
     LINK(Project, Operation);
+    LINK(OperationSequence, Operation);
     LINK(SubroutineReturnValue, Operation);
     LINK(UnpackRecord, TupleOperation);
     LINK(Scan, RelationOperation);

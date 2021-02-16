@@ -763,9 +763,11 @@ std::unique_ptr<RamCondition> AstTranslator::ClauseTranslator::createCondition(
 
     // add stopping criteria for nullary relations
     // (if it contains already the null tuple, don't re-compute)
+    /*
     if (head->getArity() == 0) {
         return std::make_unique<RamEmptinessCheck>(translator.translateRelation(head));
     }
+    */
     return nullptr;
 }
 
@@ -1010,11 +1012,13 @@ std::unique_ptr<RamStatement> AstTranslator::ClauseTranslator::translateClause(
             }
             */
 
+            /*
             // add check for emptiness for an atom
             op = std::make_unique<RamFilter>(
                     std::make_unique<RamNegation>(
                             std::make_unique<RamEmptinessCheck>(translator.translateRelation(atom))),
                     std::move(op));
+                    */
 
             // add a scan level
             if (atom->getArity() != 0 && !isAllArgsUnnamed) {
