@@ -944,53 +944,6 @@ bool FactorLoopTransformer::factorLoops(RamProgram& program) {
         });
     });
 
-    // second step: rewrite outer-most loops so that the inner operations are coalesced together
-    std::map<std::pair<std::string, std::vector<RamExpression*>>, bool> outerLoopSeen;
-
-    visitDepthFirst(program, [&](const RamLoop& loop) {
-        visitDepthFirst(loop, [&](const RamDebugInfo& debugInfo) {
-            // check if it is a query and scan
-            if (auto query = dynamic_cast<const RamQuery*>(&debugInfo.getStatement())) {
-                auto scanKey = getScanKey(query->getOperation());
-
-                if (scanKey.first == "@not_a_scan") {
-                    return;
-                } else {
-                    std::function<std::unique_ptr<RamNode>(std::unique_ptr<RamNode>)> loopRewriter =
-                            [&](std::unique_ptr<RamNode> node) -> std::unique_ptr<RamNode> {
-                        if (auto query = dynamic_cast<RamQuery*>(node.get())) {
-                            if (!outerLoopSeen[scanKey]) {
-                                if (auto n = dynamic_cast<const RamNestedOperation*>(&query->getOperation())) {
-                                    RamNestedOperation* nestedOperation = dynamic_cast<RamNestedOperation*>(n->clone());
-                                    auto innerSequence = new RamOperationSequence();
-
-                                    for (auto innerOperation : outerLoops[scanKey]) {
-                                        innerSequence->add(std::unique_ptr<RamOperation>(innerOperation->clone()));
-                                    }
-
-                                    changed = true;
-
-                                    nestedOperation->setOperation(std::unique_ptr<RamOperation>(innerSequence));
-                                    return std::make_unique<RamQuery>(std::unique_ptr<RamOperation>(nestedOperation));
-                                }
-
-                                return node;
-                            } else {
-                                return std::make_unique<RamQuery>(std::make_unique<RamOperationSequence>());
-                            }
-                        }
-
-                        return node;
-                    };
-
-                    const_cast<RamQuery*>(query)->apply(makeLambdaRamMapper(loopRewriter));
-
-                    outerLoopSeen[scanKey] = true;
-                }
-            }
-        });
-    });
-
     for (auto loops : outerLoops) {
         std::cout << "relation name: " << loops.first.first << std::endl;
         std::cout << "  index patterns: ";
@@ -1007,6 +960,55 @@ bool FactorLoopTransformer::factorLoops(RamProgram& program) {
             j++;
         }
     }
+
+    // second step: rewrite outer-most loops so that the inner operations are coalesced together
+    std::map<std::pair<std::string, std::vector<RamExpression*>>, bool> outerLoopSeen;
+
+    visitDepthFirst(program, [&](const RamLoop& loop) {
+        visitDepthFirst(loop, [&](const RamDebugInfo& debugInfo) {
+            // check if it is a query and scan
+            if (auto query = dynamic_cast<const RamQuery*>(&debugInfo.getStatement())) {
+                auto scanKey = getScanKey(query->getOperation());
+
+                if (scanKey.first == "@not_a_scan") {
+                    return;
+                } else {
+                    std::function<std::unique_ptr<RamNode>(std::unique_ptr<RamNode>)> loopRewriter =
+                            [&](std::unique_ptr<RamNode> node) -> std::unique_ptr<RamNode> {
+                        std::cout << "node in rewriter: " << *node << std::endl;
+                        std::cout << "is a query!!" << std::endl;
+                        if (!outerLoopSeen[scanKey]) {
+                            if (auto n = dynamic_cast<const RamNestedOperation*>(node.get())) {
+                                RamNestedOperation* nestedOperation = dynamic_cast<RamNestedOperation*>(n->clone());
+                                auto innerSequence = new RamOperationSequence();
+
+                                for (auto innerOperation : outerLoops[scanKey]) {
+                                    innerSequence->add(std::unique_ptr<RamOperation>(innerOperation->clone()));
+                                }
+
+                                changed = true;
+
+                                nestedOperation->setOperation(std::unique_ptr<RamOperation>(innerSequence));
+
+                                std::cout << "nested operation:" << *nestedOperation << std::endl;
+                                return std::unique_ptr<RamOperation>(nestedOperation);
+                            }
+
+                            return node;
+                        } else {
+                            return std::make_unique<RamOperationSequence>();
+                        }
+
+                        return node;
+                    };
+
+                    const_cast<RamQuery*>(query)->apply(makeLambdaRamMapper(loopRewriter));
+
+                    outerLoopSeen[scanKey] = true;
+                }
+            }
+        });
+    });
 
     return changed;
 }
