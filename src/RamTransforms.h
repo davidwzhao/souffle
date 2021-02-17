@@ -745,4 +745,52 @@ protected:
     }
 };
 
+/**
+ * @class FactorLoopTransformer
+ * @brief Coalesces multiple loops that have the same outer relation.
+ *
+ * For example ..
+ *
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *  QUERY
+ *    FOR t0 in A
+ *      ...
+ *  QUERY
+ *    FOR t0 in A
+ *      ...
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * will be rewritten to
+ *
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *  QUERY
+ *    FOR t0 in A
+ *      ...
+ *      ...
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~
+ */
+
+class FactorLoopTransformer : public RamTransformer {
+public:
+    std::string getName() const override {
+        return "FactorLoopTransformer";
+    }
+
+    /**
+     * @brief factorLoops
+     * @param program Program to be transformed
+     */
+    bool factorLoops(RamProgram& program);
+
+    /** 
+     * @brief getScanKey returns the relation name and index pattern of a scan/indexed scan
+     */
+    std::pair<std::string, std::vector<RamExpression*>> getScanKey(const RamOperation& operation);
+
+protected:
+    bool transform(RamTranslationUnit& translationUnit) override {
+        return factorLoops(*translationUnit.getProgram());
+    }
+};
+
 }  // end of namespace souffle

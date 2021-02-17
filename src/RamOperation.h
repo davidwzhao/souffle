@@ -78,6 +78,11 @@ public:
         return *nestedOperation;
     }
 
+    void setOperation(std::unique_ptr<RamOperation> nested) {
+        assert(nullptr != nested);
+        nestedOperation = std::move(nested);
+    }
+
     /** @brief Get profile text */
     const std::string& getProfileText() const {
         return profileText;

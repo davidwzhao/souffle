@@ -897,4 +897,118 @@ bool ParallelTransformer::parallelizeOperations(RamProgram& program) {
     return changed;
 }
 
+std::pair<std::string, std::vector<RamExpression*>> FactorLoopTransformer::getScanKey(const RamOperation& operation) {
+    std::string relationName;
+    std::vector<RamExpression*> indexPattern;
+
+    if (auto scan = dynamic_cast<const RamScan*>(&operation)) {
+        relationName = scan->getRelation().getName();
+    } else if (auto indexScan =  dynamic_cast<const RamIndexScan*>(&operation)) {
+        relationName = indexScan->getRelation().getName();
+        indexPattern = indexScan->getRangePattern();
+    } else {
+        relationName = "@not_a_scan";
+    }
+
+    return std::make_pair(relationName, indexPattern);
+}
+
+bool FactorLoopTransformer::factorLoops(RamProgram& program) {
+    bool changed = false;
+
+    // first step: detect all the outer-most loops
+    // these have a pattern of
+    // LOOP
+    //   ...
+    //     DEBUG
+    //       QUERY
+    //         SCAN (including possibly parallel scan, index scan, index choice, etc.)
+
+    // store the found outer loop predicates in a map
+    std::map<std::pair<std::string, std::vector<RamExpression*>>, std::vector<RamOperation*>> outerLoops;
+
+    visitDepthFirst(program, [&](const RamLoop& loop) {
+        visitDepthFirst(loop, [&](const RamDebugInfo& debugInfo) {
+            // check if it is a query and scan
+            if (auto query = dynamic_cast<const RamQuery*>(&debugInfo.getStatement())) {
+                auto scanKey = getScanKey(query->getOperation());
+
+                if (scanKey.first == "@not_a_scan") {
+                    return;
+                } else {
+                    if (auto nestedOperation = dynamic_cast<const RamNestedOperation*>(&query->getOperation())) {
+                        outerLoops[scanKey].push_back(&(nestedOperation->getOperation()));
+                    }
+                }
+            }
+        });
+    });
+
+    // second step: rewrite outer-most loops so that the inner operations are coalesced together
+    std::map<std::pair<std::string, std::vector<RamExpression*>>, bool> outerLoopSeen;
+
+    visitDepthFirst(program, [&](const RamLoop& loop) {
+        visitDepthFirst(loop, [&](const RamDebugInfo& debugInfo) {
+            // check if it is a query and scan
+            if (auto query = dynamic_cast<const RamQuery*>(&debugInfo.getStatement())) {
+                auto scanKey = getScanKey(query->getOperation());
+
+                if (scanKey.first == "@not_a_scan") {
+                    return;
+                } else {
+                    std::function<std::unique_ptr<RamNode>(std::unique_ptr<RamNode>)> loopRewriter =
+                            [&](std::unique_ptr<RamNode> node) -> std::unique_ptr<RamNode> {
+                        if (auto query = dynamic_cast<RamQuery*>(node.get())) {
+                            if (!outerLoopSeen[scanKey]) {
+                                if (auto n = dynamic_cast<const RamNestedOperation*>(&query->getOperation())) {
+                                    RamNestedOperation* nestedOperation = dynamic_cast<RamNestedOperation*>(n->clone());
+                                    auto innerSequence = new RamOperationSequence();
+
+                                    for (auto innerOperation : outerLoops[scanKey]) {
+                                        innerSequence->add(std::unique_ptr<RamOperation>(innerOperation->clone()));
+                                    }
+
+                                    changed = true;
+
+                                    nestedOperation->setOperation(std::unique_ptr<RamOperation>(innerSequence));
+                                    return std::make_unique<RamQuery>(std::unique_ptr<RamOperation>(nestedOperation));
+                                }
+
+                                return node;
+                            } else {
+                                return std::make_unique<RamQuery>(std::make_unique<RamOperationSequence>());
+                            }
+                        }
+
+                        return node;
+                    };
+
+                    const_cast<RamQuery*>(query)->apply(makeLambdaRamMapper(loopRewriter));
+
+                    outerLoopSeen[scanKey] = true;
+                }
+            }
+        });
+    });
+
+    for (auto loops : outerLoops) {
+        std::cout << "relation name: " << loops.first.first << std::endl;
+        std::cout << "  index patterns: ";
+        for (auto* ind : loops.first.second) {
+            std::cout << *ind << ", ";
+        }
+
+        std::cout << std::endl;
+
+        std::cout << "    inner loops: " << std::endl;
+        int j = 0;
+        for (auto* loop : loops.second) {
+            std::cout << j << ": " << *loop << std::endl;
+            j++;
+        }
+    }
+
+    return changed;
+}
+
 }  // end of namespace souffle

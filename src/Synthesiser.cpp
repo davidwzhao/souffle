@@ -1642,6 +1642,14 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             PRINT_END_COMMENT(out);
         }
 
+        void visitOperationSequence(const RamOperationSequence& seq, std::ostream& out) override {
+            PRINT_BEGIN_COMMENT(out);
+            for (const auto& cur : seq.getOperations()) {
+                visit(cur, out);
+            }
+            PRINT_END_COMMENT(out);
+        }
+
         // -- conditions --
 
         void visitTrue(const RamTrue& ltrue, std::ostream& out) override {

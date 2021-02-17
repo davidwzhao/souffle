@@ -499,6 +499,7 @@ int main(int argc, char** argv) {
             std::make_unique<CollapseFiltersTransformer>(),
             std::make_unique<EliminateDuplicatesTransformer>(),
             std::make_unique<ReorderConditionsTransformer>(),
+            std::make_unique<FactorLoopTransformer>(),
             std::make_unique<RamConditionalTransformer>(
                     // job count of 0 means all cores are used.
                     []() -> bool { return std::stoi(Global::config().get("jobs")) != 1; },
