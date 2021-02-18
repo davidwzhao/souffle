@@ -916,18 +916,20 @@ std::pair<std::string, std::vector<RamExpression*>> FactorLoopTransformer::getSc
 bool FactorLoopTransformer::factorLoops(RamProgram& program) {
     bool changed = false;
 
-    // first step: detect all the outer-most loops
-    // these have a pattern of
-    // LOOP
-    //   ...
-    //     DEBUG
-    //       QUERY
-    //         SCAN (including possibly parallel scan, index scan, index choice, etc.)
-
-    // store the found outer loop predicates in a map
-    std::map<std::pair<std::string, std::vector<RamExpression*>>, std::vector<RamOperation*>> outerLoops;
 
     visitDepthFirst(program, [&](const RamLoop& loop) {
+
+        // first step: detect all the outer-most loops
+        // these have a pattern of
+        // LOOP
+        //   ...
+        //     DEBUG
+        //       QUERY
+        //         SCAN (including possibly parallel scan, index scan, index choice, etc.)
+
+        // store the found outer loop predicates in a map
+        std::map<std::pair<std::string, std::vector<RamExpression*>>, std::vector<RamOperation*>> outerLoops;
+
         visitDepthFirst(loop, [&](const RamDebugInfo& debugInfo) {
             // check if it is a query and scan
             if (auto query = dynamic_cast<const RamQuery*>(&debugInfo.getStatement())) {
@@ -942,29 +944,29 @@ bool FactorLoopTransformer::factorLoops(RamProgram& program) {
                 }
             }
         });
-    });
 
-    for (auto loops : outerLoops) {
-        std::cout << "relation name: " << loops.first.first << std::endl;
-        std::cout << "  index patterns: ";
-        for (auto* ind : loops.first.second) {
-            std::cout << *ind << ", ";
+        for (auto loops : outerLoops) {
+            std::cout << "relation name: " << loops.first.first << std::endl;
+            std::cout << "  index patterns: ";
+            for (auto* ind : loops.first.second) {
+                std::cout << *ind << ", ";
+            }
+
+            std::cout << std::endl;
+
+            std::cout << "    inner loops: " << std::endl;
+            int j = 0;
+            for (auto* loop : loops.second) {
+                std::cout << j << ": " << *loop << std::endl;
+                j++;
+            }
         }
 
-        std::cout << std::endl;
+        // second step: rewrite outer-most loops so that the inner operations are coalesced together
 
-        std::cout << "    inner loops: " << std::endl;
-        int j = 0;
-        for (auto* loop : loops.second) {
-            std::cout << j << ": " << *loop << std::endl;
-            j++;
-        }
-    }
+        // check if an outer loop is seen yet
+        std::map<std::pair<std::string, std::vector<RamExpression*>>, bool> outerLoopSeen;
 
-    // second step: rewrite outer-most loops so that the inner operations are coalesced together
-    std::map<std::pair<std::string, std::vector<RamExpression*>>, bool> outerLoopSeen;
-
-    visitDepthFirst(program, [&](const RamLoop& loop) {
         visitDepthFirst(loop, [&](const RamDebugInfo& debugInfo) {
             // check if it is a query and scan
             if (auto query = dynamic_cast<const RamQuery*>(&debugInfo.getStatement())) {
@@ -1009,6 +1011,7 @@ bool FactorLoopTransformer::factorLoops(RamProgram& program) {
             }
         });
     });
+
 
     return changed;
 }

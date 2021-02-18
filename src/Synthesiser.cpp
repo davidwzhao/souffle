@@ -1180,6 +1180,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             PRINT_BEGIN_COMMENT(out);
 
+            out << "{\n";
             out << "const Tuple<RamDomain," << arity << "> key{{";
             for (size_t i = 0; i < arity; i++) {
                 if (!isRamUndefValue(rangePattern[i])) {
@@ -1202,6 +1203,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             visitTupleOperation(iscan, out);
 
             out << "}\n";
+            out << "}\n";
             PRINT_END_COMMENT(out);
         }
 
@@ -1221,6 +1223,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             PRINT_BEGIN_COMMENT(out);
 
+            out << "{\n";
             out << "const Tuple<RamDomain," << arity << "> key{{";
             for (size_t i = 0; i < arity; i++) {
                 if (!isRamUndefValue(rangePattern[i])) {
@@ -1249,6 +1252,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "}\n";
             out << "} catch(std::exception &e) { SignalHandler::instance()->error(e.what());}\n";
             out << "}\n";
+            out << "}\n";
 
             PRINT_END_COMMENT(out);
         }
@@ -1265,6 +1269,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             // check list of keys
             assert(arity > 0 && "AstTranslator failed");
 
+            out << "{\n";
             out << "const Tuple<RamDomain," << arity << "> key{{";
             for (size_t i = 0; i < arity; i++) {
                 if (!isRamUndefValue(rangePattern[i])) {
@@ -1294,6 +1299,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "break;\n";
             out << "}\n";
             out << "}\n";
+            out << "}\n";
 
             PRINT_END_COMMENT(out);
         }
@@ -1315,6 +1321,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
 
             PRINT_BEGIN_COMMENT(out);
 
+            out << "{\n";
             out << "const Tuple<RamDomain," << arity << "> key{{";
             for (size_t i = 0; i < arity; i++) {
                 if (!isRamUndefValue(rangePattern[i])) {
@@ -1349,6 +1356,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
             out << "}\n";
             out << "}\n";
             out << "} catch(std::exception &e) { SignalHandler::instance()->error(e.what());}\n";
+            out << "}\n";
             out << "}\n";
 
             PRINT_END_COMMENT(out);
