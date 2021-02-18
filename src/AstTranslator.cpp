@@ -778,7 +778,7 @@ std::unique_ptr<RamCondition> AstTranslator::ProvenanceClauseTranslator::createC
 
 /** generate RAM code for a clause */
 std::unique_ptr<RamStatement> AstTranslator::ClauseTranslator::translateClause(
-        const AstClause& oldClause, const AstClause& originalClause, const int version, const int version2) {
+        const AstClause& oldClause, const AstClause& originalClause, const int version, const int version2, const bool isRecursive) {
     if (auto reorderedClause = getReorderedClause(oldClause, version, version2)) {
         // translate reordered clause
         return translateClause(*reorderedClause, originalClause, version, version2);
@@ -1012,13 +1012,13 @@ std::unique_ptr<RamStatement> AstTranslator::ClauseTranslator::translateClause(
             }
             */
 
-            /*
-            // add check for emptiness for an atom
-            op = std::make_unique<RamFilter>(
-                    std::make_unique<RamNegation>(
-                            std::make_unique<RamEmptinessCheck>(translator.translateRelation(atom))),
-                    std::move(op));
-                    */
+            if (!isRecursive) {
+                // add check for emptiness for an atom
+                op = std::make_unique<RamFilter>(
+                        std::make_unique<RamNegation>(
+                                std::make_unique<RamEmptinessCheck>(translator.translateRelation(atom))),
+                        std::move(op));
+            }
 
             // add a scan level
             if (atom->getArity() != 0 && !isAllArgsUnnamed) {
@@ -1325,7 +1325,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                         std::cout << "non-recursive: " << *cl << std::endl;
 
                         // translate cl
-                        std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause, 0, 0);
+                        std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause, 0, 0, false);
 
                         // add logging
                         if (Global::config().has("profile")) {
@@ -1349,7 +1349,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
                         // add rule to result
                         appendStmt(res, std::move(rule));
                     } else {
-                        std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause);
+                        std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause, 0, 0, false);
 
                         // add logging
                         if (Global::config().has("profile")) {
@@ -1929,7 +1929,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                         std::cout << "non-recursive: " << *cl << std::endl;
 
                         // translate cl
-                        std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause, 0, i + 1);
+                        std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause, 0, i + 1, false);
 
                         // add logging
                         if (Global::config().has("profile")) {
@@ -2080,7 +2080,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                         std::cout << "non-recursive: " << *cl << std::endl;
 
                         // translate cl
-                        std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause, 0, atoms.size() + i + 1);
+                        std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause, 0, atoms.size() + i + 1, false);
 
                         // add logging
                         if (Global::config().has("profile")) {
@@ -2203,7 +2203,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                         std::cout << "non-recursive: " << *cl << std::endl;
 
                         // translate cl
-                        std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause, 0, i + 1);
+                        std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause, 0, i + 1, false);
 
                         // add logging
                         if (Global::config().has("profile")) {
@@ -2351,7 +2351,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                         std::cout << "non-recursive: " << *cl << std::endl;
 
                         // translate cl
-                        std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause, 0, atoms.size() + i + 1);
+                        std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause, 0, atoms.size() + i + 1, false);
 
                         // add logging
                         if (Global::config().has("profile")) {

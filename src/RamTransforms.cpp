@@ -977,22 +977,40 @@ bool FactorLoopTransformer::factorLoops(RamProgram& program) {
                 } else {
                     std::function<std::unique_ptr<RamNode>(std::unique_ptr<RamNode>)> loopRewriter =
                             [&](std::unique_ptr<RamNode> node) -> std::unique_ptr<RamNode> {
-                        std::cout << "node in rewriter: " << *node << std::endl;
-                        std::cout << "is a query!!" << std::endl;
                         if (!outerLoopSeen[scanKey]) {
                             if (auto n = dynamic_cast<const RamNestedOperation*>(node.get())) {
                                 RamNestedOperation* nestedOperation = dynamic_cast<RamNestedOperation*>(n->clone());
+
+                                // create sequence of loop nests for factored loops
                                 auto innerSequence = new RamOperationSequence();
 
                                 for (auto innerOperation : outerLoops[scanKey]) {
-                                    innerSequence->add(std::unique_ptr<RamOperation>(innerOperation->clone()));
+                                    // generate relation emptiness filters
+                                    std::vector<std::unique_ptr<RamCondition>> emptinessFilters;
+                                    visitDepthFirst(*innerOperation, [&](const RamScan& scan) {
+                                        auto empty = std::make_unique<RamNegation>(std::make_unique<RamEmptinessCheck>(std::make_unique<RamRelationReference>(&scan.getRelation())));
+                                        emptinessFilters.push_back(std::move(empty));
+                                    });
+
+                                    visitDepthFirst(*innerOperation, [&](const RamIndexScan& scan) {
+                                        auto empty = std::make_unique<RamNegation>(std::make_unique<RamEmptinessCheck>(std::make_unique<RamRelationReference>(&scan.getRelation())));
+                                        emptinessFilters.push_back(std::move(empty));
+                                    });
+
+                                    if (emptinessFilters.size() > 0) { 
+                                        // if there are inner scans, then create the filter
+                                        auto filteredOperation = std::make_unique<RamFilter>(toCondition(emptinessFilters), std::unique_ptr<RamOperation>(innerOperation->clone()));
+
+                                        innerSequence->add(std::move(filteredOperation));
+                                    } else {
+                                        // otherwise, just use the existing inner operation
+                                        innerSequence->add(std::unique_ptr<RamOperation>(innerOperation->clone()));
+                                    }
                                 }
 
                                 changed = true;
 
                                 nestedOperation->setOperation(std::unique_ptr<RamOperation>(innerSequence));
-
-                                std::cout << "nested operation:" << *nestedOperation << std::endl;
                                 return std::unique_ptr<RamOperation>(nestedOperation);
                             }
 

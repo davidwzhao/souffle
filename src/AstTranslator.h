@@ -371,7 +371,7 @@ private:
         std::unique_ptr<AstClause> getReorderedClause(const AstClause& clause, const int version, const int version2 = 0) const;
 
         std::unique_ptr<RamStatement> translateClause(
-                const AstClause& clause, const AstClause& originalClause, const int version = 0, const int version2 = 0);
+                const AstClause& clause, const AstClause& originalClause, const int version = 0, const int version2 = 0, const bool isRecursive = true);
     };
 
     class ProvenanceClauseTranslator : public ClauseTranslator {
