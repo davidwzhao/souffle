@@ -897,15 +897,21 @@ bool ParallelTransformer::parallelizeOperations(RamProgram& program) {
     return changed;
 }
 
-std::pair<std::string, std::vector<RamExpression*>> FactorLoopTransformer::getScanKey(const RamOperation& operation) {
+std::pair<std::string, std::string> FactorLoopTransformer::getScanKey(const RamOperation& operation) {
     std::string relationName;
-    std::vector<RamExpression*> indexPattern;
+    std::string indexPattern;
 
     if (auto scan = dynamic_cast<const RamScan*>(&operation)) {
         relationName = scan->getRelation().getName();
     } else if (auto indexScan =  dynamic_cast<const RamIndexScan*>(&operation)) {
         relationName = indexScan->getRelation().getName();
-        indexPattern = indexScan->getRangePattern();
+
+        std::stringstream rangePatternString;
+        for (auto* val : indexScan->getRangePattern()) {
+            rangePatternString << *val << ",";
+        }
+
+        indexPattern = rangePatternString.str();
     } else {
         relationName = "@not_a_scan";
     }
@@ -928,7 +934,7 @@ bool FactorLoopTransformer::factorLoops(RamProgram& program) {
         //         SCAN (including possibly parallel scan, index scan, index choice, etc.)
 
         // store the found outer loop predicates in a map
-        std::map<std::pair<std::string, std::vector<RamExpression*>>, std::vector<RamOperation*>> outerLoops;
+        std::map<std::pair<std::string, std::string>, std::vector<RamOperation*>> outerLoops;
 
         visitDepthFirst(loop, [&](const RamDebugInfo& debugInfo) {
             // check if it is a query and scan
@@ -947,12 +953,14 @@ bool FactorLoopTransformer::factorLoops(RamProgram& program) {
 
         for (auto loops : outerLoops) {
             std::cout << "relation name: " << loops.first.first << std::endl;
-            std::cout << "  index patterns: ";
-            for (auto* ind : loops.first.second) {
-                std::cout << *ind << ", ";
+            std::cout << "  index patterns: " << loops.first.second << std::endl;
+            /*
+            for (auto ind : loops.first.second) {
+                std::cout << ind << ", ";
             }
 
             std::cout << std::endl;
+            */
 
             std::cout << "    inner loops: " << std::endl;
             int j = 0;
@@ -965,7 +973,7 @@ bool FactorLoopTransformer::factorLoops(RamProgram& program) {
         // second step: rewrite outer-most loops so that the inner operations are coalesced together
 
         // check if an outer loop is seen yet
-        std::map<std::pair<std::string, std::vector<RamExpression*>>, bool> outerLoopSeen;
+        std::map<std::pair<std::string, std::string>, bool> outerLoopSeen;
 
         visitDepthFirst(loop, [&](const RamDebugInfo& debugInfo) {
             // check if it is a query and scan

@@ -785,7 +785,7 @@ public:
     /** 
      * @brief getScanKey returns the relation name and index pattern of a scan/indexed scan
      */
-    std::pair<std::string, std::vector<RamExpression*>> getScanKey(const RamOperation& operation);
+    std::pair<std::string, std::string> getScanKey(const RamOperation& operation);
 
 protected:
     bool transform(RamTranslationUnit& translationUnit) override {
