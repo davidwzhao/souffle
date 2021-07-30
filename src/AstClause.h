@@ -378,6 +378,7 @@ public:
         }
         res->fixedPlan = fixedPlan;
         res->generated = generated;
+        res->setClauseNum(clauseNum);
         return res;
     }
 
