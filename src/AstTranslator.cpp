@@ -1186,7 +1186,7 @@ std::unique_ptr<AstExecutionOrder> AstTranslator::createReordering(const AstClau
         executionReordering->appendAtomIndex((*newOrder)[i]);
     }
 
-    std::cout << "after sips: " << *executionReordering << std::endl;
+    // std::cout << "after sips: " << *executionReordering << std::endl;
     return executionReordering;
 }
 
@@ -1334,7 +1334,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateNonRecursiveRelation(
 
                         cl->clearNegations();
 
-                        std::cout << "non-recursive: " << *cl << std::endl;
+                        // std::cout << "non-recursive: " << *cl << std::endl;
 
                         // translate cl
                         std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause, 0, 0);
@@ -1945,7 +1945,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                         plan->setOrderFor(0, i + 1, std::move(createReordering(*cl, i + 1, 0, i + 1)));
                         cl->setExecutionPlan(std::move(plan));
 
-                        std::cout << "non-recursive: " << *cl << std::endl;
+                        // std::cout << "non-recursive: " << *cl << std::endl;
 
                         // translate cl
                         std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause, 0, i + 1);
@@ -2100,7 +2100,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                         plan->setOrderFor(0, atoms.size() + 1, std::move(createReordering(*cl, atoms.size() + 1, 0, atoms.size() + 1)));
                         cl->setExecutionPlan(std::move(plan));
 
-                        std::cout << "non-recursive: " << *cl << std::endl;
+                        // std::cout << "non-recursive: " << *cl << std::endl;
 
                         // translate cl
                         std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause, 0, atoms.size() + i + 1);
@@ -2228,7 +2228,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                         plan->setOrderFor(0, i + 1, std::move(createReordering(*cl, i + 1, 0, i + 1)));
                         cl->setExecutionPlan(std::move(plan));
 
-                        std::cout << "non-recursive: " << *cl << std::endl;
+                        // std::cout << "non-recursive: " << *cl << std::endl;
 
                         // translate cl
                         std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause, 0, i + 1);
@@ -2381,7 +2381,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateNonRecursiveRelation
                         plan->setOrderFor(0, atoms.size() + 1, std::move(createReordering(*cl, atoms.size() + 1, 0, atoms.size() + 1)));
                         cl->setExecutionPlan(std::move(plan));
 
-                        std::cout << "non-recursive: " << *cl << std::endl;
+                        // std::cout << "non-recursive: " << *cl << std::endl;
 
                         // translate cl
                         std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*cl, *clause, 0, atoms.size() + i + 1);
@@ -3024,7 +3024,6 @@ std::unique_ptr<RamStatement> AstTranslator::translateRecursiveRelation(
                                                     std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB, std::make_unique<AstIterationNumber>(), std::make_unique<AstNumberConstant>(1))));
                                     }
                                 }
-
 
                                 // for differential, only use earliest derivation of tuple
                                 for (size_t k = 0; k < atoms.size(); k++) {
@@ -4778,7 +4777,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, diffVersion, version, diffVersion)));
                                 r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
 
-                                std::cout << "recursive: " << *r1 << std::endl;
+                                // std::cout << "recursive: " << *r1 << std::endl;
 
                                 // translate rdiff
                                 std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *cl, version, diffVersion);
@@ -4989,7 +4988,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, atoms.size() + 1, version, diffVersion)));
                                 r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
 
-                                std::cout << "recursive: " << *r1 << std::endl;
+                                // std::cout << "recursive: " << *r1 << std::endl;
 
                                 // translate rdiff
                                 std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *cl, version, diffVersion);
@@ -5189,7 +5188,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, diffVersion, version, diffVersion)));
                                 r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
 
-                                std::cout << "recursive: " << *r1 << std::endl;
+                                // std::cout << "recursive: " << *r1 << std::endl;
 
                                 // translate rdiff
                                 std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *cl, version, diffVersion);
@@ -5417,7 +5416,7 @@ std::unique_ptr<RamStatement> AstTranslator::translateUpdateRecursiveRelation(
                                 plan->setOrderFor(version, diffVersion, std::move(createReordering(*r1, atoms.size() + 1, version, diffVersion)));
                                 r1->setExecutionPlan(std::unique_ptr<AstExecutionPlan>(plan));
 
-                                std::cout << "recursive: " << *r1 << std::endl;
+                                // std::cout << "recursive: " << *r1 << std::endl;
 
                                 // translate rdiff
                                 std::unique_ptr<RamStatement> rule = ClauseTranslator(*this).translateClause(*r1, *cl, version, diffVersion);
@@ -5979,7 +5978,12 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalUpdateExitCondSubrou
 */
 
 /** make a subroutine to search for subproofs */
-std::unique_ptr<RamStatement> AstTranslator::makeSubproofSubroutine(const AstClause& clause) {
+std::unique_ptr<RamStatement> AstTranslator::makeSubproofSubroutine(const AstClause& clause, const std::set<const AstRelation*> scc) {
+    // create a utility to check SCC membership
+    auto isInSameSCC = [&](const AstRelation* rel) {
+        return std::find(scc.begin(), scc.end(), rel) != scc.end();
+    };
+
     // make intermediate clause with constraints
     std::unique_ptr<AstClause> intermediateClause(clause.clone());
 
@@ -6028,16 +6032,22 @@ std::unique_ptr<RamStatement> AstTranslator::makeSubproofSubroutine(const AstCla
         // index of level argument in argument list
         size_t levelIndex = head->getArguments().size() - numberOfHeights - 1;
 
+        intermediateClause->getHead()->setName(translateDiffAppliedRelation(getAtomRelation(intermediateClause->getHead(), program))->get()->getName());
+
         // add level constraints
         for (size_t i = 0; i < intermediateClause->getBodyLiterals().size(); i++) {
             auto lit = intermediateClause->getBodyLiteral(i);
             if (auto atom = dynamic_cast<AstAtom*>(lit)) {
-                auto arity = atom->getArity();
+                intermediateClause->getAtoms()[i]->setName(translateDiffAppliedRelation(getAtomRelation(atom, program))->get()->getName());
 
-                // arity - 1 is the level number in body atoms
-                intermediateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LT,
-                        std::unique_ptr<AstArgument>(atom->getArgument(arity - 1)->clone()),
-                        std::make_unique<AstSubroutineArgument>(levelIndex)));
+                if (isInSameSCC(getAtomRelation(atom, program))) {
+                    auto arity = atom->getArity();
+
+                    // arity - 1 is the level number in body atoms
+                    intermediateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LT,
+                            std::unique_ptr<AstArgument>(atom->getArgument(arity - 2)->clone()),
+                            std::make_unique<AstSubroutineArgument>(levelIndex)));
+                }
             }
         }
     }
@@ -6655,6 +6665,26 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
 
     // add subroutines for each clause
     if (Global::config().has("provenance")) {
+        visitDepthFirst(program->getRelations(), [&](const AstRelation& rel) {
+            std::stringstream relName;
+            relName << rel.getName();
+
+            // do not add subroutines for info relations or facts
+            if (relName.str().find("@info") != std::string::npos) {
+                return;
+            }
+
+            std::string subroutineLabel = relName.str() + "_subproof";
+
+            /*
+            auto s = makeSubproofSubroutine(rel);
+
+            if (s) {
+                ramProg->addSubroutine(subroutineLabel, std::move(s));
+            }
+            */
+        });
+
         visitDepthFirst(program->getRelations(), [&](const AstClause& clause) {
             std::stringstream relName;
             relName << clause.getHead()->getName();
@@ -6676,6 +6706,34 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
 
     // add cleanup subroutine for incremental
     if (Global::config().has("incremental")) {
+        // obtain strongly connected component (SCC) graph from analysis
+        const auto& sccGraph = *translationUnit.getAnalysis<SCCGraph>();
+
+        for (const auto& scc : sccOrder.order()) {
+            const auto& allInterns = sccGraph.getInternalRelations(scc);
+
+            for (const auto& rel : allInterns) {
+                std::stringstream relName;
+                relName << rel->getName();
+
+                // do not add subroutines for info relations or facts
+                if (relName.str().find("@info") != std::string::npos) {
+                    return;
+                }
+
+                // std::string origName = relName.str().erase(relName.str().find("diff_applied@_"), 14);
+                // std::cout << "subproof relation name: " << relName.str() << std::endl;
+
+                std::string subroutineLabel = relName.str() + "_subproof";
+
+                auto s = makeSubproofSubroutine(*rel, allInterns);
+
+                if (s) {
+                    ramProg->addSubroutine(subroutineLabel, std::move(s));
+                }
+            }
+        }
+
         ramProg->addSubroutine("incremental_cleanup", makeIncrementalCleanupSubroutine(*translationUnit.getProgram()));
     }
 }
