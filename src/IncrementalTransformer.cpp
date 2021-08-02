@@ -74,6 +74,26 @@ struct addUnnamedVariables : public AstNodeMapper {
     }
 };
 
+/**
+ * Helper functions
+ */
+const std::string provIdentifierToString(const AstRelationIdentifier& name) {
+    std::stringstream ss;
+    ss << name;
+    return ss.str();
+}
+
+inline AstRelationIdentifier provMakeRelationName(
+        const AstRelationIdentifier& orig, const std::string& type, int num = -1) {
+    AstRelationIdentifier newName(provIdentifierToString(orig));
+    newName.append(type);
+    if (num != -1) {
+        newName.append((const std::string&)std::to_string(num));
+    }
+
+    return newName;
+}
+
 // apply a functor to a list of vars
 AstArgument* applyFunctorToVars(std::vector<AstArgument*> levels, FunctorOp op) {
     if (levels.empty()) {
@@ -102,6 +122,141 @@ std::vector<T*> vectorClone(std::vector<T*> orig) {
         clones.push_back(elem->clone());
     }
     return clones;
+}
+
+std::unique_ptr<AstRelation> makeProvInfoRelation(
+        AstClause& originalClause, AstTranslationUnit& translationUnit) {
+    AstRelationIdentifier name =
+            provMakeRelationName(originalClause.getHead()->getName(), "@info", originalClause.getClauseNum());
+
+    // initialise info relation
+    auto infoRelation = new AstRelation();
+    infoRelation->setName(name);
+
+    // create new clause containing a single fact
+    auto infoClause = new AstClause();
+    auto infoClauseHead = new AstAtom();
+    infoClauseHead->setName(name);
+
+    infoRelation->addAttribute(std::make_unique<AstAttribute>("clause_num", AstTypeIdentifier("number")));
+    infoClauseHead->addArgument(std::make_unique<AstNumberConstant>(originalClause.getClauseNum()));
+
+    // add head relation as meta info
+    std::vector<std::string> headVariables;
+
+    // get all variables and aggregates in the head
+    struct HeadArgumentGetter : public AstNodeMapper {
+        std::vector<std::string>& headVariables;
+
+        HeadArgumentGetter(std::vector<std::string>& headVariables) : headVariables(headVariables) {}
+
+        std::unique_ptr<AstNode> operator()(std::unique_ptr<AstNode> node) const override {
+            if (const auto* var = dynamic_cast<const AstVariable*>(node.get())) {
+                std::stringstream varName;
+                var->print(varName);
+                headVariables.push_back(varName.str());
+            } else if (const auto* agg = dynamic_cast<const AstAggregator*>(node.get())) {
+                std::stringstream aggStringRepresentation;
+                agg->print(aggStringRepresentation);
+                headVariables.push_back(aggStringRepresentation.str());
+            } else {
+                // apply mapper to children
+                node->apply(*this);
+            }
+
+            return node;
+        }
+    };
+
+    HeadArgumentGetter headArgGet(headVariables);
+    originalClause.getHead()->apply(headArgGet);
+
+    // join variables in the head with commas
+    std::stringstream headVariableString;
+    headVariableString << join(headVariables, ",");
+
+    // add an attribute to infoRelation for the head of clause
+    infoRelation->addAttribute(
+            std::make_unique<AstAttribute>(std::string("head_vars"), AstTypeIdentifier("symbol")));
+    infoClauseHead->addArgument(
+            std::make_unique<AstStringConstant>(translationUnit.getSymbolTable(), headVariableString.str()));
+
+    // add a counter marking aggregates
+    int aggregateNumber = 0;
+
+    // visit all body literals and add to info clause head
+    for (size_t i = 0; i < originalClause.getBodyLiterals().size(); i++) {
+        auto lit = originalClause.getBodyLiterals()[i];
+        const AstAtom* atom = lit->getAtom();
+
+        // add an attribute for atoms and binary constraints
+        if (atom != nullptr || dynamic_cast<AstBinaryConstraint*>(lit) != nullptr) {
+            infoRelation->addAttribute(std::make_unique<AstAttribute>(
+                    std::string("rel_") + std::to_string(i), AstTypeIdentifier("symbol")));
+        }
+
+        if (atom != nullptr) {
+            std::string relName = provIdentifierToString(atom->getName());
+
+            // for an atom, add its name and variables (converting aggregates to variables)
+            if (dynamic_cast<AstAtom*>(lit) != nullptr) {
+                std::string atomDescription = relName;
+
+                for (auto& arg : atom->getArguments()) {
+                    if (dynamic_cast<AstVariable*>(arg)) {
+                        std::stringstream argDescription;
+                        arg->print(argDescription);
+                        atomDescription.append("," + argDescription.str());
+                    } else if (dynamic_cast<AstAggregator*>(arg)) {
+                        atomDescription.append(",agg_" + std::to_string(aggregateNumber++));
+                    }
+                }
+
+                infoClauseHead->addArgument(std::make_unique<AstStringConstant>(
+                        translationUnit.getSymbolTable(), atomDescription));
+                // for a negation, add a marker with the relation name
+            } else if (dynamic_cast<AstNegation*>(lit) != nullptr) {
+                infoClauseHead->addArgument(std::make_unique<AstStringConstant>(
+                        translationUnit.getSymbolTable(), ("!" + relName)));
+            }
+            // for a constraint, add the constraint symbol and LHS and RHS
+        } else if (auto con = dynamic_cast<AstBinaryConstraint*>(lit)) {
+            std::string constraintDescription = toBinaryConstraintSymbol(con->getOperator());
+
+            if (auto var = dynamic_cast<AstVariable*>(con->getLHS())) {
+                std::stringstream argDescription;
+                var->print(argDescription);
+                constraintDescription.append("," + argDescription.str());
+            } else if (dynamic_cast<AstAggregator*>(con->getLHS())) {
+                constraintDescription.append(",agg_" + std::to_string(aggregateNumber++));
+            }
+
+            if (auto var = dynamic_cast<AstVariable*>(con->getRHS())) {
+                std::stringstream argDescription;
+                var->print(argDescription);
+                constraintDescription.append("," + argDescription.str());
+            } else if (dynamic_cast<AstAggregator*>(con->getRHS())) {
+                constraintDescription.append(",agg_" + std::to_string(aggregateNumber++));
+            }
+
+            infoClauseHead->addArgument(std::make_unique<AstStringConstant>(
+                    translationUnit.getSymbolTable(), constraintDescription));
+        }
+    }
+
+    // generate and add clause representation
+    std::stringstream ss;
+    originalClause.print(ss);
+
+    infoRelation->addAttribute(std::make_unique<AstAttribute>("clause_repr", AstTypeIdentifier("symbol")));
+    infoClauseHead->addArgument(
+            std::make_unique<AstStringConstant>(translationUnit.getSymbolTable(), ss.str()));
+
+    // set clause head and add clause to info relation
+    infoClause->setHead(std::unique_ptr<AstAtom>(infoClauseHead));
+    infoRelation->addClause(std::unique_ptr<AstClause>(infoClause));
+
+    return std::unique_ptr<AstRelation>(infoRelation);
 }
 
 /**
@@ -423,6 +578,23 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
     std::cout << "before:\n";
     program->print(std::cout);
     std::cout << std::endl;
+
+    for (auto relation : program->getRelations()) {
+        // generate info relations for each clause
+        // do this before all other transformations so that we record
+        // the original rule without any instrumentation
+        size_t clauseNum = 1;
+        for (auto clause : relation->getClauses()) {
+            if (!clause->isFact()) {
+                clause->setClauseNum(clauseNum);
+
+                // add info relation
+                program->addRelation(makeProvInfoRelation(*clause, translationUnit));
+
+                clauseNum++;
+            }
+        }
+    }
 
     std::vector<AstRelation*> auxiliaryRelations;
     auto originalRelations = program->getRelations();
