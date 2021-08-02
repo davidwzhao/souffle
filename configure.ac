@@ -10,8 +10,8 @@ m4_define([SOUFFLE_VERSION], m4_esyscmd([
   test -z "$souffle_version" && souffle_version="unknown"
   echo $souffle_version| tr -d '\n']))
 
-AC_INIT(souffle, SOUFFLE_VERSION, [souffle-talk@googlegroups.com])
-AC_PREREQ(2.68)
+AC_INIT([souffle],[SOUFFLE_VERSION],[souffle-talk@googlegroups.com])
+AC_PREREQ([2.71])
 AC_COPYRIGHT(['2013-15 Oracle and/or its affiliates'])
 
 #LT_PREREQ([2.4])
@@ -25,7 +25,7 @@ AM_INIT_AUTOMAKE([foreign subdir-objects 1.9 tar-pax])
 AM_MAINTAINER_MODE
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIRS([m4])
-AC_CONFIG_MACRO_DIR([m4])
+# AC_CONFIG_MACRO_DIR([m4])
 
 dnl Do not set default CFLAGS and CXXFLAGS
 ENV_CXXFLAGS="$CXXFLAGS"
@@ -359,7 +359,7 @@ SOUFFLE_CXXFLAGS="$CXXFLAGS"
 AC_SUBST(SOUFFLE_CXXFLAGS)
 CXXFLAGS="$CXXFLAGS $ENV_CXXFLAGS"
 
-AC_OUTPUT(
-  [ src/souffle-compile src/souffle-config debian/changelog ],
-  [ chmod +x src/souffle-compile src/souffle-config ]
-)
+AC_CONFIG_FILES([ src/souffle-compile src/souffle-config debian/changelog ])
+AC_CONFIG_COMMANDS([default],[ chmod +x src/souffle-compile src/souffle-config 
+],[])
+AC_OUTPUT
