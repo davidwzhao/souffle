@@ -724,7 +724,13 @@ std::unique_ptr<RamOperation> AstTranslator::ClauseTranslator::createOperation(c
 
 std::unique_ptr<RamOperation> AstTranslator::ProvenanceClauseTranslator::createOperation(
         const AstClause& clause) {
+
+    std::cout << "clause number: " << clause.getClauseNum() << std::endl;
+    std::cout << "translating clause: " << clause << std::endl;
     std::vector<std::unique_ptr<RamExpression>> values;
+
+    // set a rule number that is used to display the current clause
+    values.push_back(std::make_unique<RamNumber>(clause.getClauseNum()));
 
     // get all values in the body
     for (AstLiteral* lit : clause.getBodyLiterals()) {
@@ -5504,6 +5510,23 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalExitCondSubroutine(c
     return exitCondSequence;
 }
 
+std::unique_ptr<RamStatement> AstTranslator::makeSubproofSubroutine(const AstRelation& rel) {
+    std::unique_ptr<RamStatement> res;
+
+    // make a subroutine for each clause
+    for (auto clause : rel.getClauses()) {
+        if (clause->getAtoms().size() > 0) {
+            appendStmt(res, makeSubproofSubroutine(*clause));
+        }
+    }
+
+    if (res) {
+        std::cout << "subroutine: " << *res << std::endl;
+    }
+
+    return res;
+}
+
 /** make a subroutine to search for subproofs */
 std::unique_ptr<RamStatement> AstTranslator::makeSubproofSubroutine(const AstClause& clause) {
     // make intermediate clause with constraints
@@ -6175,6 +6198,24 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
 
     // add subroutines for each clause
     if (Global::config().has("provenance")) {
+        visitDepthFirst(program->getRelations(), [&](const AstRelation& rel) {
+            std::stringstream relName;
+            relName << rel.getName();
+
+            // do not add subroutines for info relations or facts
+            if (relName.str().find("@info") != std::string::npos) {
+                return;
+            }
+
+            std::string subroutineLabel = relName.str() + "_subproof";
+
+            auto s = makeSubproofSubroutine(rel);
+
+            if (s) {
+                ramProg->addSubroutine(subroutineLabel, std::move(s));
+            }
+        });
+
         visitDepthFirst(program->getRelations(), [&](const AstClause& clause) {
             std::stringstream relName;
             relName << clause.getHead()->getName();
@@ -6183,10 +6224,6 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
             if (relName.str().find("@info") != std::string::npos || clause.getBodyLiterals().empty()) {
                 return;
             }
-
-            std::string subroutineLabel =
-                    relName.str() + "_" + std::to_string(clause.getClauseNum()) + "_subproof";
-            ramProg->addSubroutine(subroutineLabel, makeSubproofSubroutine(clause));
 
             std::string negationSubroutineLabel =
                     relName.str() + "_" + std::to_string(clause.getClauseNum()) + "_negation_subproof";

@@ -69,7 +69,7 @@ public:
         }
     }
 
-    std::unique_ptr<TreeNode> explain(std::string relName, std::vector<RamDomain> tuple, int ruleNum,
+    std::unique_ptr<TreeNode> explain(std::string relName, std::vector<RamDomain> tuple, /*int ruleNum, */
             int levelNum, std::vector<RamDomain> subtreeLevels, size_t depthLimit) {
         std::stringstream joinedArgs;
         joinedArgs << join(numsToArgs(relName, tuple), ", ");
@@ -80,11 +80,12 @@ public:
             return std::make_unique<LeafNode>(relName + "(" + joinedArgsStr + ")");
         }
 
-        assert(info.find(std::make_pair(relName, ruleNum)) != info.end() && "invalid rule for tuple");
+        // assert(info.find(std::make_pair(relName, ruleNum)) != info.end() && "invalid rule for tuple");
 
         // if depth limit exceeded
         if (depthLimit <= 1) {
-            tuple.push_back(ruleNum);
+            // tuple.push_back(ruleNum);
+            tuple.push_back(0); // just a dummy number for now
             tuple.push_back(levelNum);
 
             for (auto subtreeLevel : subtreeLevels) {
@@ -104,9 +105,6 @@ public:
             return std::make_unique<LeafNode>("subproof " + relName + "(" + std::to_string(idx) + ")");
         }
 
-        auto internalNode = std::make_unique<InnerNode>(
-                relName + "(" + joinedArgsStr + ")", "(R" + std::to_string(ruleNum) + ")");
-
         // make return vector pointer
         std::vector<RamDomain> ret;
         std::vector<bool> err;
@@ -121,10 +119,22 @@ public:
         }
 
         // execute subroutine to get subproofs
-        prog.executeSubroutine(relName + "_" + std::to_string(ruleNum) + "_subproof", tuple, ret, err);
+        // prog.executeSubroutine(relName + "_" + std::to_string(ruleNum) + "_subproof", tuple, ret, err);
+        prog.executeSubroutine(relName + "_subproof", tuple, ret, err);
+
+        std::cout << "tuple: " << tuple << std::endl;
+        std::cout << "subproof return: " << ret << std::endl;
+
+        // trust me here, but this is a really terrible mess and needs to be cleaned up
+        // see AstTranslator::ProvenanceClauseTranslator for details about where this comes
+        // from
+        int ruleNum = ret[0];
+
+        auto internalNode = std::make_unique<InnerNode>(
+                relName + "(" + joinedArgsStr + ")", "(R" + std::to_string(ruleNum) + ")");
 
         // recursively get nodes for subproofs
-        size_t tupleCurInd = 0;
+        size_t tupleCurInd = 1;
         auto bodyRelations = info[std::make_pair(relName, ruleNum)];
 
         // start from begin + 1 because the first element represents the head atom
@@ -199,7 +209,8 @@ public:
                 internalNode->setSize(internalNode->getSize() + 1);
                 // otherwise, for a normal tuple, recurse
             } else {
-                auto child = explain(bodyRel, subproofTuple, subproofRuleNum, subproofLevelNum,
+                std::cout << "constructing child: " << bodyRel << "(" << subproofTuple << ", " << subproofLevelNum << std::endl;
+                auto child = explain(bodyRel, subproofTuple, /* subproofRuleNum,*/ subproofLevelNum,
                         subsubtreeLevels, depthLimit - 1);
                 internalNode->setSize(internalNode->getSize() + child->getSize());
                 internalNode->add_child(std::move(child));
@@ -228,7 +239,7 @@ public:
             return std::make_unique<LeafNode>("Tuple not found");
         }
 
-        return explain(relName, tuple, ruleNum, levelNum, subtreeLevels, depthLimit);
+        return explain(relName, tuple, levelNum, subtreeLevels, depthLimit);
     }
 
     std::unique_ptr<TreeNode> explainSubproof(
@@ -255,7 +266,7 @@ public:
 
         tup.erase(tup.begin() + rel->getArity() - rel->getNumberOfHeights() - 1, tup.end());
 
-        return explain(relName, tup, ruleNum, levelNum, subtreeLevels, depthLimit);
+        return explain(relName, tup, /* ruleNum,*/ levelNum, subtreeLevels, depthLimit);
     }
 
     std::vector<std::string> explainNegationGetVariables(
@@ -560,7 +571,7 @@ public:
             }
 
             std::cout << "Tuples expanded: "
-                      << explain(relName, currentTuple, ruleNum, levelNum, subtreeLevels, 10000)->getSize();
+                      << explain(relName, currentTuple, /* ruleNum,*/ levelNum, subtreeLevels, 10000)->getSize();
 
             numTuples++;
             proc++;
