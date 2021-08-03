@@ -579,7 +579,18 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
     program->print(std::cout);
     std::cout << std::endl;
 
+    std::vector<AstRelation*> auxiliaryRelations;
+    auto originalRelations = program->getRelations();
+
+    // go through each relation and its rules to add annotations
     for (auto relation : program->getRelations()) {
+        relation->addAttribute(
+                std::make_unique<AstAttribute>(std::string("@iteration"), AstTypeIdentifier("number")));
+        // relation->addAttribute(
+        //         std::make_unique<AstAttribute>(std::string("@prev_count"), AstTypeIdentifier("number")));
+        relation->addAttribute(
+                std::make_unique<AstAttribute>(std::string("@current_count"), AstTypeIdentifier("number")));
+
         // generate info relations for each clause
         // do this before all other transformations so that we record
         // the original rule without any instrumentation
@@ -594,19 +605,6 @@ bool IncrementalTransformer::transform(AstTranslationUnit& translationUnit) {
                 clauseNum++;
             }
         }
-    }
-
-    std::vector<AstRelation*> auxiliaryRelations;
-    auto originalRelations = program->getRelations();
-
-    // go through each relation and its rules to add annotations
-    for (auto relation : program->getRelations()) {
-        relation->addAttribute(
-                std::make_unique<AstAttribute>(std::string("@iteration"), AstTypeIdentifier("number")));
-        // relation->addAttribute(
-        //         std::make_unique<AstAttribute>(std::string("@prev_count"), AstTypeIdentifier("number")));
-        relation->addAttribute(
-                std::make_unique<AstAttribute>(std::string("@current_count"), AstTypeIdentifier("number")));
     }
 
     for (auto relation : originalRelations) {
