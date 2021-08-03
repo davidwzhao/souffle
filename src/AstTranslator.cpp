@@ -5312,6 +5312,10 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalCleanupSubroutine(co
     std::unique_ptr<RamStatement> cleanupSequence;
 
     for (const auto& relation : program.getRelations()) {
+        if (relation->getName().getName().find("@info") != std::string::npos) {
+            continue;
+        }
+
         // update every tuple in relation so that the previous and current counts match
         // FOR t0 in relation:
         //   INSERT (t0.0, t0.2, ..., -1, -1)
@@ -5383,6 +5387,10 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalUpdateCleanupSubrout
     };
 
     for (const auto& relation : program.getRelations()) {
+
+        if (relation->getName().getName().find("@info") != std::string::npos) {
+            continue;
+        }
 
         // make a RamRelationReference to be used to build the subroutine
         auto relationReference = translateRelation(relation);
@@ -6432,7 +6440,7 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
 
                 // do not add subroutines for info relations or facts
                 if (relName.str().find("@info") != std::string::npos) {
-                    return;
+                    continue;
                 }
 
                 // std::string origName = relName.str().erase(relName.str().find("diff_applied@_"), 14);
@@ -6573,6 +6581,10 @@ void AstTranslator::translateUpdateProgram(const AstTranslationUnit& translation
             // make merges for non-recursive relations
             if (!isRecursive) {
                 for (const auto& relation : allInterns) {
+                    if (relation->getName().getName().find("@info") != std::string::npos) {
+                        continue;
+                    }
+
                     // populate diff_applied relation
                     appendStmt(current, std::make_unique<RamMerge>(
                                 std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation)),
@@ -6658,10 +6670,10 @@ void AstTranslator::translateUpdateProgram(const AstTranslationUnit& translation
         if (current) {
             // append the current SCC as a stratum to the sequence
             appendStmt(res, std::make_unique<RamStratum>(std::move(current), indexOfScc));
-
-            // increment the index of the current SCC
-            indexOfScc++;
         }
+
+        // increment the index of the current SCC
+        indexOfScc++;
 
     }
 
