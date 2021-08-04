@@ -86,6 +86,18 @@ public:
             query = parseTuple(command[1]);
             label = std::stoi(query.second[0]);
             explain.printTree(explain.prov.explainSubproof(query.first, label, ExplainConfig::getExplainConfig().depthLimit));
+        } else if (command[0] == "setdepth") {
+            if (command.size() != 2) {
+                printError("Usage: setdepth <depth>\n");
+                return true;
+            }
+            try {
+                ExplainConfig::getExplainConfig().depthLimit = std::stoi(command[1]);
+            } catch (std::exception& e) {
+                printError("<" + command[1] + "> is not a valid depth\n");
+                return true;
+            }
+            printInfo("Depth is now " + std::to_string(ExplainConfig::getExplainConfig().depthLimit) + "\n");
         } else if (command[0] == "exit" || command[0] == "q") {
             return false;
         } else {
