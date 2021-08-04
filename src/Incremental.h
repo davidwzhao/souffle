@@ -22,6 +22,8 @@
 #include <string>
 #include <unistd.h>
 
+#include "Explain.h"
+
 #include "CompiledOptions.h"
 #include "ProfileEvent.h"
 #include "SouffleInterface.h"
@@ -32,9 +34,10 @@ namespace souffle {
 class Incremental {
 public:
     SouffleProgram& prog;
+    ExplainConsole& explain;
     CmdOptions& opt;
 
-    Incremental(SouffleProgram& prog, CmdOptions& opt) : prog(prog), opt(opt), currentEpoch(0) {}
+    Incremental(SouffleProgram& prog, CmdOptions& opt, ExplainConsole& e) : prog(prog), opt(opt), currentEpoch(0), explain(e) {}
 
     /* Process a command, a return value of true indicates to continue, returning false indicates to break (if
      * the command is q/exit) */
@@ -65,6 +68,24 @@ public:
             // std::cout << "### BEGIN EPOCH " << currentEpoch << std::endl;
             currentEpoch++;
             commit();
+        } else if (command[0] == "explain") {
+            std::pair<std::string, std::vector<std::string>> query;
+            if (command.size() != 2) {
+                printError("Usage: explain relation_name(\"<string element1>\", <number element2>, ...)\n");
+                return true;
+            }
+            query = parseTuple(command[1]);
+            explain.printTree(explain.prov.explain(query.first, query.second, ExplainConfig::getExplainConfig().depthLimit));
+        } else if (command[0] == "subproof") {
+            std::pair<std::string, std::vector<std::string>> query;
+            int label = -1;
+            if (command.size() <= 1) {
+                printError("Usage: subproof relation_name(<label>)\n");
+                return true;
+            }
+            query = parseTuple(command[1]);
+            label = std::stoi(query.second[0]);
+            explain.printTree(explain.prov.explainSubproof(query.first, label, ExplainConfig::getExplainConfig().depthLimit));
         } else if (command[0] == "exit" || command[0] == "q") {
             return false;
         } else {
@@ -75,6 +96,10 @@ public:
                     "insert <relation>(<element1>, <element2>, ...): Inserts a new tuple\n"
                     "remove <relation>(<element1>, <element2>, ...): Removes an existing tuple\n"
                     "commit: Re-runs the Datalog program incrementally to apply changes\n"
+                    "setdepth <depth>: Set a limit for printed derivation tree height\n"
+                    "explain <relation>(<element1>, <element2>, ...): Prints derivation tree\n"
+                    "subproof <relation>(<label>): Prints derivation tree for a subproof, label is\n"
+                    "    generated if a derivation tree exceeds height limit\n"
                     "exit: Exits this interface\n\n");
         }
 
@@ -272,7 +297,9 @@ private:
 };
 
 inline void startIncremental(SouffleProgram& prog, CmdOptions& opt) {
-    Incremental incr(prog, opt);
+    ExplainProvenanceImpl explainProv(prog, false);
+    ExplainConsole e(explainProv);
+    Incremental incr(prog, opt, e);
     incr.startIncremental();
 }
 

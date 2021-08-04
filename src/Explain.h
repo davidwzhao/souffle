@@ -389,7 +389,7 @@ public:
         }
     }
 
-private:
+// private:
     /* Get input */
     std::string getInput() override {
         std::string line;

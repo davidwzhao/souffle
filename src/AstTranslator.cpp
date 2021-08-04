@@ -5299,13 +5299,13 @@ std::unique_ptr<RamStatement> AstTranslator::makeSubproofSubroutine(const AstCla
         // index of level argument in argument list
         size_t levelIndex = head->getArguments().size() - numberOfHeights - 1;
 
-        intermediateClause->getHead()->setName(translateDiffAppliedRelation(getAtomRelation(intermediateClause->getHead(), program))->get()->getName());
+        // intermediateClause->getHead()->setName(translateDiffAppliedRelation(getAtomRelation(intermediateClause->getHead(), program))->get()->getName());
 
         // add level constraints
         for (size_t i = 0; i < intermediateClause->getBodyLiterals().size(); i++) {
             auto lit = intermediateClause->getBodyLiteral(i);
             if (auto atom = dynamic_cast<AstAtom*>(lit)) {
-                intermediateClause->getAtoms()[i]->setName(translateDiffAppliedRelation(getAtomRelation(atom, program))->get()->getName());
+                // intermediateClause->getAtoms()[i]->setName(translateDiffAppliedRelation(getAtomRelation(atom, program))->get()->getName());
 
                 auto arity = atom->getArity();
 
