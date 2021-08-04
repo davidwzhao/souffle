@@ -75,10 +75,13 @@ public:
         joinedArgs << join(numsToArgs(relName, tuple), ", ");
         auto joinedArgsStr = joinedArgs.str();
 
-        // if fact
+        // if fact (this doesn't apply with incremental, because tuples generated from
+        // non-recursive rules also have level of 0
+        /*
         if (levelNum == 0) {
             return std::make_unique<LeafNode>(relName + "(" + joinedArgsStr + ")");
         }
+        */
 
         // assert(info.find(std::make_pair(relName, ruleNum)) != info.end() && "invalid rule for tuple");
 
@@ -121,6 +124,11 @@ public:
         // execute subroutine to get subproofs
         // prog.executeSubroutine(relName + "_" + std::to_string(ruleNum) + "_subproof", tuple, ret, err);
         prog.executeSubroutine(relName + "_subproof", tuple, ret, err);
+
+        // if ret is empty, assume we have a fact
+        if (ret.empty()) {
+            return std::make_unique<LeafNode>(relName + "(" + joinedArgsStr + ")");
+        }
 
         std::cout << "tuple: " << tuple << std::endl;
         std::cout << "subproof return: " << ret << std::endl;
@@ -177,8 +185,8 @@ public:
                 subproofTupleError.push_back(err[tupleCurInd]);
             }
 
-            int subproofRuleNum = ret[tupleCurInd];
-            int subproofLevelNum = ret[tupleCurInd + 1];
+            int subproofLevelNum = ret[tupleCurInd];
+            int subproofRuleNum = ret[tupleCurInd + 1];
 
             tupleCurInd += 2;
 
@@ -231,11 +239,11 @@ public:
 
         std::tuple<int, int, std::vector<RamDomain>> tupleInfo = findTuple(relName, tuple);
 
-        int ruleNum = std::get<0>(tupleInfo);
-        int levelNum = std::get<1>(tupleInfo);
+        // int ruleNum = std::get<1>(tupleInfo);
+        int levelNum = std::get<0>(tupleInfo);
         std::vector<RamDomain> subtreeLevels = std::get<2>(tupleInfo);
 
-        if (ruleNum < 0 || levelNum == -1) {
+        if (/*ruleNum < 0 || */ levelNum == -1) {
             return std::make_unique<LeafNode>("Tuple not found");
         }
 
@@ -252,11 +260,13 @@ public:
 
         auto rel = prog.getRelation(relName);
 
-        RamDomain ruleNum;
-        ruleNum = tup[rel->getArity() - rel->getNumberOfHeights() - 1];
-
         RamDomain levelNum;
-        levelNum = tup[rel->getArity() - rel->getNumberOfHeights()];
+        levelNum = tup[rel->getArity() - rel->getNumberOfHeights() - 1];
+
+        /*
+        RamDomain ruleNum;
+        ruleNum = tup[rel->getArity() - rel->getNumberOfHeights()];
+        */
 
         std::vector<RamDomain> subtreeLevels;
 
