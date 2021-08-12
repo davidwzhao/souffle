@@ -250,7 +250,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "IOSystem::getInstance().getReader(";
                 out << "std::vector<bool>({" << join(symbolMask) << "})";
                 out << ", symTable, ioDirectives";
-                out << ", " << (Global::config().has("provenance") ? "true" : "false");
+                out << ", " << (Global::config().has("incremental") ? "true" : "false");
                 out << ", " << load.getRelation().getNumberOfHeights();
                 out << ")->readAll(*" << synthesiser.getRelationName(load.getRelation());
                 out << ");\n";
@@ -3201,7 +3201,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
             os << "IOSystem::getInstance().getReader(";
             os << "std::vector<bool>({" << join(symbolMask) << "})";
             os << ", symTable, ioDirectives";
-            os << ", " << (Global::config().has("provenance") ? "true" : "false");
+            os << ", " << (Global::config().has("incremental") ? "true" : "false");
             os << ", " << load.getRelation().getNumberOfHeights();
             os << ")->readAll(*" << getRelationName(load.getRelation());
             os << ");\n";
