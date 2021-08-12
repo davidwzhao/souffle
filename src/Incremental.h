@@ -98,6 +98,14 @@ public:
                 return true;
             }
             printInfo("Depth is now " + std::to_string(ExplainConfig::getExplainConfig().depthLimit) + "\n");
+        } else if (command[0] == "format") {
+            if (command.size() == 2 && command[1] == "json") {
+                ExplainConfig::getExplainConfig().json = true;
+            } else if (command.size() == 2 && command[1] == "proof") {
+                ExplainConfig::getExplainConfig().json = false;
+            } else {
+                printError("Usage: format <json|proof>\n");
+            }
         } else if (command[0] == "exit" || command[0] == "q") {
             return false;
         } else {
@@ -112,6 +120,7 @@ public:
                     "explain <relation>(<element1>, <element2>, ...): Prints derivation tree\n"
                     "subproof <relation>(<label>): Prints derivation tree for a subproof, label is\n"
                     "    generated if a derivation tree exceeds height limit\n"
+                    "format <json|proof>: switch format between json and proof-trees\n"
                     "exit: Exits this interface\n\n");
         }
 

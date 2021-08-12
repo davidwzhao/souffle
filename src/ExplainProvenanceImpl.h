@@ -130,9 +130,6 @@ public:
             return std::make_unique<LeafNode>(relName + "(" + joinedArgsStr + ")");
         }
 
-        std::cout << "tuple: " << tuple << std::endl;
-        std::cout << "subproof return: " << ret << std::endl;
-
         // trust me here, but this is a really terrible mess and needs to be cleaned up
         // see AstTranslator::ProvenanceClauseTranslator for details about where this comes
         // from
@@ -217,7 +214,6 @@ public:
                 internalNode->setSize(internalNode->getSize() + 1);
                 // otherwise, for a normal tuple, recurse
             } else {
-                std::cout << "constructing child: " << bodyRel << "(" << subproofTuple << ", " << subproofLevelNum << std::endl;
                 auto child = explain(bodyRel, subproofTuple, /* subproofRuleNum,*/ subproofLevelNum,
                         subsubtreeLevels, depthLimit - 1);
                 internalNode->setSize(internalNode->getSize() + child->getSize());
