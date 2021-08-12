@@ -29,7 +29,7 @@ public:
     ReadStream(const std::vector<bool>& symbolMask, SymbolTable& symbolTable, const bool prov,
             const size_t numberOfHeights)
             : symbolMask(symbolMask), symbolTable(symbolTable), isProvenance(prov),
-              arity(static_cast<uint8_t>(symbolMask.size() - (prov ? (numberOfHeights + 1) : 0))),
+              arity(static_cast<uint8_t>(symbolMask.size() - (prov ? 2 : 0))),
               numberOfHeights(numberOfHeights) {}
     template <typename T>
     void readAll(T& relation) {

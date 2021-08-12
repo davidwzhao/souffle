@@ -109,6 +109,10 @@ protected:
             }
         }
 
+        if (isProvenance) {
+            tuple[symbolMask.size() - 1] = 1;
+        }
+
         return tuple;
     }
 
