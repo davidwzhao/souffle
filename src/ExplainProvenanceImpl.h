@@ -786,11 +786,17 @@ private:
             }
 
             if (match) {
-                RamDomain ruleNum;
-                tuple >> ruleNum;
+                RamDomain heightNum;
+                tuple >> heightNum;
 
-                RamDomain levelNum;
-                tuple >> levelNum;
+                RamDomain countNum;
+                tuple >> countNum;
+
+                // countNum has to be positive, otherwise the tuple doesn't exist
+                if (countNum <= 0) {
+                    match = false;
+                    continue;
+                }
 
                 std::vector<RamDomain> subtreeLevels;
 
@@ -800,7 +806,7 @@ private:
                     subtreeLevels.push_back(subLevel);
                 }
 
-                return std::make_tuple(ruleNum, levelNum, subtreeLevels);
+                return std::make_tuple(heightNum, countNum, subtreeLevels);
             }
         }
 
