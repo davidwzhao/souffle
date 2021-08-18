@@ -282,7 +282,7 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                 out << "IOSystem::getInstance().getWriter(";
                 out << "std::vector<bool>({" << join(symbolMask) << "})";
                 out << ", symTable, ioDirectives";
-                out << ", " << (Global::config().has("provenance") ? "true" : "false");
+                out << ", " << (Global::config().has("incremental") ? "true" : "false");
                 out << ", " << store.getRelation().getNumberOfHeights();
                 out << ")->writeAll(*" << synthesiser.getRelationName(store.getRelation()) << ");\n";
                 out << "} catch (std::exception& e) {std::cerr << e.what();exit(1);}\n";
@@ -3019,7 +3019,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
                 os << "IODirectives ioDirectives(directiveMap);\n";
                 os << "IOSystem::getInstance().getWriter(";
                 os << "std::vector<bool>({" << join(symbolMask) << "})";
-                os << ", symTable, ioDirectives, " << (Global::config().has("provenance") ? "true" : "false");
+                os << ", symTable, ioDirectives, " << (Global::config().has("incremental") ? "true" : "false");
                 os << ", " << store->getRelation().getNumberOfHeights();
                 os << ")->writeAll(*" << getRelationName(store->getRelation()) << ");\n";
 
@@ -3075,7 +3075,7 @@ void Synthesiser::generateCode(std::ostream& os, const std::string& id, bool& wi
         os << "ioDirectives.setRelationName(\"" << name << "\");\n";
         os << "IOSystem::getInstance().getWriter(";
         os << "std::vector<bool>({" << join(symbolMask) << "})";
-        os << ", symTable, ioDirectives, " << (Global::config().has("provenance") ? "true" : "false");
+        os << ", symTable, ioDirectives, " << (Global::config().has("incremental") ? "true" : "false");
         os << ", " << numberOfHeights;
         os << ")->writeAll(*" << relName << ");\n";
         os << "} catch (std::exception& e) {std::cerr << e.what();exit(1);}\n";
