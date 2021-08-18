@@ -68,6 +68,7 @@ public:
             // std::cout << "### BEGIN EPOCH " << currentEpoch << std::endl;
             currentEpoch++;
             commit();
+            std::cout << "Commit done in epoch " << currentEpoch << "!\n";
         } else if (command[0] == "explain") {
             std::pair<std::string, std::vector<std::string>> query;
             if (command.size() != 2) {
@@ -234,9 +235,10 @@ private:
     /* Print a command prompt, disabled for non-terminal outputs */
     void printPrompt(const std::string& prompt) {
         if (!isatty(fileno(stdin))) {
+            std::cout << "###" << std::endl << std::flush;
             return;
         }
-        std::cout << prompt;
+        std::cout << prompt << std::endl << "###" << std::endl << std::flush;
     }
 
     /* Print any other information, disabled for non-terminal outputs */
@@ -249,7 +251,7 @@ private:
 
     /* Print an error, such as a wrong command */
     void printError(const std::string& error) {
-        std::cerr << error;
+        std::cout << error;
     }
 
     /**

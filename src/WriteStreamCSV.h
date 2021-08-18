@@ -63,6 +63,13 @@ protected:
     }
 
     void writeNextTuple(const RamDomain* tuple) override {
+        if (isProvenance) {
+            if (tuple[symbolMask.size() - 1] <= 0) {
+                // if the tuple doesn't actually exist in incremental, then don't print it
+                return;
+            }
+        }
+
         if (symbolMask.at(0)) {
             file << symbolTable.unsafeResolve(tuple[0]);
         } else {
@@ -145,6 +152,13 @@ protected:
     }
 
     void writeNextTuple(const RamDomain* tuple) override {
+        if (isProvenance) {
+            if (tuple[symbolMask.size() - 1] <= 0) {
+                // if the tuple doesn't actually exist in incremental, then don't print it
+                return;
+            }
+        }
+
         if (symbolMask.at(0)) {
             std::cout << symbolTable.unsafeResolve(tuple[0]);
         } else {

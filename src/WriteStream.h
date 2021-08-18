@@ -29,7 +29,7 @@ public:
     WriteStream(const std::vector<bool>& symbolMask, const SymbolTable& symbolTable, const bool prov,
             const size_t numberOfHeights, bool summary = false)
             : symbolMask(symbolMask), symbolTable(symbolTable), isProvenance(prov), summary(summary),
-              arity(symbolMask.size() - (prov ? (numberOfHeights + 1) : 0)) {}
+              arity(symbolMask.size() - (prov ? 2 : 0)) {}
     template <typename T>
     void writeAll(const T& relation) {
         if (summary) {
