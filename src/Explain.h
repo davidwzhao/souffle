@@ -405,9 +405,10 @@ private:
     /* Print a command prompt, disabled for non-terminal outputs */
     void printPrompt(const std::string& prompt) override {
         if (!isatty(fileno(stdin))) {
+            std::cout << "###" << std::endl << std::flush;
             return;
         }
-        std::cout << prompt;
+        std::cout << prompt << std::endl << "###" << std::endl << std::flush;
     }
 
     /* Print a tree */
