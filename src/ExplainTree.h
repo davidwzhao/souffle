@@ -109,6 +109,9 @@ public:
 
     virtual void printJSON(std::ostream& os, int pos) = 0;
 
+    // clone this tree node
+    virtual TreeNode* clone() const = 0;
+
 protected:
     std::string txt;      // text of tree node
     uint32_t width = 0;   // width of node (including sub-trees)
@@ -186,6 +189,15 @@ public:
         os << tab << "}";
     }
 
+    InnerNode* clone() const override {
+        InnerNode* newInnerNode = new InnerNode(txt, label);
+        for (size_t i = 0; i < children.size(); i++) {
+            newInnerNode->add_child(std::unique_ptr<TreeNode>(children[i]->clone()));
+        }
+
+        return newInnerNode;
+    }
+
 private:
     std::vector<std::unique_ptr<TreeNode>> children;
     std::string label;
@@ -217,6 +229,10 @@ public:
     void printJSON(std::ostream& os, int pos) override {
         std::string tab(pos, '\t');
         os << tab << R"({ "axiom": ")" << stringify(txt) << "\"}";
+    }
+
+    LeafNode* clone() const override {
+        return new LeafNode(txt);
     }
 };
 
