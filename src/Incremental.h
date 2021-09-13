@@ -148,6 +148,7 @@ public:
 
 private:
     int currentEpoch;
+    std::vector<std::pair<std::string, std::vector<std::string>>> tuplesToAdd;
 
     void addTuple(const std::string& relName, const std::vector<std::string>& tup) {
         auto rel = prog.getRelation(relName);
@@ -189,15 +190,41 @@ private:
         // prog.run();
     }
 
+    bool checkTuple(const std::string& relName, const std::vector<std::string>& tup) {
+        auto rel = prog.getRelation(relName);
+        if (rel == nullptr) {
+            printError("Relation " + relName + " not found!\n");
+            return false;
+        }
+
+        if (tup.size() != rel->getArity()) {
+            std::stringstream tup_str;
+            tup_str << join(tup, ",");
+            printError("Tuple " + relName + "(" + tup_str.str() + ") not of the right arity!\n");
+            return false;
+        }
+
+        return true;
+    }
+
     void commit() {
+        std::vector<RamDomain> args;
+        std::vector<RamDomain> ret;
+        std::vector<bool> retErr;
+        prog.executeSubroutine("incremental_update_clear_diffs", args, ret, retErr);
+
         if (opt.isProfiling()) {
             // std::cout << "profile filename: " << opt.getProfileName() << std::endl;
             ProfileEventSingleton::instance().setOutputFile(opt.getProfileName() + std::to_string(currentEpoch));
             ProfileEventSingleton::instance().clear();
         }
-        std::vector<RamDomain> args;
-        std::vector<RamDomain> ret;
-        std::vector<bool> retErr;
+
+        for (auto t : tuplesToAdd) {
+            addTuple(t.first, t.second);
+        }
+
+        tuplesToAdd.clear();
+
         prog.executeSubroutine("update", args, ret, retErr);
 
         if (opt.isProfiling()) {
@@ -210,14 +237,20 @@ private:
         tup.push_back("0");
         // tup.push_back("0");
         tup.push_back("1");
-        addTuple(relName, tup);
+        // addTuple(relName, tup);
+        if (checkTuple(relName, tup)) {
+            tuplesToAdd.push_back(std::make_pair(relName, tup));
+        }
     }
 
     void removeTuple(const std::string& relName, std::vector<std::string> tup) {
         tup.push_back("0");
         // tup.push_back("1");
         tup.push_back("-1");
-        addTuple(relName, tup);
+        // addTuple(relName, tup);
+        if (checkTuple(relName, tup)) {
+            tuplesToAdd.push_back(std::make_pair(relName, tup));
+        }
     }
 
     /* Get input */
