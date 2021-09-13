@@ -411,17 +411,21 @@ private:
     std::unique_ptr<RamStatement> makeIncrementalCleanupSubroutine(const AstProgram& program);
 
     /** translate RAM code for subroutine to get subproofs */
+    std::unique_ptr<RamStatement> makeIncrementalUpdateClearDiffsSubroutine(const AstProgram& program);
     std::unique_ptr<RamStatement> makeIncrementalUpdateCleanupSubroutine(const AstProgram& program);
 
     /** make an exit condition for iteration numbers for incremental */
     std::unique_ptr<RamStatement> makeIncrementalExitCondSubroutine(const RamRelationReference& maxIterRelationRef);
+
+    /** make a subroutine that will find a tuple in a relation */
+    std::unique_ptr<RamStatement> makeRelationSearchSubroutine(const RamRelationReference& rel);
 
     /** translate RAM code for subroutine to get subproofs */
     std::unique_ptr<RamStatement> makeSubproofSubroutine(const AstRelation& rel, const std::set<const AstRelation*> scc);
     std::unique_ptr<RamStatement> makeSubproofSubroutine(const AstClause& clause, const std::set<const AstRelation*> scc);
 
     /** translate RAM code for subroutine to get subproofs */
-    std::unique_ptr<RamStatement> makeSubproofSubroutineOpt(const AstClause& clause);
+    // std::unique_ptr<RamStatement> makeSubproofSubroutineOpt(const AstClause& clause);
 
     /** translate RAM code for subroutine to get subproofs for non-existence of a tuple */
     std::unique_ptr<RamStatement> makeNegationSubproofSubroutine(const AstClause& clause);

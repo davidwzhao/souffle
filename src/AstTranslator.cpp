@@ -5184,6 +5184,32 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalUpdateCleanupSubrout
                     std::unique_ptr<RamRelationReference>(translateDiffAppliedRelation(relation))));
                     */
 
+        /* HANDLED BY makeIncrementalUpdateClearDiffsSubroutine
+        appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateActualDiffPlusRelation(relation)->clone())));
+        appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateActualDiffMinusRelation(relation)->clone())));
+
+        appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffPlusRelation(relation)->clone())));
+        appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffMinusRelation(relation)->clone())));
+        */
+        // appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateDiffMinusAppliedRelation(relation)->clone())));
+    }
+
+    return cleanupSequence;
+}
+
+std::unique_ptr<RamStatement> AstTranslator::makeIncrementalUpdateClearDiffsSubroutine(const AstProgram& program) {
+    // create a RamSequence for cleaning up all relations
+    std::unique_ptr<RamStatement> cleanupSequence;
+
+    for (const auto& relation : program.getRelations()) {
+
+        if (relation->getName().getName().find("@info") != std::string::npos) {
+            continue;
+        }
+
+        // make a RamRelationReference to be used to build the subroutine
+        auto relationReference = translateRelation(relation);
+
         appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateActualDiffPlusRelation(relation)->clone())));
         appendStmt(cleanupSequence, std::make_unique<RamClear>(std::unique_ptr<RamRelationReference>(translateActualDiffMinusRelation(relation)->clone())));
 
@@ -5225,6 +5251,35 @@ std::unique_ptr<RamStatement> AstTranslator::makeIncrementalExitCondSubroutine(c
     exitCondSequence->add(std::make_unique<RamQuery>(std::move(returnTrue)));
 
     return exitCondSequence;
+}
+
+std::unique_ptr<RamStatement> AstTranslator::makeRelationSearchSubroutine(const RamRelationReference& rel) {
+    auto searchSequence = std::make_unique<RamSequence>();
+
+    auto addCondition = [](std::unique_ptr<RamCondition>& cond, std::unique_ptr<RamCondition> clause) {
+        cond = ((cond) ? std::make_unique<RamConjunction>(std::move(cond), std::move(clause))
+                       : std::move(clause));
+    };
+
+    // return the tuple if it's found
+    std::vector<std::unique_ptr<RamExpression>> values;
+    for (size_t i = 0; i < rel.get()->getArity(); i++) {
+        values.push_back(std::make_unique<RamTupleElement>(0, i));
+    }
+
+    // check the tuple values match the subroutine arguments
+    std::unique_ptr<RamCondition> checkMatchingTuple;
+    for (size_t i = 0; i < rel.get()->getArity() - 2; i++) {
+        addCondition(checkMatchingTuple, std::make_unique<RamConstraint>(BinaryConstraintOp::EQ,
+                    std::make_unique<RamSubroutineArgument>(i), std::make_unique<RamTupleElement>(0, i)));
+    }
+
+    auto matchingTupleFilter = std::make_unique<RamFilter>(std::move(checkMatchingTuple), std::make_unique<RamSubroutineReturnValue>(std::move(values), true));
+
+    // scan the relation
+    auto scan = std::make_unique<RamScan>(std::unique_ptr<RamRelationReference>(rel.clone()), 0, std::move(matchingTupleFilter));
+
+    return std::make_unique<RamQuery>(std::move(scan));
 }
 
 std::unique_ptr<RamStatement> AstTranslator::makeSubproofSubroutine(const AstRelation& rel, const std::set<const AstRelation*> scc) {
@@ -6238,6 +6293,10 @@ void AstTranslator::translateUpdateProgram(const AstTranslationUnit& translation
 
     // this is already created in translateProgram
     // add cleanup subroutine for incremental
+    if (Global::config().has("incremental")) {
+        ramProg->addSubroutine("incremental_update_clear_diffs", makeIncrementalUpdateClearDiffsSubroutine(*translationUnit.getProgram()));
+    }
+
     if (Global::config().has("incremental")) {
         ramProg->addSubroutine("incremental_update_cleanup", makeIncrementalUpdateCleanupSubroutine(*translationUnit.getProgram()));
     }
