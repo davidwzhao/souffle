@@ -137,7 +137,7 @@ public:
     virtual void setup() = 0;
 
     virtual std::unique_ptr<TreeNode> explain(
-            std::string relName, std::vector<std::string> tuple, size_t depthLimit) = 0;
+            std::string relName, std::vector<std::string> tuple, size_t depthLimit, bool checkDiffs = false) = 0;
 
     virtual std::unique_ptr<TreeNode> explainSubproof(
             std::string relName, RamDomain label, size_t depthLimit) = 0;

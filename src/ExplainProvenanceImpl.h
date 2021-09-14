@@ -70,7 +70,7 @@ public:
     }
 
     std::unique_ptr<TreeNode> explain(std::string relName, std::vector<RamDomain> tuple, /*int ruleNum, */
-            int levelNum, std::vector<RamDomain> subtreeLevels, size_t depthLimit) {
+            int levelNum, std::vector<RamDomain> subtreeLevels, size_t depthLimit, bool checkDiffs = false) {
         std::stringstream joinedArgs;
         joinedArgs << join(numsToArgs(relName, tuple), ", ");
         auto joinedArgsStr = joinedArgs.str();
@@ -125,9 +125,33 @@ public:
         // prog.executeSubroutine(relName + "_" + std::to_string(ruleNum) + "_subproof", tuple, ret, err);
         prog.executeSubroutine(relName + "_subproof", tuple, ret, err);
 
+        bool isDiffPlus = false;
+        bool isDiffMinus = false;
+
+        // check diffs if we want to label the nodes
+        if (checkDiffs) {
+            std::vector<RamDomain> searchRet;
+            std::vector<bool> searchErr;
+
+            prog.executeSubroutine("diff_plus_" + relName + "_search", tuple, searchRet, searchErr);
+            if (searchRet.size() > 0) {
+                isDiffPlus = true;
+            }
+
+            searchRet.clear();
+            searchErr.clear();
+
+            prog.executeSubroutine("diff_minus_" + relName + "_search", tuple, searchRet, searchErr);
+            if (searchRet.size() > 0) {
+                isDiffMinus = true;
+            }
+        }
+
+        std::string tupleStr = relName + "(" + joinedArgsStr + ")" + (isDiffPlus ? " (+)" : (isDiffMinus ? " (-)" : ""));
+
         // if ret is empty, assume we have a fact
         if (ret.empty()) {
-            return std::make_unique<LeafNode>(relName + "(" + joinedArgsStr + ")");
+            return std::make_unique<LeafNode>(tupleStr);
         }
 
         // trust me here, but this is a really terrible mess and needs to be cleaned up
@@ -136,7 +160,7 @@ public:
         int ruleNum = ret[0];
 
         auto internalNode = std::make_unique<InnerNode>(
-                relName + "(" + joinedArgsStr + ")", "(R" + std::to_string(ruleNum) + ")");
+                tupleStr, "(R" + std::to_string(ruleNum) + ")");
 
         // recursively get nodes for subproofs
         size_t tupleCurInd = 1;
@@ -194,10 +218,36 @@ public:
 
             // for a negation, display the corresponding tuple and do not recurse
             if (bodyRel[0] == '!') {
+
+                bool isDiffPlus = false;
+                bool isDiffMinus = false;
+
+                // check diffs if we want to label the nodes
+                if (checkDiffs) {
+                    std::vector<RamDomain> searchRet;
+                    std::vector<bool> searchErr;
+
+                    prog.executeSubroutine("diff_plus_" + bodyRel + "_search", subproofTuple, searchRet, searchErr);
+                    if (searchRet.size() > 0) {
+                        isDiffPlus = true;
+                    }
+
+                    searchRet.clear();
+                    searchErr.clear();
+
+                    prog.executeSubroutine("diff_minus_" + bodyRel + "_search", subproofTuple, searchRet, searchErr);
+                    if (searchRet.size() > 0) {
+                        isDiffMinus = true;
+                    }
+                }
+
                 std::stringstream joinedTuple;
                 joinedTuple << join(numsToArgs(bodyRelAtomName, subproofTuple, &subproofTupleError), ", ");
                 auto joinedTupleStr = joinedTuple.str();
-                internalNode->add_child(std::make_unique<LeafNode>(bodyRel + "(" + joinedTupleStr + ")"));
+
+                std::string negatedTupleStr = bodyRel + "(" + joinedTupleStr + ")" + (isDiffPlus ? " (+)" : (isDiffMinus ? " (-)" : ""));
+
+                internalNode->add_child(std::make_unique<LeafNode>(negatedTupleStr));
                 internalNode->setSize(internalNode->getSize() + 1);
                 // for a binary constraint, display the corresponding values and do not recurse
             } else if (isConstraint) {
@@ -215,7 +265,7 @@ public:
                 // otherwise, for a normal tuple, recurse
             } else {
                 auto child = explain(bodyRel, subproofTuple, /* subproofRuleNum,*/ subproofLevelNum,
-                        subsubtreeLevels, depthLimit - 1);
+                        subsubtreeLevels, depthLimit - 1, checkDiffs);
                 internalNode->setSize(internalNode->getSize() + child->getSize());
                 internalNode->add_child(std::move(child));
             }
@@ -227,7 +277,7 @@ public:
     }
 
     std::unique_ptr<TreeNode> explain(
-            std::string relName, std::vector<std::string> args, size_t depthLimit) override {
+            std::string relName, std::vector<std::string> args, size_t depthLimit, bool checkDiffs) override {
         auto tuple = argsToNums(relName, args);
         if (tuple.empty()) {
             return std::make_unique<LeafNode>("Relation not found");
@@ -243,7 +293,7 @@ public:
             return std::make_unique<LeafNode>("Tuple not found");
         }
 
-        return explain(relName, tuple, levelNum, subtreeLevels, depthLimit);
+        return explain(relName, tuple, levelNum, subtreeLevels, depthLimit, checkDiffs);
     }
 
     std::unique_ptr<TreeNode> explainSubproof(
@@ -756,6 +806,24 @@ private:
 
     std::tuple<int, int, std::vector<RamDomain>> findTuple(
             const std::string& relName, std::vector<RamDomain> tup) {
+        std::vector<RamDomain> ret;
+        std::vector<bool> err;
+
+        prog.executeSubroutine(relName + "_search", tup, ret, err);
+
+        if (ret.size() == 0) {
+            return std::make_tuple(-1, -1, std::vector<RamDomain>());
+        }
+
+        auto heightNum = ret[ret.size() - 2];
+        auto countNum = ret[ret.size() - 1];
+
+        return std::make_tuple(heightNum, countNum, std::vector<RamDomain>());
+    }
+
+    /*
+    std::tuple<int, int, std::vector<RamDomain>> findTuple(
+            const std::string& relName, std::vector<RamDomain> tup) {
         auto rel = prog.getRelation(relName);
 
         if (rel == nullptr) {
@@ -813,6 +881,7 @@ private:
         // if no tuple exists
         return std::make_tuple(-1, -1, std::vector<RamDomain>());
     }
+    */
 
     void printRelationOutput(
             const std::vector<bool>& symMask, const IODirectives& ioDir, const Relation& rel) override {

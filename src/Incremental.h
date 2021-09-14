@@ -77,6 +77,14 @@ public:
             }
             query = parseTuple(command[1]);
             explain.printTree(explain.prov.explain(query.first, query.second, ExplainConfig::getExplainConfig().depthLimit));
+        } else if (command[0] == "explaindiff") {
+            std::pair<std::string, std::vector<std::string>> query;
+            if (command.size() != 2) {
+                printError("Usage: explain relation_name(\"<string element1>\", <number element2>, ...)\n");
+                return true;
+            }
+            query = parseTuple(command[1]);
+            explain.printTree(explain.prov.explain(query.first, query.second, ExplainConfig::getExplainConfig().depthLimit, true));
         } else if (command[0] == "subproof") {
             std::pair<std::string, std::vector<std::string>> query;
             int label = -1;
