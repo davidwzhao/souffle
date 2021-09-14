@@ -107,6 +107,14 @@ public:
         size = s;
     }
 
+    std::string getText() {
+        return txt;
+    }
+
+    void setText(std::string text) {
+        txt = text;
+    }
+
     virtual void printJSON(std::ostream& os, int pos) = 0;
 
     // clone this tree node
