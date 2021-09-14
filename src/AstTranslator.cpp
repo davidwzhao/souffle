@@ -6482,6 +6482,20 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
             }
         }
 
+        visitDepthFirst(program->getRelations(), [&](const AstRelation& rel) {
+            std::stringstream relName;
+            relName << rel.getName();
+
+            // do not add subroutines for info relations or facts
+            if (relName.str().find("@info") != std::string::npos) {
+                return;
+            }
+
+            ramProg->addSubroutine(relName.str() + "_search", makeRelationSearchSubroutine(*translateRelation(&rel)));
+            ramProg->addSubroutine("diff_plus_" + relName.str() + "_search", makeRelationSearchSubroutine(*translateActualDiffPlusRelation(&rel)));
+            ramProg->addSubroutine("diff_minus_" + relName.str() + "_search", makeRelationSearchSubroutine(*translateActualDiffMinusRelation(&rel)));
+        });
+
         ramProg->addSubroutine("incremental_cleanup", makeIncrementalCleanupSubroutine(*translationUnit.getProgram()));
     }
 }
