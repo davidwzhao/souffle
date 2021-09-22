@@ -25,6 +25,7 @@
 #include <map>
 #include <memory>
 #include <regex>
+#include <queue>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -71,6 +72,13 @@ public:
 
     std::unique_ptr<TreeNode> explain(std::string relName, std::vector<RamDomain> tuple, /*int ruleNum, */
             int levelNum, std::vector<RamDomain> subtreeLevels, size_t depthLimit, bool checkDiffs = false) {
+
+        auto cachedSubtree = cache.getNode(relName, tuple, levelNum, checkDiffs);
+
+        if (cachedSubtree) {
+            return std::unique_ptr<TreeNode>(cachedSubtree->clone());
+        }
+
         std::stringstream joinedArgs;
         joinedArgs << join(numsToArgs(relName, tuple), ", ");
         auto joinedArgsStr = joinedArgs.str();
@@ -272,6 +280,9 @@ public:
 
             tupleCurInd = tupleEnd;
         }
+
+        // add cache
+        cache.storeNode(relName, std::vector<RamDomain>(tuple.begin(), tuple.end() - 1), levelNum, internalNode->clone());
 
         return std::move(internalNode);
     }
@@ -797,12 +808,48 @@ public:
         return queryResult;
     }
 
+    void clearCache() {
+        cache.clear();
+    }
+
 private:
     std::map<std::pair<std::string, size_t>, std::vector<std::string>> info;
     std::map<std::pair<std::string, size_t>, std::string> rules;
     std::vector<std::vector<RamDomain>> subproofs;
     std::vector<std::string> constraintList = {
             "=", "!=", "<", "<=", ">=", ">", "match", "contains", "not_match", "not_contains"};
+
+    struct TupleCache {
+        std::map<std::string, TreeNode*> cache;
+
+        std::string serializeTuple(std::string relName, std::vector<RamDomain> tuple, RamDomain height, bool checkDiffs = false) {
+            std::stringstream ss;
+            ss << relName << "(" << tuple << ", " << height << ")" << checkDiffs;
+            return ss.str();
+        }
+
+        TreeNode* getNode(std::string r, std::vector<RamDomain> t, RamDomain h, bool checkDiffs = false) {
+            auto s = serializeTuple(r, t, h);
+
+            if (cache.find(s) == cache.end()) {
+                return nullptr;
+            }
+
+            return cache[s];
+        }
+
+        void storeNode(std::string r, std::vector<RamDomain> t, RamDomain h, TreeNode* n, bool checkDiffs = false) {
+            auto s = serializeTuple(r, t, h);
+
+            cache[s] = n;
+        }
+
+        void clear() {
+            cache.clear();
+        }
+    };
+
+    TupleCache cache;
 
     std::tuple<int, int, std::vector<RamDomain>> findTuple(
             const std::string& relName, std::vector<RamDomain> tup) {
@@ -1020,6 +1067,26 @@ private:
         }
         return tupleExist;
     }
+
+    /*
+    // a cached subtree may not obey the depth limit, this method expands or
+    // contracts the cached subtree to obey the depth limit
+    std::unique_ptr<TreeNode> expandCachedSubtree(TreeNode* node, size_t depthLimit) {
+        bool isExpanded = false;
+
+        std::queue<std::pair<TreeNode*, size_t>> worklist;
+        worklist.push(std::make_pair(node, depthLimit));
+
+        while (!worklist.empty()) {
+            auto current = worklist.front();
+
+            // if depth limit is exceeded
+            if (current.second <= 1) {
+                // replace with a subproof
+            }
+        }
+    }
+    */
 };
 
 }  // end of namespace souffle
