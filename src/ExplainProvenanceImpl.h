@@ -162,6 +162,8 @@ public:
             return std::make_unique<LeafNode>(tupleStr);
         }
 
+        std::cout << "subroutine return value: " << ret << std::endl;
+
         // trust me here, but this is a really terrible mess and needs to be cleaned up
         // see AstTranslator::ProvenanceClauseTranslator for details about where this comes
         // from
@@ -829,7 +831,7 @@ private:
         }
 
         TreeNode* getNode(std::string r, std::vector<RamDomain> t, RamDomain h, bool checkDiffs = false) {
-            auto s = serializeTuple(r, t, h);
+            auto s = serializeTuple(r, t, h, checkDiffs);
 
             if (cache.find(s) == cache.end()) {
                 return nullptr;
@@ -839,7 +841,7 @@ private:
         }
 
         void storeNode(std::string r, std::vector<RamDomain> t, RamDomain h, TreeNode* n, bool checkDiffs = false) {
-            auto s = serializeTuple(r, t, h);
+            auto s = serializeTuple(r, t, h, checkDiffs);
 
             cache[s] = n;
         }

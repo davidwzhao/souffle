@@ -732,6 +732,14 @@ std::unique_ptr<RamOperation> AstTranslator::ProvenanceClauseTranslator::createO
     // set a rule number that is used to display the current clause
     values.push_back(std::make_unique<RamNumber>(clause.getClauseNum()));
 
+    // keep a set of count arguments
+    std::set<AstArgument*> countArgs;
+    for (AstLiteral* lit : clause.getBodyLiterals()) {
+        if (auto atom = dynamic_cast<AstAtom*>(lit)) {
+            countArgs.insert(atom->getArgument(atom->getArity() - 1)->clone());
+        }
+    }
+
     // get all values in the body
     for (AstLiteral* lit : clause.getBodyLiterals()) {
         if (auto atom = dynamic_cast<AstAtom*>(lit)) {
@@ -743,6 +751,21 @@ std::unique_ptr<RamOperation> AstTranslator::ProvenanceClauseTranslator::createO
                 values.push_back(translator.translateValue(arg, valueIndex));
             }
         } else if (auto con = dynamic_cast<AstBinaryConstraint*>(lit)) {
+            // ignore any constraints involving count annotation or any subroutine arguments
+            if (dynamic_cast<AstSubroutineArgument*>(con->getLHS()) || dynamic_cast<AstSubroutineArgument*>(con->getRHS())) {
+                continue;
+            }
+
+            bool isCountArg = false;
+            for (auto arg : countArgs) {
+                if (*(con->getLHS()) == *arg || *(con->getRHS()) == *arg) {
+                    isCountArg = true;
+                    break;
+                }
+            }
+
+            if (isCountArg) continue;
+
             values.push_back(translator.translateValue(con->getLHS(), valueIndex));
             values.push_back(translator.translateValue(con->getRHS(), valueIndex));
         } else if (auto neg = dynamic_cast<AstSubsumptionNegation*>(lit)) {
@@ -5378,6 +5401,9 @@ std::unique_ptr<RamStatement> AstTranslator::makeSubproofSubroutine(const AstCla
             }
         }
     }
+
+    std::cout << "producing subproof from clause " << *intermediateClause << std::endl;
+
     return ProvenanceClauseTranslator(*this).translateClause(*intermediateClause, clause);
 }
 
