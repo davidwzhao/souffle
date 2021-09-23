@@ -2626,6 +2626,9 @@ void Synthesiser::emitCode(std::ostream& out, const RamStatement& stmt) {
                     out << "err.push_back(false);\n";
                 }
             }
+            if (ret.isImmediateReturn()) {
+                out << "return;\n";
+            }
         }
 
         // -- safety net --
