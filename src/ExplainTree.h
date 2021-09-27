@@ -135,17 +135,22 @@ protected:
 class InnerNode : public TreeNode {
 public:
     InnerNode(const std::string& nodeText = "", std::string label = "")
-            : TreeNode(nodeText), label(std::move(label)) {}
+            : TreeNode(nodeText), label(std::move(label)) {
+        children[0] = std::vector<std::unique_ptr<TreeNode>>();
+    }
 
     // add child to node
-    void add_child(std::unique_ptr<TreeNode> child) {
-        children.push_back(std::move(child));
+    void add_child(std::unique_ptr<TreeNode> child, size_t proofNum = 0) {
+        if (children.find(proofNum) == children.end()) {
+            children[proofNum] = std::vector<std::unique_ptr<TreeNode>>();
+        }
+        children[proofNum].push_back(std::move(child));
     }
 
     // place node and its sub-trees
     void place(uint32_t x, uint32_t y) override {
         // there must exist at least one kid
-        assert(!children.empty() && "no children");
+        assert(!children[0].empty() && "no children");
 
         // set x/y pos
         xpos = x;
@@ -154,7 +159,7 @@ public:
         height = 0;
 
         // compute size of bounding box
-        for (const std::unique_ptr<TreeNode>& k : children) {
+        for (const std::unique_ptr<TreeNode>& k : children[0]) {
             k->place(x, y + 2);
             x += k->getWidth() + 1;
             width += k->getWidth() + 1;
@@ -171,7 +176,7 @@ public:
     // render node text and separator line
     void render(ScreenBuffer& s) override {
         s.write(xpos + (width - txt.length()) / 2, ypos, txt);
-        for (const std::unique_ptr<TreeNode>& k : children) {
+        for (const std::unique_ptr<TreeNode>& k : children[0]) {
             k->render(s);
         }
         std::string separator(width - label.length(), '-');
@@ -184,30 +189,34 @@ public:
         std::string tab(pos, '\t');
         os << tab << R"({ "premises": ")" << stringify(txt) << "\",\n";
         os << tab << R"(  "rule-number": ")" << label << "\",\n";
-        os << tab << "  \"children\": [\n";
-        bool first = true;
-        for (const std::unique_ptr<TreeNode>& k : children) {
-            if (first)
-                first = false;
-            else
-                os << ",\n";
-            k->printJSON(os, pos + 1);
+        for (auto const& i : children) {
+            os << tab << "  \"children_" << i.first << "\": [\n";
+            bool first = true;
+            for (const std::unique_ptr<TreeNode>& k : i.second) {
+                if (first)
+                    first = false;
+                else
+                    os << ",\n";
+                k->printJSON(os, pos + 1);
+            }
+            os << tab << "]\n";
         }
-        os << tab << "]\n";
         os << tab << "}";
     }
 
     InnerNode* clone() const override {
         InnerNode* newInnerNode = new InnerNode(txt, label);
-        for (size_t i = 0; i < children.size(); i++) {
-            newInnerNode->add_child(std::unique_ptr<TreeNode>(children[i]->clone()));
+        for (auto const& i : children) {
+            for (size_t j = 0; j < i.second.size(); j++) {
+                newInnerNode->add_child(std::unique_ptr<TreeNode>(i.second[j]->clone()), i.first);
+            }
         }
 
         return newInnerNode;
     }
 
 private:
-    std::vector<std::unique_ptr<TreeNode>> children;
+    std::map<size_t, std::vector<std::unique_ptr<TreeNode>>> children;
     std::string label;
 };
 
