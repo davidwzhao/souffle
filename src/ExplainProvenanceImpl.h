@@ -71,9 +71,9 @@ public:
     }
 
     std::unique_ptr<TreeNode> explain(std::string relName, std::vector<RamDomain> tuple, /*int ruleNum, */
-            int levelNum, std::vector<RamDomain> subtreeLevels, size_t depthLimit, bool checkDiffs = false) {
+            int levelNum, std::vector<RamDomain> subtreeLevels, size_t depthLimit, bool checkDiffs = false, bool allDiffs = false) {
 
-        auto cachedSubtree = cache.getNode(relName, tuple, levelNum, checkDiffs);
+        auto cachedSubtree = cache.getNode(relName, tuple, levelNum, checkDiffs, allDiffs);
 
         if (cachedSubtree) {
             return std::unique_ptr<TreeNode>(cachedSubtree->clone());
@@ -133,6 +133,8 @@ public:
         // prog.executeSubroutine(relName + "_" + std::to_string(ruleNum) + "_subproof", tuple, ret, err);
         prog.executeSubroutine(relName + "_subproof", tuple, ret, err);
 
+        // std::cout << "subproof subroutine return: " << ret << std::endl;
+
         bool isDiffPlus = false;
         bool isDiffMinus = false;
 
@@ -158,139 +160,165 @@ public:
         std::string tupleStr = relName + "(" + joinedArgsStr + ")" + (isDiffPlus ? " (+)" : (isDiffMinus ? " (-)" : ""));
 
         // if ret is empty, assume we have a fact
-        if (ret.empty()) {
+        // if we want to check all diffs, then non-diff tuples should not be
+        // included
+        if (ret.empty() || (allDiffs && !isDiffPlus && !isDiffMinus)) {
             return std::make_unique<LeafNode>(tupleStr);
         }
 
-        std::cout << "subroutine return value: " << ret << std::endl;
-
-        // trust me here, but this is a really terrible mess and needs to be cleaned up
-        // see AstTranslator::ProvenanceClauseTranslator for details about where this comes
-        // from
-        int ruleNum = ret[0];
+        // If we check all diffs, then we need to loop through each subproof
+        size_t subproofNum = 0;
+        size_t tupleCurInd = 0;
 
         auto internalNode = std::make_unique<InnerNode>(
-                tupleStr, "(R" + std::to_string(ruleNum) + ")");
+                // tupleStr, "(R" + std::to_string(ruleNum) + ")");
+                tupleStr, "");
 
-        // recursively get nodes for subproofs
-        size_t tupleCurInd = 1;
-        auto bodyRelations = info[std::make_pair(relName, ruleNum)];
+        while (tupleCurInd < ret.size()) {
+            // trust me here, but this is a really terrible mess and needs to be cleaned up
+            // see AstTranslator::ProvenanceClauseTranslator for details about where this comes
+            // from
+            // std::cout << "  rule num at ind " << tupleCurInd << std::endl;
+            int ruleNum = ret[tupleCurInd];
 
-        // start from begin + 1 because the first element represents the head atom
-        for (auto it = bodyRelations.begin() + 1; it < bodyRelations.end(); it++) {
-            std::string bodyLiteral = *it;
-            // split bodyLiteral since it contains relation name plus arguments
-            std::string bodyRel = splitString(bodyLiteral, ',')[0];
+            tupleCurInd++;
 
-            // check whether the current atom is a constraint
-            assert(bodyRel.size() > 0 && "body of a relation should have positive length");
-            bool isConstraint = std::find(constraintList.begin(), constraintList.end(),
-                                        splitString(bodyRel, ',')[0]) != constraintList.end();
+            // recursively get nodes for subproofs
+            // size_t tupleCurInd = 1;
+            auto bodyRelations = info[std::make_pair(relName, ruleNum)];
 
-            // handle negated atom names
-            auto bodyRelAtomName = bodyRel;
-            if (bodyRel[0] == '!') {
-                bodyRelAtomName = bodyRel.substr(1);
-            }
+            // start from begin + 1 because the first element represents the head atom
+            for (auto it = bodyRelations.begin() + 1; it < bodyRelations.end(); it++) {
+                std::string bodyLiteral = *it;
+                // split bodyLiteral since it contains relation name plus arguments
+                std::string bodyRel = splitString(bodyLiteral, ',')[0];
 
-            // traverse subroutine return
-            size_t arity;
-            size_t numberOfHeights;
-            if (isConstraint) {
-                // we only handle binary constraints, and assume arity is 4 to account for hidden provenance
-                // annotations
-                arity = 4;
-                numberOfHeights = 1;
-            } else {
-                arity = prog.getRelation(bodyRelAtomName)->getArity();
-                numberOfHeights = prog.getRelation(bodyRelAtomName)->getNumberOfHeights();
-            }
-            auto tupleEnd = tupleCurInd + arity;
+                // check whether the current atom is a constraint
+                assert(bodyRel.size() > 0 && "body of a relation should have positive length");
+                bool isConstraint = std::find(constraintList.begin(), constraintList.end(),
+                                            splitString(bodyRel, ',')[0]) != constraintList.end();
 
-            // store current tuple and error
-            std::vector<RamDomain> subproofTuple;
-            std::vector<bool> subproofTupleError;
-
-            for (; tupleCurInd < tupleEnd - 1 - numberOfHeights; tupleCurInd++) {
-                subproofTuple.push_back(ret[tupleCurInd]);
-                subproofTupleError.push_back(err[tupleCurInd]);
-            }
-
-            int subproofLevelNum = ret[tupleCurInd];
-            int subproofRuleNum = ret[tupleCurInd + 1];
-
-            tupleCurInd += 2;
-
-            std::vector<RamDomain> subsubtreeLevels;
-            for (; tupleCurInd < tupleEnd; tupleCurInd++) {
-                subsubtreeLevels.push_back(ret[tupleCurInd]);
-            }
-
-            // for a negation, display the corresponding tuple and do not recurse
-            if (bodyRel[0] == '!') {
-
-                bool isDiffPlus = false;
-                bool isDiffMinus = false;
-
-                // check diffs if we want to label the nodes
-                if (checkDiffs) {
-                    std::vector<RamDomain> searchRet;
-                    std::vector<bool> searchErr;
-
-                    prog.executeSubroutine("diff_plus_" + bodyRel + "_search", subproofTuple, searchRet, searchErr);
-                    if (searchRet.size() > 0) {
-                        isDiffPlus = true;
-                    }
-
-                    searchRet.clear();
-                    searchErr.clear();
-
-                    prog.executeSubroutine("diff_minus_" + bodyRel + "_search", subproofTuple, searchRet, searchErr);
-                    if (searchRet.size() > 0) {
-                        isDiffMinus = true;
-                    }
+                // handle negated atom names
+                auto bodyRelAtomName = bodyRel;
+                if (bodyRel[0] == '!') {
+                    bodyRelAtomName = bodyRel.substr(1);
                 }
 
-                std::stringstream joinedTuple;
-                joinedTuple << join(numsToArgs(bodyRelAtomName, subproofTuple, &subproofTupleError), ", ");
-                auto joinedTupleStr = joinedTuple.str();
-
-                std::string negatedTupleStr = bodyRel + "(" + joinedTupleStr + ")" + (isDiffPlus ? " (+)" : (isDiffMinus ? " (-)" : ""));
-
-                internalNode->add_child(std::make_unique<LeafNode>(negatedTupleStr));
-                internalNode->setSize(internalNode->getSize() + 1);
-                // for a binary constraint, display the corresponding values and do not recurse
-            } else if (isConstraint) {
-                std::stringstream joinedConstraint;
-
-                if (isNumericBinaryConstraintOp(toBinaryConstraintOp(bodyRel))) {
-                    joinedConstraint << subproofTuple[0] << " " << bodyRel << " " << subproofTuple[1];
+                // traverse subroutine return
+                size_t arity;
+                size_t numberOfHeights;
+                if (isConstraint) {
+                    // we only handle binary constraints, and assume arity is 4 to account for hidden provenance
+                    // annotations
+                    arity = 4;
+                    numberOfHeights = 1;
                 } else {
-                    joinedConstraint << bodyRel << "(\"" << symTable.resolve(subproofTuple[0]) << "\", \""
-                                     << symTable.resolve(subproofTuple[1]) << "\")";
+                    arity = prog.getRelation(bodyRelAtomName)->getArity();
+                    numberOfHeights = prog.getRelation(bodyRelAtomName)->getNumberOfHeights();
+                }
+                auto tupleEnd = tupleCurInd + arity;
+
+                // store current tuple and error
+                std::vector<RamDomain> subproofTuple;
+                std::vector<bool> subproofTupleError;
+
+                for (; tupleCurInd < tupleEnd - 1 - numberOfHeights; tupleCurInd++) {
+                    // std::cout << "  adding " << ret[tupleCurInd] << " at index " << tupleCurInd << std::endl;
+                    subproofTuple.push_back(ret[tupleCurInd]);
+                    subproofTupleError.push_back(err[tupleCurInd]);
                 }
 
-                internalNode->add_child(std::make_unique<LeafNode>(joinedConstraint.str()));
-                internalNode->setSize(internalNode->getSize() + 1);
-                // otherwise, for a normal tuple, recurse
-            } else {
-                auto child = explain(bodyRel, subproofTuple, /* subproofRuleNum,*/ subproofLevelNum,
-                        subsubtreeLevels, depthLimit - 1, checkDiffs);
-                internalNode->setSize(internalNode->getSize() + child->getSize());
-                internalNode->add_child(std::move(child));
+                int subproofLevelNum = ret[tupleCurInd];
+                int subproofRuleNum = ret[tupleCurInd + 1];
+
+                // std::cout << "  subproof tuple " << subproofTuple << ", level num: " << subproofLevelNum << ", rule num: " << subproofRuleNum << std::endl;
+
+                tupleCurInd += 2;
+
+                // std::cout << "  tupleCurInd after all this: " << tupleCurInd << std::endl;
+
+                std::vector<RamDomain> subsubtreeLevels;
+                for (; tupleCurInd < tupleEnd; tupleCurInd++) {
+                    subsubtreeLevels.push_back(ret[tupleCurInd]);
+                }
+
+                // for a negation, display the corresponding tuple and do not recurse
+                if (bodyRel[0] == '!') {
+
+                    bool isDiffPlus = false;
+                    bool isDiffMinus = false;
+
+                    // check diffs if we want to label the nodes
+                    if (checkDiffs) {
+                        std::vector<RamDomain> searchRet;
+                        std::vector<bool> searchErr;
+
+                        prog.executeSubroutine("diff_plus_" + bodyRel + "_search", subproofTuple, searchRet, searchErr);
+                        if (searchRet.size() > 0) {
+                            isDiffPlus = true;
+                        }
+
+                        searchRet.clear();
+                        searchErr.clear();
+
+                        prog.executeSubroutine("diff_minus_" + bodyRel + "_search", subproofTuple, searchRet, searchErr);
+                        if (searchRet.size() > 0) {
+                            isDiffMinus = true;
+                        }
+                    }
+
+                    std::stringstream joinedTuple;
+                    joinedTuple << join(numsToArgs(bodyRelAtomName, subproofTuple, &subproofTupleError), ", ");
+                    auto joinedTupleStr = joinedTuple.str();
+
+                    std::string negatedTupleStr = bodyRel + "(" + joinedTupleStr + ")" + (isDiffPlus ? " (+)" : (isDiffMinus ? " (-)" : ""));
+
+                    internalNode->add_child(std::make_unique<LeafNode>(negatedTupleStr), subproofNum, "(R" + std::to_string(ruleNum) + ")");
+                    internalNode->setSize(internalNode->getSize() + 1);
+                    // for a binary constraint, display the corresponding values and do not recurse
+                } else if (isConstraint) {
+                    std::stringstream joinedConstraint;
+
+                    if (isNumericBinaryConstraintOp(toBinaryConstraintOp(bodyRel))) {
+                        joinedConstraint << subproofTuple[0] << " " << bodyRel << " " << subproofTuple[1];
+                    } else {
+                        joinedConstraint << bodyRel << "(\"" << symTable.resolve(subproofTuple[0]) << "\", \""
+                                         << symTable.resolve(subproofTuple[1]) << "\")";
+                    }
+
+                    internalNode->add_child(std::make_unique<LeafNode>(joinedConstraint.str()), subproofNum, "(R" + std::to_string(ruleNum) + ")");
+                    internalNode->setSize(internalNode->getSize() + 1);
+                    // otherwise, for a normal tuple, recurse
+                } else {
+                    auto child = explain(bodyRel, subproofTuple, /* subproofRuleNum,*/ subproofLevelNum,
+                            subsubtreeLevels, depthLimit - 1, checkDiffs, allDiffs);
+                    internalNode->setSize(internalNode->getSize() + child->getSize());
+                    internalNode->add_child(std::move(child), subproofNum, "(R" + std::to_string(ruleNum) + ")");
+                }
+
+                tupleCurInd = tupleEnd;
             }
 
-            tupleCurInd = tupleEnd;
+            if (!allDiffs) {
+                break;
+            }
+
+            // tupleCurInd++;
+            subproofNum++;
+
+            // std::cout << "at end of loop" << std::endl;
+            // std::cout << "  tupleCurInd: " << tupleCurInd << std::endl;
+            // std::cout << "  subproofNum: " << subproofNum << std::endl;
         }
 
         // add cache
-        cache.storeNode(relName, std::vector<RamDomain>(tuple.begin(), tuple.end() - 1), levelNum, internalNode->clone());
+        cache.storeNode(relName, std::vector<RamDomain>(tuple.begin(), tuple.end() - 1), levelNum, internalNode->clone(), checkDiffs, allDiffs);
 
         return std::move(internalNode);
     }
 
     std::unique_ptr<TreeNode> explain(
-            std::string relName, std::vector<std::string> args, size_t depthLimit, bool checkDiffs) override {
+            std::string relName, std::vector<std::string> args, size_t depthLimit, bool checkDiffs, bool allDiffs) override {
         auto tuple = argsToNums(relName, args);
         if (tuple.empty()) {
             return std::make_unique<LeafNode>("Relation not found");
@@ -306,7 +334,7 @@ public:
             return std::make_unique<LeafNode>("Tuple not found");
         }
 
-        return explain(relName, tuple, levelNum, subtreeLevels, depthLimit, checkDiffs);
+        return explain(relName, tuple, levelNum, subtreeLevels, depthLimit, checkDiffs, allDiffs);
     }
 
     std::unique_ptr<TreeNode> explainSubproof(
@@ -810,7 +838,7 @@ public:
         return queryResult;
     }
 
-    void clearCache() {
+    void clearCache() override {
         cache.clear();
     }
 
@@ -824,14 +852,14 @@ private:
     struct TupleCache {
         std::map<std::string, TreeNode*> cache;
 
-        std::string serializeTuple(std::string relName, std::vector<RamDomain> tuple, RamDomain height, bool checkDiffs = false) {
+        std::string serializeTuple(std::string relName, std::vector<RamDomain> tuple, RamDomain height, bool checkDiffs = false, bool allDiffs = false) {
             std::stringstream ss;
-            ss << relName << "(" << tuple << ", " << height << ")" << checkDiffs;
+            ss << relName << "(" << tuple << ", " << height << ")" << checkDiffs << allDiffs;
             return ss.str();
         }
 
-        TreeNode* getNode(std::string r, std::vector<RamDomain> t, RamDomain h, bool checkDiffs = false) {
-            auto s = serializeTuple(r, t, h, checkDiffs);
+        TreeNode* getNode(std::string r, std::vector<RamDomain> t, RamDomain h, bool checkDiffs = false, bool allDiffs = false) {
+            auto s = serializeTuple(r, t, h, checkDiffs, allDiffs);
 
             if (cache.find(s) == cache.end()) {
                 return nullptr;
@@ -840,8 +868,8 @@ private:
             return cache[s];
         }
 
-        void storeNode(std::string r, std::vector<RamDomain> t, RamDomain h, TreeNode* n, bool checkDiffs = false) {
-            auto s = serializeTuple(r, t, h, checkDiffs);
+        void storeNode(std::string r, std::vector<RamDomain> t, RamDomain h, TreeNode* n, bool checkDiffs = false, bool allDiffs = false) {
+            auto s = serializeTuple(r, t, h, checkDiffs, allDiffs);
 
             cache[s] = n;
         }
