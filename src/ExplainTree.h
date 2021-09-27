@@ -135,16 +135,18 @@ protected:
 class InnerNode : public TreeNode {
 public:
     InnerNode(const std::string& nodeText = "", std::string label = "")
-            : TreeNode(nodeText), label(std::move(label)) {
+            : TreeNode(nodeText) {
+        labels[0] = label;
         children[0] = std::vector<std::unique_ptr<TreeNode>>();
     }
 
     // add child to node
-    void add_child(std::unique_ptr<TreeNode> child, size_t proofNum = 0) {
+    void add_child(std::unique_ptr<TreeNode> child, size_t proofNum = 0, std::string label = "") {
         if (children.find(proofNum) == children.end()) {
             children[proofNum] = std::vector<std::unique_ptr<TreeNode>>();
         }
         children[proofNum].push_back(std::move(child));
+        labels[proofNum] = label;
     }
 
     // place node and its sub-trees
@@ -179,8 +181,8 @@ public:
         for (const std::unique_ptr<TreeNode>& k : children[0]) {
             k->render(s);
         }
-        std::string separator(width - label.length(), '-');
-        separator += label;
+        std::string separator(width - labels[0].length(), '-');
+        separator += labels[0];
         s.write(xpos, ypos + 1, separator);
     }
 
@@ -188,8 +190,8 @@ public:
     void printJSON(std::ostream& os, int pos) override {
         std::string tab(pos, '\t');
         os << tab << R"({ "premises": ")" << stringify(txt) << "\",\n";
-        os << tab << R"(  "rule-number": ")" << label << "\",\n";
         for (auto const& i : children) {
+            os << tab << R"(  "rule-number_)" << i.first << R"(": ")" << labels[i.first] << "\",\n";
             os << tab << "  \"children_" << i.first << "\": [\n";
             bool first = true;
             for (const std::unique_ptr<TreeNode>& k : i.second) {
@@ -205,10 +207,10 @@ public:
     }
 
     InnerNode* clone() const override {
-        InnerNode* newInnerNode = new InnerNode(txt, label);
+        InnerNode* newInnerNode = new InnerNode(txt, "");
         for (auto const& i : children) {
             for (size_t j = 0; j < i.second.size(); j++) {
-                newInnerNode->add_child(std::unique_ptr<TreeNode>(i.second[j]->clone()), i.first);
+                newInnerNode->add_child(std::unique_ptr<TreeNode>(i.second[j]->clone()), i.first, labels.at(i.first));
             }
         }
 
@@ -217,7 +219,7 @@ public:
 
 private:
     std::map<size_t, std::vector<std::unique_ptr<TreeNode>>> children;
-    std::string label;
+    std::map<size_t, std::string> labels;
 };
 
 /***

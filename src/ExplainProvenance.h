@@ -137,7 +137,7 @@ public:
     virtual void setup() = 0;
 
     virtual std::unique_ptr<TreeNode> explain(
-            std::string relName, std::vector<std::string> tuple, size_t depthLimit, bool checkDiffs = false) = 0;
+            std::string relName, std::vector<std::string> tuple, size_t depthLimit, bool checkDiffs = false, bool allDiffs = false) = 0;
 
     virtual std::unique_ptr<TreeNode> explainSubproof(
             std::string relName, RamDomain label, size_t depthLimit) = 0;
@@ -158,6 +158,8 @@ public:
 
     virtual std::string queryProcess(
             const std::vector<std::pair<std::string, std::vector<std::string>>>& rels) = 0;
+
+    virtual void clearCache() = 0;
 
     virtual std::string getRelationOutput(const std::string& relName) {
         auto rel = prog.getRelation(relName);

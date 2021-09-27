@@ -68,6 +68,7 @@ public:
             // std::cout << "### BEGIN EPOCH " << currentEpoch << std::endl;
             currentEpoch++;
             commit();
+            explain.prov.clearCache();
             std::cout << "Commit done in epoch " << currentEpoch << "!\n";
         } else if (command[0] == "explain") {
             std::pair<std::string, std::vector<std::string>> query;
@@ -80,11 +81,19 @@ public:
         } else if (command[0] == "explaindiff") {
             std::pair<std::string, std::vector<std::string>> query;
             if (command.size() != 2) {
-                printError("Usage: explain relation_name(\"<string element1>\", <number element2>, ...)\n");
+                printError("Usage: explaindiff relation_name(\"<string element1>\", <number element2>, ...)\n");
                 return true;
             }
             query = parseTuple(command[1]);
             explain.printTree(explain.prov.explain(query.first, query.second, ExplainConfig::getExplainConfig().depthLimit, true));
+        } else if (command[0] == "explainall") {
+            std::pair<std::string, std::vector<std::string>> query;
+            if (command.size() != 2) {
+                printError("Usage: explainall relation_name(\"<string element1>\", <number element2>, ...)\n");
+                return true;
+            }
+            query = parseTuple(command[1]);
+            explain.printTree(explain.prov.explain(query.first, query.second, ExplainConfig::getExplainConfig().depthLimit, true, true));
         } else if (command[0] == "subproof") {
             std::pair<std::string, std::vector<std::string>> query;
             int label = -1;
@@ -127,6 +136,8 @@ public:
                     "commit: Re-runs the Datalog program incrementally to apply changes\n"
                     "setdepth <depth>: Set a limit for printed derivation tree height\n"
                     "explain <relation>(<element1>, <element2>, ...): Prints derivation tree\n"
+                    "explaindiff <relation>(<element1>, <element2>, ...): Prints derivation tree checking diffs\n"
+                    "explainall <relation>(<element1>, <element2>, ...): Prints full derivation tree for diffs\n"
                     "subproof <relation>(<label>): Prints derivation tree for a subproof, label is\n"
                     "    generated if a derivation tree exceeds height limit\n"
                     "format <json|proof>: switch format between json and proof-trees\n"
