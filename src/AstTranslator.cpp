@@ -5297,6 +5297,14 @@ std::unique_ptr<RamStatement> AstTranslator::makeRelationSearchSubroutine(const 
                     std::make_unique<RamSubroutineArgument>(i), std::make_unique<RamTupleElement>(0, i)));
     }
 
+    // oh god it's just special cases on top of special cases :) this one says
+    // that for non-diff relations, we should check that the tuple has positive
+    // count
+    if (rel.get()->getName().find("actual_diff_") == std::string::npos) {
+        addCondition(checkMatchingTuple, std::make_unique<RamConstraint>(BinaryConstraintOp::GT,
+                    std::make_unique<RamTupleElement>(0, rel.get()->getArity() - 1), std::make_unique<RamNumber>(0)));
+    }
+
     auto matchingTupleFilter = std::make_unique<RamFilter>(std::move(checkMatchingTuple), std::make_unique<RamSubroutineReturnValue>(std::move(values), true));
 
     // scan the relation
