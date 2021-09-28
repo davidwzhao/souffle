@@ -255,7 +255,7 @@ public:
                         std::vector<RamDomain> searchRet;
                         std::vector<bool> searchErr;
 
-                        prog.executeSubroutine("diff_plus_" + bodyRel + "_search", subproofTuple, searchRet, searchErr);
+                        prog.executeSubroutine("diff_plus_" + bodyRelAtomName + "_search", subproofTuple, searchRet, searchErr);
                         if (searchRet.size() > 0) {
                             isDiffPlus = true;
                         }
@@ -263,7 +263,7 @@ public:
                         searchRet.clear();
                         searchErr.clear();
 
-                        prog.executeSubroutine("diff_minus_" + bodyRel + "_search", subproofTuple, searchRet, searchErr);
+                        prog.executeSubroutine("diff_minus_" + bodyRelAtomName + "_search", subproofTuple, searchRet, searchErr);
                         if (searchRet.size() > 0) {
                             isDiffMinus = true;
                         }
