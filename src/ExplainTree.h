@@ -190,7 +190,13 @@ public:
     void printJSON(std::ostream& os, int pos) override {
         std::string tab(pos, '\t');
         os << tab << R"({ "premises": ")" << stringify(txt) << "\",\n";
+        bool firstChild = true;
         for (auto const& i : children) {
+            if (firstChild)
+                firstChild = false;
+            else
+                os << ",\n";
+
             os << tab << R"(  "rule-number_)" << i.first << R"(": ")" << labels[i.first] << "\",\n";
             os << tab << "  \"children_" << i.first << "\": [\n";
             bool first = true;
@@ -201,8 +207,9 @@ public:
                     os << ",\n";
                 k->printJSON(os, pos + 1);
             }
-            os << tab << "]\n";
+            os << tab << "]";
         }
+        os << "\n";
         os << tab << "}";
     }
 
