@@ -6089,8 +6089,8 @@ void AstTranslator::translateProgram(const AstTranslationUnit& translationUnit) 
             std::stringstream relName;
             relName << rel.getName();
 
-            // do not add subroutines for info relations or facts
-            if (relName.str().find("@info") != std::string::npos) {
+            // do not add subroutines for info relations or facts or nullaries
+            if (relName.str().find("@info") != std::string::npos || rel.getArity() == 2) {
                 return;
             }
 
