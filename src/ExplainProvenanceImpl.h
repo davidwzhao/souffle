@@ -116,6 +116,38 @@ public:
             return std::make_unique<LeafNode>("subproof " + relName + "(" + std::to_string(idx) + ")");
         }
 
+        bool isDiffPlus = false;
+        bool isDiffMinus = false;
+
+        // check diffs if we want to label the nodes
+        if (checkDiffs) {
+            /*
+            std::vector<RamDomain> searchRet;
+            std::vector<bool> searchErr;
+
+            prog.executeSubroutine("diff_plus_" + relName + "_search", tuple, searchRet, searchErr);
+            if (searchRet.size() > 0) {
+                isDiffPlus = true;
+            }
+
+            searchRet.clear();
+            searchErr.clear();
+
+            prog.executeSubroutine("diff_minus_" + relName + "_search", tuple, searchRet, searchErr);
+            if (searchRet.size() > 0) {
+                isDiffMinus = true;
+            }
+            */
+
+            if (contains(diffCache["actual_diff_plus@_" + relName], tuple)) {
+                isDiffPlus = true;
+            }
+
+            if (contains(diffCache["actual_diff_minus@_" + relName], tuple)) {
+                isDiffMinus = true;
+            }
+        }
+
         // make return vector pointer
         std::vector<RamDomain> ret;
         std::vector<bool> err;
@@ -134,28 +166,6 @@ public:
         prog.executeSubroutine(relName + "_subproof", tuple, ret, err);
 
         // std::cout << "subproof subroutine return: " << ret << std::endl;
-
-        bool isDiffPlus = false;
-        bool isDiffMinus = false;
-
-        // check diffs if we want to label the nodes
-        if (checkDiffs) {
-            std::vector<RamDomain> searchRet;
-            std::vector<bool> searchErr;
-
-            prog.executeSubroutine("diff_plus_" + relName + "_search", tuple, searchRet, searchErr);
-            if (searchRet.size() > 0) {
-                isDiffPlus = true;
-            }
-
-            searchRet.clear();
-            searchErr.clear();
-
-            prog.executeSubroutine("diff_minus_" + relName + "_search", tuple, searchRet, searchErr);
-            if (searchRet.size() > 0) {
-                isDiffMinus = true;
-            }
-        }
 
         std::string tupleStr = relName + "(" + joinedArgsStr + ")" + (isDiffPlus ? " (+)" : (isDiffMinus ? " (-)" : ""));
 
@@ -248,8 +258,19 @@ public:
                     bool isDiffPlus = false;
                     bool isDiffMinus = false;
 
+
                     // check diffs if we want to label the nodes
                     if (checkDiffs) {
+                        std::vector<RamDomain> actualTup(subproofTuple.begin(), subproofTuple.end() - 2);
+                        if (contains(diffCache["actual_diff_plus@_" + relName], actualTup)) {
+                            isDiffPlus = true;
+                        }
+
+                        if (contains(diffCache["actual_diff_minus@_" + relName], actualTup)) {
+                            isDiffMinus = true;
+                        }
+                        /*
+
                         std::vector<RamDomain> searchRet;
                         std::vector<bool> searchErr;
 
@@ -265,6 +286,7 @@ public:
                         if (searchRet.size() > 0) {
                             isDiffMinus = true;
                         }
+                        */
                     }
 
                     std::stringstream joinedTuple;
@@ -842,6 +864,24 @@ public:
         cache.clear();
     }
 
+    void storeDiffCaches() override {
+        for (auto rel : prog.getAllRelations()) {
+            std::string relName = rel->getName();
+            if (relName.find("actual_diff_plus@") != std::string::npos || relName.find("actual_diff_minus@") != std::string::npos) {
+                diffCache[relName] = std::set<std::vector<RamDomain>>();
+
+                for (auto tup : *rel) {
+                    std::vector<RamDomain> t;
+                    for (size_t i = 0; i < rel->getArity() - 2; i++) {
+                        t.push_back(tup[i]);
+                    }
+
+                    diffCache[relName].insert(t);
+                }
+            }
+        }
+    }
+
 private:
     std::map<std::pair<std::string, size_t>, std::vector<std::string>> info;
     std::map<std::pair<std::string, size_t>, std::string> rules;
@@ -880,6 +920,8 @@ private:
     };
 
     TupleCache cache;
+
+    std::map<std::string, std::set<std::vector<RamDomain>>> diffCache;
 
     std::tuple<int, int, std::vector<RamDomain>> findTuple(
             const std::string& relName, std::vector<RamDomain> tup) {

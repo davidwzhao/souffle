@@ -116,6 +116,8 @@ public:
                 return true;
             }
             printInfo("Depth is now " + std::to_string(ExplainConfig::getExplainConfig().depthLimit) + "\n");
+        } else if (command[0] == "storediffs") {
+            explain.prov.storeDiffCaches();
         } else if (command[0] == "format") {
             if (command.size() == 2 && command[1] == "json") {
                 ExplainConfig::getExplainConfig().json = true;
