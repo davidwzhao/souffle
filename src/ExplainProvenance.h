@@ -160,6 +160,7 @@ public:
             const std::vector<std::pair<std::string, std::vector<std::string>>>& rels) = 0;
 
     virtual void clearCache() = 0;
+    virtual void storeDiffCaches() = 0;
 
     virtual std::string getRelationOutput(const std::string& relName) {
         auto rel = prog.getRelation(relName);
