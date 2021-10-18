@@ -864,6 +864,8 @@ public:
     }
 
     void storeDiffCaches() override {
+        diffCache.clear();
+        clearCache();
         for (auto rel : prog.getAllRelations()) {
             std::string relName = rel->getName();
             if (relName.find("actual_diff_plus@") != std::string::npos || relName.find("actual_diff_minus@") != std::string::npos) {
