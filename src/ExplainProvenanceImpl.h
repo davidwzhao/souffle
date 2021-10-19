@@ -261,12 +261,11 @@ public:
 
                     // check diffs if we want to label the nodes
                     if (checkDiffs) {
-                        std::vector<RamDomain> actualTup(subproofTuple.begin(), subproofTuple.end() - 2);
-                        if (contains(diffCache["actual_diff_plus@_" + relName], actualTup)) {
+                        if (contains(diffCache["actual_diff_plus@_" + bodyRelAtomName], subproofTuple)) {
                             isDiffPlus = true;
                         }
 
-                        if (contains(diffCache["actual_diff_minus@_" + relName], actualTup)) {
+                        if (contains(diffCache["actual_diff_minus@_" + bodyRelAtomName], subproofTuple)) {
                             isDiffMinus = true;
                         }
                         /*
