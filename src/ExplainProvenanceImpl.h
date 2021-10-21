@@ -146,6 +146,11 @@ public:
             if (contains(diffCache["actual_diff_minus@_" + relName], tuple)) {
                 isDiffMinus = true;
             }
+
+            if (isDiffPlus && isDiffMinus) {
+                isDiffPlus = false;
+                isDiffMinus = false;
+            }
         }
 
         // make return vector pointer
@@ -267,6 +272,11 @@ public:
 
                         if (contains(diffCache["actual_diff_minus@_" + bodyRelAtomName], subproofTuple)) {
                             isDiffMinus = true;
+                        }
+
+                        if (isDiffPlus && isDiffMinus) {
+                            isDiffPlus = false;
+                            isDiffMinus = false;
                         }
                         /*
 
