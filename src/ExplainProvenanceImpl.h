@@ -153,8 +153,6 @@ public:
             }
         }
 
-        std::cout << "isDiffPlus: " << isDiffPlus << ", isDiffMinus: " << isDiffMinus << std::endl;
-
         // make return vector pointer
         std::vector<RamDomain> ret;
         std::vector<bool> err;
@@ -171,8 +169,6 @@ public:
         // execute subroutine to get subproofs
         // prog.executeSubroutine(relName + "_" + std::to_string(ruleNum) + "_subproof", tuple, ret, err);
         prog.executeSubroutine(relName + "_subproof", tuple, ret, err);
-
-        std::cout << "getting subproofs for " << relName << tuple << ": " << ret << std::endl;
 
         // std::cout << "subproof subroutine return: " << ret << std::endl;
 
