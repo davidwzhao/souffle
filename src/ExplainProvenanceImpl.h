@@ -91,11 +91,12 @@ public:
         }
         */
 
-        assert(info.find(std::make_pair(relName, ruleNum)) != info.end() && "invalid rule for tuple");
+        // assert(info.find(std::make_pair(relName, ruleNum)) != info.end() && "invalid rule for tuple");
 
         // if depth limit exceeded
         if (depthLimit <= 1) {
-            tuple.push_back(ruleNum);
+            // tuple.push_back(ruleNum);
+            tuple.push_back(0); // just a dummy number for now
             tuple.push_back(levelNum);
 
             for (auto subtreeLevel : subtreeLevels) {
@@ -152,6 +153,8 @@ public:
             }
         }
 
+        std::cout << "isDiffPlus: " << isDiffPlus << ", isDiffMinus: " << isDiffMinus << std::endl;
+
         // make return vector pointer
         std::vector<RamDomain> ret;
         std::vector<bool> err;
@@ -168,6 +171,8 @@ public:
         // execute subroutine to get subproofs
         // prog.executeSubroutine(relName + "_" + std::to_string(ruleNum) + "_subproof", tuple, ret, err);
         prog.executeSubroutine(relName + "_subproof", tuple, ret, err);
+
+        std::cout << "getting subproofs for " << relName << tuple << ": " << ret << std::endl;
 
         // std::cout << "subproof subroutine return: " << ret << std::endl;
 
@@ -393,7 +398,7 @@ public:
 
         tup.erase(tup.begin() + rel->getArity() - rel->getNumberOfHeights() - 1, tup.end());
 
-        return explain(relName, tup, ruleNum, levelNum, subtreeLevels, depthLimit);
+        return explain(relName, tup, /* ruleNum, */ levelNum, subtreeLevels, depthLimit);
     }
 
     std::vector<std::string> explainNegationGetVariables(
@@ -698,7 +703,7 @@ public:
             }
 
             std::cout << "Tuples expanded: "
-                      << explain(relName, currentTuple, ruleNum, levelNum, subtreeLevels, 10000)->getSize();
+                      << explain(relName, currentTuple, /* ruleNum, */ levelNum, subtreeLevels, 10000)->getSize();
 
             numTuples++;
             proc++;
