@@ -769,6 +769,26 @@ std::unique_ptr<RamOperation> AstTranslator::ProvenanceClauseTranslator::createO
                     isCountArg = true;
                     break;
                 }
+
+                if (auto func = dynamic_cast<AstIntrinsicFunctor*>(con->getLHS())) {
+                    for (auto a : func->getArguments()) {
+                        if (*a == *arg || dynamic_cast<AstSubroutineArgument*>(a)) {
+                            isCountArg = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (auto func = dynamic_cast<AstIntrinsicFunctor*>(con->getRHS())) {
+                    for (auto a : func->getArguments()) {
+                        if (*a == *arg || dynamic_cast<AstSubroutineArgument*>(a)) {
+                            isCountArg = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (isCountArg) break;
             }
 
             if (isCountArg) continue;
@@ -5829,6 +5849,8 @@ std::unique_ptr<RamStatement> AstTranslator::makeSubproofSubroutine(const AstCla
 
         // intermediateClause->getHead()->setName(translateDiffAppliedRelation(getAtomRelation(intermediateClause->getHead(), program))->get()->getName());
 
+        std::vector<std::unique_ptr<AstArgument>> bodyHeightArgs;
+
         // add level constraints
         for (size_t i = 0; i < intermediateClause->getBodyLiterals().size(); i++) {
             auto lit = intermediateClause->getBodyLiteral(i);
@@ -5847,9 +5869,23 @@ std::unique_ptr<RamStatement> AstTranslator::makeSubproofSubroutine(const AstCla
                     intermediateClause->addToBody(std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::LT,
                             std::unique_ptr<AstArgument>(atom->getArgument(arity - 2)->clone()),
                             std::make_unique<AstSubroutineArgument>(levelIndex)));
+
+                    bodyHeightArgs.push_back(std::unique_ptr<AstArgument>(atom->getArgument(arity - 2)->clone()));
                 }
             }
         }
+
+        if (bodyHeightArgs.size() > 0) {
+            // create a constraint that says max body height must be equal to head height - 1
+            auto bodyHeightMaxCheck = std::make_unique<AstBinaryConstraint>(BinaryConstraintOp::EQ,
+                        std::make_unique<AstIntrinsicFunctor>(FunctorOp::MAX, std::move(bodyHeightArgs)),
+                        std::make_unique<AstIntrinsicFunctor>(FunctorOp::SUB,
+                            std::make_unique<AstSubroutineArgument>(levelIndex),
+                            std::make_unique<AstNumberConstant>(1)));
+
+            intermediateClause->addToBody(std::move(bodyHeightMaxCheck));
+        }
+
     }
 
     std::cout << "producing subproof from clause " << *intermediateClause << std::endl;

@@ -200,8 +200,8 @@ bool MaxMinConditionsTransformer::transformMaxMinConditions(RamProgram& program)
                         // if LHS of a constraint is a max functor, then we can rewrite if the constraint
                         // is <, <=, or ==
                         // TODO: check if this needs to be extended for other data types
-                        if (constr->getOperator() == BinaryConstraintOp::LE ||
-                                constr->getOperator() == BinaryConstraintOp::EQ) {
+                        if (constr->getOperator() == BinaryConstraintOp::LE /* ||
+                                constr->getOperator() == BinaryConstraintOp::EQ */) {
                             // create a filter of expanded conditions
                             node = expandConditions(BinaryConstraintOp::LE, args, constr->getRHS());
                             changed = true;
@@ -213,8 +213,8 @@ bool MaxMinConditionsTransformer::transformMaxMinConditions(RamProgram& program)
                     } else if (expr->getOperator() == FunctorOp::MIN) {
                         // if LHS of a constraint is a min functor, then we can rewrite if the constraint
                         // is >, >=, or ==
-                        if (constr->getOperator() == BinaryConstraintOp::GE ||
-                                constr->getOperator() == BinaryConstraintOp::EQ) {
+                        if (constr->getOperator() == BinaryConstraintOp::GE /* ||
+                                constr->getOperator() == BinaryConstraintOp::EQ */) {
                             // create a filter of expanded conditions
                             node = expandConditions(BinaryConstraintOp::GE, args, constr->getRHS());
                             changed = true;
@@ -231,8 +231,8 @@ bool MaxMinConditionsTransformer::transformMaxMinConditions(RamProgram& program)
                     if (expr->getOperator() == FunctorOp::MAX) {
                         // if RHS of a constraint is a max functor, then we can rewrite if the constraint
                         // is >, >=, or ==
-                        if (constr->getOperator() == BinaryConstraintOp::GE ||
-                                constr->getOperator() == BinaryConstraintOp::EQ) {
+                        if (constr->getOperator() == BinaryConstraintOp::GE /* ||
+                                constr->getOperator() == BinaryConstraintOp::EQ */) {
                             // create a filter of expanded conditions
                             node = expandConditions(BinaryConstraintOp::LE, args, constr->getLHS());
                             changed = true;
@@ -244,8 +244,8 @@ bool MaxMinConditionsTransformer::transformMaxMinConditions(RamProgram& program)
                     } else if (expr->getOperator() == FunctorOp::MIN) {
                         // if RHS of a constraint is a min functor, then we can rewrite if the constraint
                         // is <, <=, or ==
-                        if (constr->getOperator() == BinaryConstraintOp::LE ||
-                                constr->getOperator() == BinaryConstraintOp::EQ) {
+                        if (constr->getOperator() == BinaryConstraintOp::LE /* ||
+                                constr->getOperator() == BinaryConstraintOp::EQ */) {
                             // create a filter of expanded conditions
                             node = expandConditions(BinaryConstraintOp::GE, args, constr->getLHS());
                             changed = true;
