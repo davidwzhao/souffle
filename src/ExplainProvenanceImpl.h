@@ -355,17 +355,59 @@ public:
             return std::make_unique<LeafNode>("Relation not found");
         }
 
-        std::tuple<int, int, std::vector<RamDomain>> tupleInfo = findTuple(relName, tuple);
+        std::vector<std::tuple<int, int>> tupleInfo = findTuple(relName, tuple);
+        std::vector<std::unique_ptr<TreeNode>> explanations;
 
-        // int ruleNum = std::get<1>(tupleInfo);
-        int levelNum = std::get<0>(tupleInfo);
-        std::vector<RamDomain> subtreeLevels = std::get<2>(tupleInfo);
+        for (auto tup : tupleInfo) {
+            int levelNum = std::get<0>(tup);
 
-        if (/*ruleNum < 0 || */ levelNum == -1) {
-            return std::make_unique<LeafNode>("Tuple not found");
+            if (levelNum == -1) {
+                return std::make_unique<LeafNode>("Tuple not found");
+            }
+
+            explanations.push_back(explain(relName, tuple, levelNum, std::vector<RamDomain>(), depthLimit, checkDiffs, allDiffs));
         }
 
-        return explain(relName, tuple, levelNum, subtreeLevels, depthLimit, checkDiffs, allDiffs);
+        // int ruleNum = std::get<1>(tupleInfo);
+        // int levelNum = std::get<0>(tupleInfo);
+        // std::vector<RamDomain> subtreeLevels = std::get<2>(tupleInfo);
+
+        // if (/*ruleNum < 0 || */ levelNum == -1) {
+        //     return std::make_unique<LeafNode>("Tuple not found");
+        // }
+
+        if (explanations.size() == 0) {
+            // something went wrong???
+            return std::make_unique<LeafNode>("No subproofs constructed");
+        }
+
+        // merge all explanations together
+        auto result = explanations[0]->clone();
+
+        if (dynamic_cast<LeafNode*>(result)) {
+            return std::unique_ptr<TreeNode>(result);
+        }
+
+        auto resultTree = dynamic_cast<InnerNode*>(result);
+
+        size_t currentChildNum = 1;
+
+        for (size_t i = 1; i < explanations.size(); i++) {
+            if (auto e = dynamic_cast<InnerNode*>(explanations[i].get())) {
+                // for (std::pair<size_t, std::vector<std::unique_ptr<TreeNode>>>& c : e->get_children()) {
+                for (auto& c : e->get_children()) {
+                    for (size_t j = 0; j < c.second.size(); j++) {
+                        resultTree->add_child(std::unique_ptr<TreeNode>(c.second[j]->clone()), currentChildNum + c.first, e->get_labels().at(std::get<0>(c)));
+                    }
+                }
+
+                currentChildNum++;
+            }
+        }
+
+        return std::unique_ptr<TreeNode>(resultTree);
+
+        // return explain(relName, tuple, levelNum, subtreeLevels, depthLimit, checkDiffs, allDiffs);
     }
 
     std::unique_ptr<TreeNode> explainSubproof(
@@ -402,8 +444,8 @@ public:
         std::vector<std::string> variables;
 
         // check that the tuple actually doesn't exist
-        std::tuple<int, int, std::vector<RamDomain>> foundTuple =
-                findTuple(relName, argsToNums(relName, args));
+        std::tuple<int, int> foundTuple =
+                findTuple(relName, argsToNums(relName, args))[0];
         if (std::get<0>(foundTuple) != -1 || std::get<1>(foundTuple) != -1) {
             // return a sentinel value
             return std::vector<std::string>({"@"});
@@ -934,7 +976,7 @@ private:
 
     std::map<std::string, std::set<std::vector<RamDomain>>> diffCache;
 
-    std::tuple<int, int, std::vector<RamDomain>> findTuple(
+    std::vector<std::tuple<int, int>> findTuple(
             const std::string& relName, std::vector<RamDomain> tup) {
         std::vector<RamDomain> ret;
         std::vector<bool> err;
@@ -942,13 +984,24 @@ private:
         prog.executeSubroutine(relName + "_search", tup, ret, err);
 
         if (ret.size() == 0) {
-            return std::make_tuple(-1, -1, std::vector<RamDomain>());
+            return {std::make_tuple(-1, -1)};
         }
 
-        auto heightNum = ret[ret.size() - 2];
-        auto countNum = ret[ret.size() - 1];
+        std::vector<std::tuple<int, int>> result;
 
-        return std::make_tuple(heightNum, countNum, std::vector<RamDomain>());
+        size_t arity = tup.size();
+        size_t curTupEndIdx = arity - 1;
+
+        while (curTupEndIdx < ret.size()) {
+            auto heightNum = ret[curTupEndIdx + 1];
+            auto countNum = ret[curTupEndIdx + 2];
+
+            result.push_back(std::make_tuple(heightNum, countNum));
+
+            curTupEndIdx += arity + 2;
+        }
+
+        return result;
     }
 
     /*

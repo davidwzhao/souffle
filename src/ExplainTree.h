@@ -149,6 +149,14 @@ public:
         labels[proofNum] = label;
     }
 
+    std::map<size_t, std::vector<std::unique_ptr<TreeNode>>>& get_children() {
+        return children;
+    }
+
+    std::map<size_t, std::string>& get_labels() {
+        return labels;
+    }
+
     // place node and its sub-trees
     void place(uint32_t x, uint32_t y) override {
         // there must exist at least one kid

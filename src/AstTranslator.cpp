@@ -5669,7 +5669,7 @@ std::unique_ptr<RamStatement> AstTranslator::makeRelationSearchSubroutine(const 
                     std::make_unique<RamTupleElement>(0, rel.get()->getArity() - 1), std::make_unique<RamNumber>(0)));
     }
 
-    auto matchingTupleFilter = std::make_unique<RamFilter>(std::move(checkMatchingTuple), std::make_unique<RamSubroutineReturnValue>(std::move(values), true));
+    auto matchingTupleFilter = std::make_unique<RamFilter>(std::move(checkMatchingTuple), std::make_unique<RamSubroutineReturnValue>(std::move(values)));
 
     // scan the relation
     auto scan = std::make_unique<RamScan>(std::unique_ptr<RamRelationReference>(rel.clone()), 0, std::move(matchingTupleFilter));
