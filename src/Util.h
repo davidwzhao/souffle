@@ -1482,6 +1482,14 @@ inline bool isHintsProfilingEnabled() {
 }
 
 /**
+ * A utility function to determine whether hints-profiling is enabled or
+ * disabled;
+ */
+inline bool isRuntimePrintingEnabled() {
+    return std::getenv("SOUFFLE_PRINT_RUNTIME");
+}
+
+/**
  * A utility class to keep track of cache hits/misses.
  */
 class CacheAccessCounter {
